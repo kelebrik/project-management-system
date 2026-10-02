@@ -73,6 +73,11 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(closedRow).toContainText("Closed issue");
 
   const row = page.locator(".open-issues-prototype-row").first();
+  // Spaces typed around a title are not saved.
+  await row.getByLabel("Issue title").fill("  Trimmed issue title  ");
+  await row.getByLabel("Issue title").blur();
+  await expect.poll(() => issuePatch).toEqual({ title: "Trimmed issue title" });
+  await expect(row.getByLabel("Issue title")).toHaveValue("Trimmed issue title");
   await expect(row.getByLabel("Issue title")).toBeEditable();
   await expect(row.getByLabel("New status text")).toHaveCount(0);
   await expect(row.getByLabel("Status date")).toHaveText(/\d{2}[./]\d{2}[./]\d{4}/);
@@ -107,7 +112,8 @@ test("questions prototype exposes editable fields and expanded actions", async (
   expect(cellBox).not.toBeNull();
   expect(controlBox).not.toBeNull();
   expect(controlBox!.width).toBeGreaterThanOrEqual(cellBox!.width - 2);
-  expect(await readinessControl.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(63, 133, 94)");
+  // Readiness stays quiet next to priority: a soft tint of its colour, not a solid fill.
+  expect(await readinessControl.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(220, 235, 225)");
 
   await row.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
@@ -124,11 +130,15 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(actionsHeader).toHaveText("");
   expect((await actionsHeader.boundingBox())!.width).toBeLessThan(100);
   await actionRow.getByRole("button", { name: "Jira", exact: true }).click();
+  // A saved link is shown as a link to follow; the pencil turns it into a field.
+  await expect(actionRow.getByRole("link", { name: "TV-123" })).toHaveAttribute("href", "https://jira.example.test/browse/TV-123");
+  await actionRow.getByRole("button", { name: "Edit link", exact: true }).click();
   await expect(actionRow.getByLabel("Jira link")).toHaveValue("https://jira.example.test/browse/TV-123");
   await actionRow.getByLabel("Jira link").fill("https://jira.example.test/browse/TV-456");
   await actionRow.locator(".open-issues-prototype-editor").getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => issuePatch).toEqual({ jiraTicketKey: "TV-456" });
   await actionRow.getByRole("button", { name: "MM", exact: true }).click();
+  await actionRow.getByRole("button", { name: "Edit link", exact: true }).click();
   await actionRow.getByLabel("MM link").fill("https://mm.sberdevices.ru/team/pl/abc/threads/def");
   await actionRow.locator(".open-issues-prototype-editor").getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(() => threadPayload).toEqual({ threadUrl: "https://mm.sberdevices.ru/team/pl/abc/threads/def" });

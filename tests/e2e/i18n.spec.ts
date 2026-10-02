@@ -55,20 +55,3 @@ test("WBS fullscreen, export controls and baseline dialog follow the locale", as
   await expect(dialog).toContainText('Зафиксировать базовый план?');
 });
 
-test('Risk title spans its cell with the edit button below', async ({ page }) => {
-  await page.route((url) => url.pathname.startsWith('/api/'), route => route.fulfill({ json: [] }));
-  const project = await mockAdminProject(page, fixture => {
-    fixture.raidItems[0].title = 'High delivery risk';
-    Object.assign(fixture.issues[0], { riskId: fixture.raidItems[0].id });
-  });
-  await page.goto(`/${project.code}/issues`);
-  const control = page.locator('.issue-risk-control').first();
-  const link = control.locator('.issue-risk-link');
-  await expect(link).toHaveText('High delivery risk');
-  const title = await link.boundingBox();
-  const button = await control.locator('button').boundingBox();
-  const cell = await control.boundingBox();
-  expect(title).not.toBeNull();
-  expect(button!.y).toBeGreaterThanOrEqual(title!.y + title!.height);
-  expect(title!.width).toBeGreaterThanOrEqual(cell!.width - 1);
-});

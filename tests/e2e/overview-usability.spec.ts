@@ -1,19 +1,27 @@
 import { expect, test } from "./fixtures";
-import { projectPagePath } from "./project-routes";
+import { LIVE_API_REASON, liveApiAvailable, projectPagePath } from "./project-routes";
 
-test("schedule milestone PDF fits one A4 landscape page", async ({ page }) => {
+// These read live data: they run against a real API and skip next to the web dev server alone.
+test.beforeEach(async ({ page }) => {
+  test.skip(!(await liveApiAvailable(page)), LIVE_API_REASON);
+});
+
+test("the schedule PDF prints one A4 landscape page per part", async ({ page }) => {
   await page.goto(await projectPagePath(page, "schedule"));
   await expect(page).toHaveURL(/\/[^/]+\/schedule$/);
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
 
-  for (const sectionId of ["milestones-by-phase"]) {
+  // The page's "Save as PDF" prints the whole schedule document, one sheet per part.
+  for (const sectionId of ["project-schedule-print"]) {
+    // The same marks printSectionAsPdf puts on the page: both the root and the body.
     await page.evaluate((target) => {
+      document.documentElement.dataset.printTarget = target;
       document.body.dataset.printTarget = target;
     }, sectionId);
     await page.emulateMedia({ media: "print" });
 
     const metrics = await page.evaluate((target) => {
-      const section = document.getElementById(target);
+      const section = document.querySelector(`[data-print-section="${target}"]`) ?? document.getElementById(target);
       const rect = section?.getBoundingClientRect();
       const graph = section?.querySelector(
         ".milestone-timeline, .milestone-snake-shell",
@@ -49,10 +57,13 @@ test("schedule milestone PDF fits one A4 landscape page", async ({ page }) => {
       printBackground: true,
     });
     expect(pdf.length).toBeGreaterThan(10_000);
-    expect(countPdfPages(pdf)).toBe(1);
+    const parts = await page.locator(".schedule-print-page").count();
+    expect(parts).toBeGreaterThan(0);
+    expect(countPdfPages(pdf)).toBe(parts);
 
     await page.emulateMedia({ media: "screen" });
     await page.evaluate(() => {
+      delete document.documentElement.dataset.printTarget;
       delete document.body.dataset.printTarget;
     });
   }

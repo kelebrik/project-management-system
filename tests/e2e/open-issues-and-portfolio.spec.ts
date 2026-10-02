@@ -71,7 +71,7 @@ test("new open issue keeps inline register fields in the create request", async 
   expect(createPayload).not.toHaveProperty("jiraTicketUrl");
   await expect(page.locator("#issue-item-issue-created")).toBeVisible();
 });
-test("ordinary issue editor gets an explicit error when selecting a WBS phase", async ({ page }) => {
+test("an ordinary editor sees the server refuse a WBS phase and the issue keeps its phase", async ({ page }) => {
   await mockAdminProject(page, (fixture) => {
     fixture.currentUserAccessLevel = "EDIT";
     fixture.wbsItems.unshift({
@@ -119,11 +119,18 @@ test("ordinary issue editor gets an explicit error when selecting a WBS phase", 
   await expect.poll(() => ordinaryPatches).toContainEqual({
     title: "Обычный пользователь обновил вопрос",
   });
-  const phaseSelect = row.getByLabel("Фаза проекта");
-  await phaseSelect.selectOption("phase-restricted");
-  await expect(page.getByText("Недостаточно прав для выбора фазы и создания пакета работ").first()).toBeVisible();
-  await expect(phaseSelect).toHaveValue("");
-  expect(phasePatchCalled).toBe(false);
+  // The phase is chosen from the row's actions; the server decides who may attach a work package
+  // to a phase, and its refusal is shown while the issue keeps its phase.
+  await row.getByRole("button", { name: "Развернуть", exact: true }).click();
+  const actions = page.locator(".open-issues-prototype-actions-row").first();
+  await actions.getByRole("button", { name: "Фаза", exact: true }).click();
+  await actions.locator(".open-issues-prototype-editor select").selectOption("phase-restricted");
+  await actions.locator(".open-issues-prototype-editor").getByRole("button", { name: "Сохранить", exact: true }).click();
+  await expect.poll(() => phasePatchCalled).toBe(true);
+  await expect(page.getByText("Недостаточно прав").first()).toBeVisible();
+  await actions.getByRole("button", { name: "Фаза", exact: true }).click();
+  await actions.getByRole("button", { name: "Фаза", exact: true }).click();
+  await expect(actions.locator(".open-issues-prototype-editor select")).toHaveValue("");
 });
 
 test("open issues register keeps its table geometry on a narrow viewport", async ({ page }) => {
@@ -141,6 +148,8 @@ test("open issues register keeps its table geometry on a narrow viewport", async
   }));
   expect(dimensions.scrollWidth).toBeGreaterThan(dimensions.clientWidth);
   await expect(page.locator("#issue-item-issue-1").getByLabel("Название вопроса")).toBeVisible();
+  // The scrolling table can be reached from the keyboard.
+  await expect(region).toHaveAttribute("tabindex", "0");
 });
 
 test("portfolio and projects show work-day weighted progress", async ({ page }) => {

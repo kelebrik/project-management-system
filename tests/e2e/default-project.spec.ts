@@ -12,8 +12,9 @@ function projectsFixture() {
     return {
       ...project, id: code.toLowerCase(), code, name: code, status,
       _count: { ...project._count, wbsItems: count },
+      // Top-level rows with matching codes, so nothing looks like an unsaved edit.
       wbsItems: Array.from({ length: visible }, (_, index) => ({
-        ...project.wbsItems[0], id: `${code}-${index}`, code: `${index + 1}`,
+        ...project.wbsItems[0], id: `${code}-${index}`, code: `${index + 1}`, parentId: null, wbsLevel: 1, sortOrder: (index + 1) * 10,
       })),
     };
   });

@@ -156,7 +156,7 @@ test("project header uses the next goal baseline and shows the full forecast", a
   ).toBeVisible();
   const forecast = page.locator(".topbar-project-forecast");
   await expect(forecast).toHaveText(
-    `Прогноз "${nextGoalTitle}": ${displayDate(isoDay(18))}`,
+    `Прогноз «${nextGoalTitle}»: ${displayDate(isoDay(18))}`,
   );
   const forecastLayout = await forecast.evaluate((element) => ({
     clientWidth: element.clientWidth,
@@ -232,7 +232,7 @@ test("project header keeps goal dates consistent without project target history"
   await expect(badges).not.toContainText("Актуальная:");
   await expect(badges.getByText("Отставание +3 дн.", { exact: true })).toBeVisible();
   await expect(badges.locator(".topbar-project-forecast")).toHaveText(
-    `Прогноз "Ближайшая цель": ${displayDate(isoDay(15))}`,
+    `Прогноз «Ближайшая цель»: ${displayDate(isoDay(15))}`,
   );
   await expect(badges).not.toContainText(displayDate(isoDay(-60)));
 });
@@ -280,7 +280,7 @@ test("project header keeps the project target pair when the active goal has no b
   ).toBeVisible();
   await expect(badges).not.toContainText("Актуальная:");
   await expect(badges.locator(".topbar-project-forecast")).toHaveText(
-    `Прогноз "Ближайшая цель": ${displayDate(isoDay(10))}`,
+    `Прогноз «Ближайшая цель»: ${displayDate(isoDay(10))}`,
   );
 });
 
@@ -316,7 +316,7 @@ test("project header does not duplicate an approved target date without active g
   ).toBeVisible();
   await expect(badges).not.toContainText("Актуальная:");
   await expect(badges.locator(".topbar-project-forecast")).toContainText(
-    'Прогноз "ближайшая цель":',
+    'Прогноз «ближайшая цель»:',
   );
 });
 
@@ -509,7 +509,10 @@ test("Gantt keeps old project work available in a short range", async ({ page })
 });
 
 test("overview entries expand statuses and open the selected issue", async ({ page }) => {
-  await mockAdminProject(page);
+  // The overview lists issues that need a decision by criticality and readiness.
+  await mockAdminProject(page, (fixture) => {
+    Object.assign(fixture.issues[0], { severity: "CRITICAL", readiness: "RED" });
+  });
   await page.goto("/TV-OVERVIEW/overview");
 
   await page.getByRole("button", { name: "Показать статусы: Риск интеграции" }).click();
@@ -529,277 +532,3 @@ test("overview entries expand statuses and open the selected issue", async ({ pa
   await expect(page.locator("#issue-item-issue-1")).toBeVisible();
 });
 
-test("open issues register edits cells, phase, widths, and adds a current-date status", async ({ page }) => {
-  const project = await mockAdminProject(page, (fixture) => {
-    fixture.wbsItems.unshift({
-      ...fixture.wbsItems[0],
-      id: "phase-issues",
-      parentId: null,
-      code: "1",
-      title: "Подготовка выпуска",
-      type: "PHASE",
-      wbsLevel: 1,
-      sortOrder: 0,
-    });
-  });
-  const issue = project.issues[0];
-  const linkedRisk = project.raidItems.find((item) => item.type === "RISK")!;
-  linkedRisk.status = "CLOSED";
-  issue.riskId = linkedRisk.id;
-  issue.source = "JIRA";
-  issue.jiraTicketKey = "CVTE-1801";
-  issue.jiraTicketUrl = "https://jira.example.test/browse/CVTE-1801";
-  issue.jiraLinks = [{
-    id: "issue-link-1",
-    issueId: issue.id,
-    jiraKey: "CVTE-1801",
-    jiraUrl: "https://jira.example.test/browse/CVTE-1801",
-    createdAt: `${isoDay(-2)}T12:00:00.000Z`,
-    updatedAt: `${isoDay(-2)}T12:00:00.000Z`,
-  }];
-  const issuePatches: Record<string, unknown>[] = [];
-  let statusPayload: Record<string, unknown> | null = null;
-  let jiraLinkPayload: Record<string, unknown> | null = null;
-  let uiStatePayload: Record<string, unknown> | null = null;
-
-  await page.route("**/api/open-issues/issue-1", async (route) => {
-    const patch = route.request().postDataJSON() as Record<string, unknown>;
-    issuePatches.push(patch);
-    if (patch.owner === "Ошибка сохранения") {
-      await route.fulfill({ status: 500, json: { error: "Тестовая ошибка сохранения" } });
-      return;
-    }
-    await new Promise((resolve) => setTimeout(resolve, "title" in patch ? 120 : 10));
-    Object.assign(issue, patch);
-    if (patch.phaseId) {
-      issue.workPackageId = "work-package-issue-1";
-      if (!project.wbsItems.some((item) => item.id === issue.workPackageId)) {
-        project.wbsItems.push({
-          ...project.wbsItems[0],
-          id: issue.workPackageId,
-          parentId: String(patch.phaseId),
-          code: "1.1",
-          title: issue.title,
-          type: "WORK_PACKAGE",
-          wbsLevel: 2,
-          sortOrder: 1,
-        });
-      }
-    }
-    await route.fulfill({ json: issue });
-  });
-  await page.route("**/api/projects/project-1", async (route) => {
-    const patch = route.request().postDataJSON() as { uiState?: Record<string, unknown> };
-    uiStatePayload = patch.uiState ?? null;
-    project.uiState = { ...project.uiState, ...(patch.uiState ?? {}) };
-    await route.fulfill({ json: { ...project, uiState: project.uiState } });
-  });
-  await page.route("**/api/open-issues/issue-1/status-updates", async (route) => {
-    statusPayload = route.request().postDataJSON() as Record<string, unknown>;
-    const update = {
-      id: "issue-status-new",
-      issueId: issue.id,
-      statusAt: isoDay(0),
-      text: String(statusPayload.text),
-      createdAt: `${isoDay(0)}T12:00:00.000Z`,
-      updatedAt: `${isoDay(0)}T12:00:00.000Z`,
-    };
-    issue.statusUpdates.unshift(update);
-    await route.fulfill({ status: 201, json: update });
-  });
-  await page.route("**/api/open-issues/issue-1/jira-links", async (route) => {
-    jiraLinkPayload = route.request().postDataJSON() as Record<string, unknown>;
-    const jiraKey = String(jiraLinkPayload.jiraKey).trim().toUpperCase();
-    const link = {
-      id: `issue-link-${issue.jiraLinks.length + 1}`,
-      issueId: issue.id,
-      jiraKey,
-      jiraUrl: `https://jira.example.test/browse/${jiraKey}`,
-      createdAt: `${isoDay(0)}T12:00:00.000Z`,
-      updatedAt: `${isoDay(0)}T12:00:00.000Z`,
-    };
-    issue.jiraLinks.push(link);
-    await route.fulfill({ status: 201, json: link });
-  });
-  await page.route("**/api/open-issues/issue-1/thread-links", async (route) => {
-    const payload = route.request().postDataJSON() as { threadUrl: string };
-    const link = {
-      id: `thread-link-${issue.threadLinks.length + 1}`,
-      issueId: issue.id,
-      threadUrl: payload.threadUrl,
-      createdAt: `${isoDay(0)}T12:00:00.000Z`,
-    };
-    issue.threadLinks.push(link);
-    await route.fulfill({ status: 201, json: link });
-  });
-  await page.route("**/api/open-issues/issue-1/thread-links/thread-link-1", async (route) => {
-    if (route.request().method() === "PATCH") {
-      const payload = route.request().postDataJSON() as { threadUrl: string };
-      issue.threadLinks[0].threadUrl = payload.threadUrl;
-      await route.fulfill({ json: issue.threadLinks[0] });
-      return;
-    }
-    issue.threadLinks = issue.threadLinks.filter((link) => link.id !== "thread-link-1");
-    await route.fulfill({ status: 204 });
-  });
-  await page.route("**/api/open-issues/issue-1/jira-links/issue-link-1", async (route) => {
-    if (route.request().method() === "PATCH") {
-      jiraLinkPayload = route.request().postDataJSON() as Record<string, unknown>;
-      const jiraKey = String(jiraLinkPayload.jiraKey).trim().toUpperCase();
-      issue.jiraLinks[0].jiraKey = jiraKey;
-      issue.jiraLinks[0].jiraUrl = `https://jira.example.test/browse/${jiraKey}`;
-      issue.jiraTicketKey = jiraKey;
-      issue.jiraTicketUrl = issue.jiraLinks[0].jiraUrl;
-      await route.fulfill({ json: issue.jiraLinks[0] });
-      return;
-    }
-    issue.jiraLinks = [];
-    issue.jiraTicketKey = null;
-    issue.jiraTicketUrl = null;
-    issue.source = "INTERNAL";
-    await route.fulfill({ status: 204 });
-  });
-
-  await page.setViewportSize({ width: 1920, height: 1080 });
-  await page.goto("/TV-OVERVIEW/issues");
-  const row = page.locator("#issue-item-issue-1");
-  const title = row.getByLabel("Название вопроса");
-  const owner = row.getByLabel("Ответственный");
-  await title.fill("  Согласовать обновлённую дату запуска  ");
-  await title.blur();
-  await owner.fill("Владелец запуска");
-  await owner.blur();
-  await expect.poll(() => issuePatches).toEqual([
-    { title: "Согласовать обновлённую дату запуска" },
-    { owner: "Владелец запуска" },
-  ]);
-  await expect(title).toHaveValue("Согласовать обновлённую дату запуска");
-  await expect(owner).toHaveValue("Владелец запуска");
-
-  await row.getByRole("button", { name: "Изменить ссылку на трэд" }).click();
-  const threadUrl = row.getByLabel("URL трэда");
-  await threadUrl.fill("https://example.test/updated-thread");
-  await threadUrl.blur();
-  await expect(row.getByRole("link", { name: "Трэд" })).toHaveAttribute(
-    "href",
-    "https://example.test/updated-thread",
-  );
-  const additionalThreadUrl = row.getByLabel("URL дополнительного трэда");
-  await additionalThreadUrl.fill("https://example.test/second-thread");
-  await row.getByRole("button", { name: "Добавить трэд" }).click();
-  await expect(row.getByRole("link", { name: "Трэд" })).toHaveCount(2);
-  await row.getByRole("button", { name: "Удалить ссылку на трэд" }).first().click();
-  await expect(row.getByRole("link", { name: "Трэд" })).toHaveCount(1);
-  await expect(row.getByRole("link", { name: "CVTE-1801" })).toBeVisible();
-  await row.getByRole("button", { name: "Изменить ключ CVTE-1801" }).click();
-  const jiraKeyEditor = row.getByLabel("Ключ тикета CVTE-1801");
-  await jiraKeyEditor.fill("sps-42");
-  await jiraKeyEditor.blur();
-  await expect.poll(() => jiraLinkPayload).toEqual({ jiraKey: "sps-42" });
-  await expect(row.getByRole("link", { name: "SPS-42" })).toHaveAttribute(
-    "href",
-    "https://jira.example.test/browse/SPS-42",
-  );
-  const additionalJiraKey = row.getByLabel("Ключ дополнительного тикета");
-  await expect(additionalJiraKey).toBeVisible();
-  await additionalJiraKey.fill("cvte-2000");
-  await row.getByRole("button", { name: "Сохранить ссылку на тикет" }).click();
-  await expect.poll(() => jiraLinkPayload).toEqual({ jiraKey: "cvte-2000" });
-  await expect(row.getByRole("link", { name: "CVTE-2000" })).toBeVisible();
-  jiraLinkPayload = null;
-  await row.getByRole("button", { name: "Изменить ключ CVTE-2000" }).click();
-  const cancelledJiraKeyEditor = row.getByLabel("Ключ тикета CVTE-2000");
-  await cancelledJiraKeyEditor.fill("STAROS-999");
-  await cancelledJiraKeyEditor.press("Escape");
-  await expect(row.getByRole("link", { name: "CVTE-2000" })).toBeVisible();
-  await expect(row.getByRole("link", { name: "STAROS-999" })).toHaveCount(0);
-  expect(jiraLinkPayload).toBeNull();
-
-  const taskResizer = page.getByLabel("Изменить ширину колонки Задача");
-  const taskResizerBox = await taskResizer.boundingBox();
-  expect(taskResizerBox).not.toBeNull();
-  await page.mouse.move(taskResizerBox!.x + 5, taskResizerBox!.y + 5);
-  await page.mouse.down();
-  await page.mouse.move(taskResizerBox!.x + 45, taskResizerBox!.y + 5);
-  await page.mouse.up();
-  await expect.poll(() => {
-    const widths = uiStatePayload?.openIssueColumnWidths as Record<string, number> | undefined;
-    return widths?.task ?? 0;
-  }).toBeGreaterThan(250);
-
-  const riskResizer = page.getByLabel("Изменить ширину колонки Риски");
-  const riskResizerBox = await riskResizer.boundingBox();
-  expect(riskResizerBox).not.toBeNull();
-  await page.mouse.move(riskResizerBox!.x + 5, riskResizerBox!.y + 5);
-  await page.mouse.down();
-  await page.mouse.move(riskResizerBox!.x + 165, riskResizerBox!.y + 5);
-  await page.mouse.up();
-  await expect.poll(() => {
-    const widths = uiStatePayload?.openIssueColumnWidths as Record<string, number> | undefined;
-    return widths?.risk ?? 0;
-  }).toBeGreaterThan(112);
-
-  await row.getByLabel("Раздел вопроса").fill("ChangHong");
-  await row.getByLabel("Раздел вопроса").blur();
-  await expect(page.getByRole("rowgroup").filter({ hasText: "ChangHong" })).toContainText(
-    "Согласовать обновлённую дату запуска",
-  );
-  await row.getByLabel("Готовность").selectOption("GREEN");
-  await expect.poll(() => issuePatches).toContainEqual({ readiness: "GREEN" });
-  await expect.poll(() => issue.readiness).toBe("GREEN");
-  await expect(row.getByLabel("Готовность")).toHaveAttribute("title", "Готовность: Зелёная");
-  const readinessControl = row.getByLabel("Готовность");
-  const readinessBox = await readinessControl.boundingBox();
-  expect(readinessBox?.width).toBeLessThanOrEqual(32);
-  await readinessControl.focus();
-  await expect(readinessControl).toBeFocused();
-  await expect.poll(() => readinessControl.evaluate((element) => getComputedStyle(element).boxShadow))
-    .toContain("rgb(23, 32, 51)");
-  const riskTextStyle = await row.getByRole("link", { name: linkedRisk.title }).locator("span").evaluate(
-    (element) => {
-      const style = getComputedStyle(element);
-      return { textOverflow: style.textOverflow, whiteSpace: style.whiteSpace };
-    },
-  );
-  expect(riskTextStyle).toEqual({ textOverflow: "clip", whiteSpace: "normal" });
-  await row.getByLabel("Фаза проекта").selectOption("phase-issues");
-  const phaseConfirmation = page.getByRole("dialog", { name: "Создать пакет работ?" });
-  await expect(phaseConfirmation).toContainText("1 · Подготовка выпуска");
-  await phaseConfirmation.getByRole("button", { name: "Создать" }).click();
-  await expect.poll(() => issuePatches).toContainEqual({ phaseId: "phase-issues" });
-  await expect(page.getByText("Пакет работ создан в фазе «1 · Подготовка выпуска»")).toBeVisible();
-  await expect(row.getByText("Пакет работ создан в Структуре")).toHaveCount(0);
-  await expect(row.getByLabel("Фаза проекта")).toHaveCount(0);
-  await expect(row.getByText("Пакет", { exact: true })).toBeVisible();
-  await expect(row.getByRole("link", { name: /1\.1 ·/ })).toHaveAttribute(
-    "href",
-    /focusWbs=work-package-issue-1/,
-  );
-
-  await owner.fill("Ошибка сохранения");
-  await owner.blur();
-  await expect(row.getByRole("alert")).toHaveText("Тестовая ошибка сохранения");
-  await owner.fill("Владелец запуска");
-  await owner.blur();
-  await expect(row.getByRole("alert")).toHaveCount(0);
-
-  await row.getByLabel("Текст нового статуса").fill("Дата запуска подтверждена");
-  await row.getByRole("button", { name: "Добавить статус с текущей датой" }).click();
-  await expect.poll(() => statusPayload).toEqual({
-    text: "Дата запуска подтверждена",
-  });
-  await expect(row.getByText("Дата запуска подтверждена")).toBeVisible();
-  await expect(row.locator(".issue-current-status time")).toHaveText(
-    new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
-  );
-  await page.getByRole("button", { name: "Состояние", exact: true }).click();
-  await page.getByRole("button", { name: "Вопросы", exact: true }).click();
-  const reopenedRow = page.locator("#issue-item-issue-1");
-  await expect(reopenedRow.getByText("Дата запуска подтверждена")).toBeVisible();
-  await expect(reopenedRow.locator(".issue-current-status time")).toHaveText(
-    new Intl.DateTimeFormat("ru-RU").format(new Date(`${isoDay(0)}T12:00:00`)),
-  );
-  await reopenedRow.getByRole("link", { name: linkedRisk.title }).click();
-  await expect(page).toHaveURL(/\/TV-OVERVIEW\/risks$/);
-  await expect(page.locator(`#raid-item-${linkedRisk.id}`)).toHaveClass(/focused/);
-});

@@ -43,7 +43,6 @@ type MilestoneTimelineStyle = CSSProperties & {
   "--milestone-label-offset": string;
   "--milestone-lane-gap": string;
   "--milestone-print-scale": string;
-  "--milestone-print-width": string;
 };
 
 function MilestoneLegend() {
@@ -158,7 +157,6 @@ export function MilestoneTimelineSection({
             "--milestone-label-offset": `${MILESTONE_PHASE_LABEL_OFFSET}px`,
             "--milestone-lane-gap": `${MILESTONE_PHASE_LANE_GRID_GAP}px`,
             "--milestone-print-scale": printScale.toFixed(4),
-            "--milestone-print-width": `${(100 / printScale).toFixed(4)}%`,
           } as MilestoneTimelineStyle
         }
       >

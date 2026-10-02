@@ -165,7 +165,8 @@ export function DevelopmentOpenIssuesPage() {
     value: IssueEditDraft[InlineField],
   ) => {
     const currentValue = issue[field as keyof Issue];
-    const normalizedValue = value;
+    // Spaces typed around a value are not part of it.
+    const normalizedValue = (typeof value === "string" ? value.trim() : value) as IssueEditDraft[InlineField];
     if (normalizedValue === currentValue) return;
     if (field === "title" && !String(normalizedValue).trim()) {
       updateDraft(issue, { [field]: String(currentValue ?? "") });
@@ -454,7 +455,7 @@ export function DevelopmentOpenIssuesPage() {
       {meetingNotesOpen && <MeetingNotesDrawer onClose={() => setMeetingNotesOpen(false)} />}
       </div>
       {issues.length === 0 ? <div className="empty-state">{t("ui.projects.noOpenQuestions")}</div> : (
-        <div className="open-issues-prototype-table-shell">
+        <div className="open-issues-prototype-table-shell" role="region" aria-label={t("ui.projects.openQuestionsTableScrollHint")} tabIndex={0}>
           <table
             className="open-issues-prototype-table"
             style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}
@@ -662,7 +663,7 @@ export function DevelopmentOpenIssuesPage() {
           <span className="open-issues-prototype-count">{closedIssues.length}</span>
         </div>
         {closedIssues.length === 0 ? <div className="empty-state">{t("ui.projects.noClosedQuestionsYet")}</div> : (
-          <div className="open-issues-prototype-table-shell" role="region" aria-label={t("ui.projects.closedQuestionsTableLabel")}>
+          <div className="open-issues-prototype-table-shell" role="region" aria-label={t("ui.projects.closedQuestionsTableLabel")} tabIndex={0}>
             <table className="open-issues-prototype-table open-issues-prototype-closed-table" style={{ width: tableWidth, minWidth: tableWidth } as CSSProperties}>
               <colgroup>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <col style={{ width: columnWidths[column.key] }} key={column.key} />)}</colgroup>
               <thead><tr>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <th scope="col" key={column.key} aria-label={column.key === "actions" ? t("ui.projects.openIssuesPrototypeActions") : undefined}>{column.key === "actions" ? null : <span>{t(column.labelKey)}</span>}</th>)}</tr></thead>

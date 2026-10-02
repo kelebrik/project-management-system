@@ -246,7 +246,9 @@ test("Jira work synchronization always uses production", async ({ page }) => {
   await expect(page.getByLabel("Окружение Jira")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "dev", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "prod", exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Обновить" }).click();
+  // Synchronization lives on the Jira data tab of the work page.
+  await page.getByRole("button", { name: "Данные Jira", exact: true }).click();
+  await page.locator(".jira-data-scope-panel").getByRole("button", { name: "Обновить", exact: true }).click();
 
   await expect.poll(() => syncBody?.baseUrl).toBe("https://tasks.sberdevices.ru");
   await expect.poll(() => syncBody?.scopeType).toBe("LABEL");
@@ -269,7 +271,9 @@ test("Jira synchronization shows the server conflict when no active run is avail
     }),
   );
   await page.goto("/TV-OVERVIEW/jira-work");
-  await page.getByRole("button", { name: "Обновить" }).click();
+  // Synchronization lives on the Jira data tab of the work page.
+  await page.getByRole("button", { name: "Данные Jira", exact: true }).click();
+  await page.locator(".jira-data-scope-panel").getByRole("button", { name: "Обновить", exact: true }).click();
   await expect(page.getByText("Обновление Jira для этого проекта уже выполняется")).toBeVisible();
 });
 

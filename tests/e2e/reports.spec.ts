@@ -379,6 +379,7 @@ test("report builder creates and filters a project status report", async ({ page
     scrollWidth: document.documentElement.scrollWidth,
   }));
   expect(pageWidth.scrollWidth).toBeLessThanOrEqual(pageWidth.clientWidth);
+  // Switching the language keeps what was set up on the page.
   await page.getByTestId("language-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("button", { name: "Closed in the last two weeks", exact: true })).toBeVisible();

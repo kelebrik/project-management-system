@@ -1,5 +1,5 @@
 import type { AppStateBag } from "../app/appStateBag";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useEffectEvent } from "react";
 import { apiClient } from "../api/client";
 import type { ProjectListItem } from "../app/domainTypes";
 import { pickDefaultProject } from "../app/defaultProject";
@@ -80,16 +80,16 @@ export function useAppRouting({
     return () => window.removeEventListener("popstate", onPopState);
   }, [activeView, projects, selectDefaultProject, setActiveView, setError, setNotice, setSelectedProjectId]);
 
+  // The message is read when the request runs: a change of language must not reload the projects,
+  // which would show the loading screen and throw away whatever a page holds.
+  const projectsLoadFailedText = useEffectEvent(() => uiText("ui.common.routeProjectsLoadFailed"));
   useEffect(() => {
     if (authMode !== "ready") return;
     let cancelled = false;
     async function loadProjects() {
       setLoading(true);
       try {
-        const data = await apiClient.get<ProjectListItem[]>(
-          "/api/projects",
-          uiText("ui.common.routeProjectsLoadFailed"),
-        );
+        const data = await apiClient.get<ProjectListItem[]>("/api/projects", projectsLoadFailedText());
         if (cancelled) return;
         const firstProject =
           data.find((item) => item.status !== "CLOSED") ?? data[0];
@@ -112,7 +112,7 @@ export function useAppRouting({
         setError(
           loadError instanceof Error
             ? loadError.message
-            : uiText("ui.common.routeProjectsLoadFailed"),
+            : projectsLoadFailedText(),
         );
       } finally {
         if (!cancelled) setLoading(false);
@@ -129,7 +129,6 @@ export function useAppRouting({
     setProjectRegistryDrafts,
     setProjects,
     setSelectedProjectId,
-    uiText,
   ]);
 
   const openView = useCallback(

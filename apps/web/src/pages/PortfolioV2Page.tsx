@@ -591,7 +591,7 @@ export function PortfolioRoadmapV2() {
             <header>
               <div>
                 <h2 id="portfolio-roadmap-legend-title">{uiText("ui.portfolio.roadmapStageLegendTitle")}</h2>
-                <span>HW / SW / G2M</span>
+                <span>{uiText("ui.portfolio.roadmapStageLegendSubtitle")}</span>
               </div>
               <button
                 aria-label={uiText("ui.portfolio.roadmapCloseLegend")}

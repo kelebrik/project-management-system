@@ -239,6 +239,10 @@ export const portfolioMessages = {
     "en": "Stage legend",
     "ru": "Легенда этапов"
   },
+  "ui.portfolio.roadmapStageLegendSubtitle": {
+    "en": "Phases of the projects shown",
+    "ru": "Фазы показанных проектов"
+  },
   "ui.portfolio.roadmapCloseLegend": {
     "en": "Close legend",
     "ru": "Закрыть легенду"

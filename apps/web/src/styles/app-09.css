@@ -543,7 +543,9 @@ body.milestone-label-dragging * {
     border: 0;
     max-width: none !important;
     overflow: hidden !important;
-    width: var(--milestone-print-width, 100%) !important;
+    /* Browsers resolve percentages inside a zoomed box in its own scale, so 100%
+       already spans the page once zoom shrinks the drawing to fit its height. */
+    width: 100% !important;
     zoom: var(--milestone-print-scale, 1);
   }
 

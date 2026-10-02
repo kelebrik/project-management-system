@@ -35,3 +35,21 @@ async function activeProjectCode(page: Page) {
 
   return "cvte968";
 }
+
+/**
+ * Whether a real API with projects answers at the base URL. Tests that read
+ * live data skip, with this reason, when only the web dev server runs.
+ */
+export async function liveApiAvailable(page: Page) {
+  const apiBase = process.env.E2E_API_BASE_URL?.replace(/\/$/, "") ?? "";
+  try {
+    const response = await page.request.get(`${apiBase}/api/projects`, { timeout: 3_000 });
+    if (!response.ok()) return false;
+    const projects = (await response.json()) as unknown;
+    return Array.isArray(projects) && projects.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export const LIVE_API_REASON = "needs a running API with projects (E2E_BASE_URL, or E2E_API_BASE_URL for a separate API)";

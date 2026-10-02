@@ -1,5 +1,10 @@
 import { expect, test } from "./fixtures";
-import { projectPagePath } from "./project-routes";
+import { LIVE_API_REASON, liveApiAvailable, projectPagePath } from "./project-routes";
+
+// These read live data: they run against a real API and skip next to the web dev server alone.
+test.beforeEach(async ({ page }) => {
+  test.skip(!(await liveApiAvailable(page)), LIVE_API_REASON);
+});
 
 test("read-only user can open core project pages without authentication", async ({ page }) => {
   await page.goto(await projectPagePath(page, "overview"));

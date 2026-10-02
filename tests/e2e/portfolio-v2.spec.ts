@@ -173,7 +173,7 @@ async function mockPortfolio(
   await page.route(/^https?:\/\/[^/]+\/api\//, respond);
 }
 
-test("development section exposes the HW, SW and G2M roadmap", async ({
+test("development section shows the roadmap by project phases", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -187,20 +187,19 @@ test("development section exposes the HW, SW and G2M roadmap", async ({
   const roadmap = page.getByTestId("portfolio-v2-roadmap");
   await expect(roadmap).toBeVisible();
   await expect(roadmap.getByText("Новое устройство", { exact: true })).toBeVisible();
+  // Tracks are named after the phases of the Structure.
   await expect(roadmap.locator(".portfolio-roadmap-track-label")).toHaveText([
-    "HW",
-    "SW",
-    "G2M",
+    "Аппаратная часть",
+    "Программная часть",
+    "Маркетинг и вывод на рынок",
   ]);
   await expect(roadmap.locator(".portfolio-roadmap-segment")).toHaveCount(12);
-  const unmatchedStructureGroup = roadmap.getByTitle("1.5 · Корпус и механика");
-  await expect(unmatchedStructureGroup).toBeVisible();
-  await expect(unmatchedStructureGroup).toHaveCSS("background-color", "rgb(241, 243, 245)");
-  await expect(unmatchedStructureGroup).not.toHaveCSS("background-image", "none");
-  await expect(roadmap.getByTitle("1.1 · HW Product Requirements")).not.toHaveCSS(
-    "background-color",
-    "rgb(241, 243, 245)",
-  );
+  // Every work package of a phase takes the phase's colour; none is left grey as "unmatched".
+  const sameRowGroup = roadmap.getByTitle("1.5 · Корпус и механика");
+  await expect(sameRowGroup).toBeVisible();
+  const phaseColour = await roadmap.getByTitle("1.1 · HW Product Requirements").evaluate((node) => getComputedStyle(node).backgroundColor);
+  expect(phaseColour).not.toBe("rgb(241, 243, 245)");
+  await expect(sameRowGroup).toHaveCSS("background-color", phaseColour);
   await expect(roadmap.locator(".portfolio-roadmap-track").nth(1)).toHaveCSS(
     "min-height",
     "60px",
@@ -360,8 +359,8 @@ test("development section exposes the HW, SW and G2M roadmap", async ({
   const details = page.getByRole("complementary", { name: "HW EVT" });
   await expect(details).toBeFocused();
   await expect(details).toContainText("ИСР 1.2");
-  await expect(details).toContainText("Легенда: EVT");
-  await expect(details).toContainText("Engineering Validation Test");
+  // The legend names the phase the package sits in.
+  await expect(details).toContainText("Легенда: Аппаратная часть");
   await expect(details).toContainText("01.09.2026 - 31.10.2026");
   if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
     await page.screenshot({
@@ -375,9 +374,11 @@ test("development section exposes the HW, SW and G2M roadmap", async ({
   const legend = page.getByRole("dialog", { name: "Легенда этапов" });
   await expect(legend).toBeVisible();
   await expect(legend.getByRole("button", { name: "Закрыть легенду" })).toBeFocused();
-  await expect(legend.getByText("MP FW + 1st OTA", { exact: true })).toBeVisible();
-  await expect(legend.getByText("Post-Launch Analysis, Retrospective & Handover", { exact: true })).toBeVisible();
-  await expect(legend.getByText("Пакет работ из Структуры", { exact: true })).toHaveCount(3);
+  // The legend lists the phases of the projects on the roadmap.
+  await expect(legend.getByText("Фазы показанных проектов", { exact: true })).toBeVisible();
+  for (const phase of ["Аппаратная часть", "Программная часть", "Маркетинг и вывод на рынок"]) {
+    await expect(legend.getByText(phase, { exact: true })).toBeVisible();
+  }
   if (process.env.CAPTURE_PORTFOLIO_V2 === "1") {
     await page.screenshot({
       fullPage: true,

@@ -826,21 +826,23 @@ export async function mockAdminPortfolio(
   });
 }
 
+/**
+ * A signed-in person who may only look at the project: the application asks
+ * everyone to sign in, so read-only means view access, not an anonymous visit.
+ */
 export async function mockReadOnlyProject(page: Page) {
-  const project = projectFixture();
+  const project = await mockAdminProject(page, (fixture) => {
+    fixture.currentUserAccessLevel = "VIEW";
+  });
+  await page.unroute("**/api/auth/me");
   await page.route("**/api/auth/me", (route) =>
-    route.fulfill({ status: 401, json: { error: "Требуется вход в систему" } }),
+    route.fulfill({
+      json: {
+        user: { id: "viewer-1", email: "viewer@example.test", name: "Наблюдатель", role: "EXECUTIVE_VIEWER", isActive: true, lastLoginAt: null, businessUnitAdminIds: [] },
+      },
+    }),
   );
-  await page.route("**/api/auth/setup-status", (route) =>
-    route.fulfill({ json: { needsSetup: false } }),
-  );
-  await page.route("**/api/auth/keycloak/status", (route) =>
-    route.fulfill({ json: { enabled: false, hostname: null } }),
-  );
-  await page.route(/\/api\/projects$/, (route) => route.fulfill({ json: [project] }));
-  await page.route("**/api/projects/project-1/overview", (route) =>
-    route.fulfill({ json: project }),
-  );
+  return project;
 }
 
 export async function expectBusinessUnitCalloutToPointAtField(page: Page) {
