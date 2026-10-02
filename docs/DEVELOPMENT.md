@@ -80,6 +80,16 @@ The issue register can turn meeting notes into draft tasks, open issues and risk
 - Calls need a user session and the right to change the project; API tokens are refused. The audit log keeps counters only, never the notes or the model's answer.
 - The notes leave the installation for the provider: use it only for text you may share with that provider.
 
+## Administrators from the command line
+
+When nobody can sign in as an administrator (a clean cloud installation, a forgotten password, the only administrator switched off), run the command next to the database, with the same `DATABASE_URL` as the application:
+
+- `npm run admin --workspace @pms/api -- status` lists administrators.
+- `npm run admin --workspace @pms/api -- grant --email anna@example.com --name "Anna"` creates the user or makes an existing one an active administrator, ending that user's existing sessions. With Keycloak the person then signs in as usual, by that e-mail; note that the first person to sign in through Keycloak becomes an administrator by themselves while there is none.
+- `npm run admin --workspace @pms/api -- password --email anna@example.com` sets a password (it is asked twice and not shown, or read from standard input), at least 12 characters, and ends the user's sessions. Password sign-in works only in the cloud profile.
+
+In a container image the same command is `node apps/api/dist/cli/admin.js <command>`. Every change is written to the audit log as made from the command line.
+
 ## Jira Strategy
 
 Jira remains the operational Kanban/Scrum system. This application does not duplicate Jira boards. It stores Jira board links, Jira ticket URLs on tasks, and synchronized issue snapshots for portfolio reporting, open issues, and executive overview evidence. Jira REST API access is configured only through backend container environment variables, not through Admin Back Office.
