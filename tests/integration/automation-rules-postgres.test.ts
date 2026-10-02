@@ -12,7 +12,11 @@ const day = (offset: number) => {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + offset * DAY_MS);
 };
-/** The next Friday 10:00 UTC (13:00 in Moscow), so the weekly and daily checks are due. */
+/**
+ * The next Friday 10:00 UTC (13:00 in Moscow), so the weekly and daily checks
+ * are due; on a Friday it is a week ahead, so data the rules require to be
+ * fresh is dated relative to it.
+ */
 function nextFridayNoon() {
   const now = new Date();
   const friday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + ((5 - now.getUTCDay() + 7) % 7 || 7), 10));
@@ -38,7 +42,7 @@ test('rules fire once on recorded events and schedules, tell recipients, and pre
   await prisma.wbsItem.create({ data: { projectId: project.id, code: '3', title: 'Тесты', type: 'TASK', status: 'NOT_STARTED', owner: 'Иванов', startDate: day(-2), dueDate: day(8), workDays: 5, sortOrder: 30, wbsLevel: 1 } });
   const ticketUpdatedAt = new Date();
   await prisma.jiraIssueSnapshot.create({
-    data: { projectId: project.id, issueKey: 'AU-1', issueUrl: 'https://jira.example.test/browse/AU-1', summary: 'Сборка', status: 'Done', priority: 'High', issueType: 'Task', updatedAt: ticketUpdatedAt, syncedAt: new Date() },
+    data: { projectId: project.id, issueKey: 'AU-1', issueUrl: 'https://jira.example.test/browse/AU-1', summary: 'Сборка', status: 'Done', priority: 'High', issueType: 'Task', updatedAt: ticketUpdatedAt, syncedAt: new Date(nextFridayNoon().getTime() - 3_600_000) },
   });
 
   process.env.DEPLOYMENT_PROFILE = 'cloud';
