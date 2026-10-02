@@ -192,12 +192,23 @@ export async function createSession(userId: string, req: Request, res: Response)
   res.setHeader('Set-Cookie', sessionCookie(token, expiresAt));
 }
 
+/**
+ * The token of an "Authorization: Bearer <token>" header, read by slicing
+ * rather than a backtracking pattern, so a header full of spaces costs linear time.
+ */
+export function bearerToken(header: string | undefined) {
+  if (!header || header.length < 7 || header.slice(0, 6).toLowerCase() !== 'bearer') return null;
+  const rest = header.slice(6);
+  const token = rest.trim();
+  // At least one space or tab must separate the scheme from the token.
+  if (!token || rest === token || !/^[ \t]/.test(rest)) return null;
+  return token;
+}
+
 export async function attachAuth(req: Request, _res: Response, next: NextFunction) {
   try {
-    const authHeader = req.get('authorization') ?? '';
-    const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
-    if (bearerMatch?.[1]?.startsWith('pms_')) {
-      const rawToken = bearerMatch[1].trim();
+    const rawToken = bearerToken(req.get('authorization'));
+    if (rawToken?.startsWith('pms_')) {
       const apiToken = await prisma.apiToken.findUnique({
         where: { tokenHash: hashApiToken(rawToken) },
       });

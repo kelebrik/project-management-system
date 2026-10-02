@@ -39,17 +39,22 @@ import { LEGACY_TRUST_PROXY_HOPS, trustProxyHops } from './deployment-profile.js
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 const isProduction = process.env.NODE_ENV === 'production';
 
-function corsOrigin() {
-  const origins = webOrigin
+const LOCAL_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$/;
+
+/**
+ * Origins that may call the API with the user's cookie: the configured list.
+ * "*" never means any site, since requests carry credentials: in production
+ * it allows none, elsewhere only pages served from this machine.
+ */
+export function corsOrigin(value = webOrigin, production = isProduction): cors.CorsOptions['origin'] {
+  if (value.trim() === '*') {
+    if (production) return false;
+    return (origin, callback) => callback(null, origin === undefined || LOCAL_ORIGIN.test(origin));
+  }
+  return value
     .split(',')
     .map((origin) => origin.trim())
-    .filter(Boolean);
-
-  if (webOrigin === '*') {
-    return isProduction ? false : true;
-  }
-
-  return origins;
+    .filter((origin) => origin && origin !== '*');
 }
 
 export const startedAt = new Date();

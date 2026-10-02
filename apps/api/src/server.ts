@@ -1,5 +1,6 @@
 import { createAutomationRunner } from './services/automation/engine.js';
 import express from 'express';
+import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prisma } from './db.js';
@@ -42,6 +43,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const webDist = path.resolve(__dirname, '../../web/dist');
 
+// The page itself is read from disk on every route of the application, so it has a limit per client key
+// (an IP address, an IPv6 /56) of its own. Only page loads count, not their scripts and styles: one
+// opening is one request, so even many people behind one NAT stay far below it.
+const pageRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: Math.max(60, Number.parseInt(process.env.PAGE_RATE_LIMIT_PER_MINUTE ?? '', 10) || 1200),
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+});
+
 app.use(
   express.static(webDist, {
     setHeaders(res, filePath) {
@@ -55,7 +66,7 @@ app.use(
     },
   }),
 );
-app.get(/.*/, (_req, res) => {
+app.get(/.*/, pageRateLimit, (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(webDist, 'index.html'));
 });
