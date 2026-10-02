@@ -1,4 +1,5 @@
 import { normalizePersonName, overlapRanges as sharedOverlapRanges } from "@pms/shared";
+import { projectCalendarTest, type ProjectCalendarCode, type ProjectCalendarOverrideDay, type WorkingDayTest } from "./projectCalendar";
 import type { ScheduleLink } from "./scheduleLinks";
 import {
   addDays,
@@ -30,6 +31,8 @@ export type WorkloadItem = {
   finishLinks?: ScheduleLink[];
   /** An open issue manages this work package from the issue register. */
   lockedByIssue?: boolean;
+  /** The calendar the server's schedule counts this work's days in. */
+  calendarCode?: ProjectCalendarCode;
 };
 
 export type WorkloadEmployee = { id: string; name: string; department: string };
@@ -43,6 +46,10 @@ export type WorkloadData = {
   calendarDays: LeaveCalendarDay[];
   /** Projects in which the user may change work. */
   editableProjectIds?: string[];
+  /** Every open project the user may add work to, with or without work shown. */
+  editableProjects?: WorkloadProject[];
+  /** The days each project's calendar sets apart, around the period. */
+  projectCalendars?: Record<string, ProjectCalendarOverrideDay[]>;
 };
 
 export { normalizePersonName };
@@ -169,4 +176,22 @@ export function overlapsTouchWindow(ranges: LeaveRange[], window: LeaveRange) {
 /** Days between the start of the loaded range and a date, for pixel placement. */
 export function dayOffset(rangeFrom: string, day: string) {
   return daysBetween(rangeFrom, day);
+}
+
+/**
+ * The calendar each piece of work is planned in: its project's, with the
+ * calendar code the server's schedule uses. One test per project and code.
+ */
+export function workCalendars(data: Pick<WorkloadData, "projectCalendars"> | null) {
+  const cache = new Map<string, WorkingDayTest>();
+  return (work: { projectId: string; calendarCode?: ProjectCalendarCode }): WorkingDayTest => {
+    const code = work.calendarCode ?? "RU";
+    const key = `${work.projectId}:${code}`;
+    let test = cache.get(key);
+    if (!test) {
+      test = projectCalendarTest(code, data?.projectCalendars?.[work.projectId] ?? []);
+      cache.set(key, test);
+    }
+    return test;
+  };
 }

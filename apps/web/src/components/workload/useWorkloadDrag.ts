@@ -1,4 +1,4 @@
-import type { LeaveCalendarDay } from "../../app/leaveScheduleModel";
+import type { WorkingDayTest } from "../../app/projectCalendar";
 import type { WorkloadItem } from "../../app/workloadModel";
 import { planDrag, type WorkloadDates } from "../../app/workloadPlanning";
 import { useBarDrag, type BarDragPreview, type BarGrip } from "../timeline/useBarDrag";
@@ -6,20 +6,20 @@ import { useBarDrag, type BarDragPreview, type BarGrip } from "../timeline/useBa
 export type WorkloadGrip = BarGrip;
 export type WorkloadDragPreview = BarDragPreview<WorkloadItem, WorkloadDates>;
 
-/** Bars of work: moves keep working days, edges land on working days (see planDrag). */
+/** Bars of work: moves keep working days, edges land on working days, in the calendar of the work's project (see planDrag). */
 export function useWorkloadDrag({
   dayWidth,
-  overrides,
+  calendarFor,
   onCommit,
 }: {
   dayWidth: number;
-  overrides: Map<string, LeaveCalendarDay>;
+  calendarFor: (item: WorkloadItem) => WorkingDayTest;
   onCommit: (preview: WorkloadDragPreview) => void;
 }) {
   return useBarDrag<WorkloadItem, WorkloadDates>({
     dayWidth,
     datesOf: (item) => ({ startDate: item.startDate, dueDate: item.dueDate }),
-    plan: (item, mode, deltaDays) => planDrag(item, mode, deltaDays, overrides),
+    plan: (item, mode, deltaDays) => planDrag(item, mode, deltaDays, calendarFor(item)),
     onCommit,
   });
 }

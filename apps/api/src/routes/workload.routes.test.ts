@@ -30,6 +30,7 @@ async function call(
       issue: { findMany: async () => [] },
       projectAccess: { findMany: async () => [] },
       project: { findMany: async () => [] },
+      projectCalendarOverride: { findMany: async () => [] },
       ...client,
     }) as unknown as PrismaClient;
   try {

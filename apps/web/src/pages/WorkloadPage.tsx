@@ -17,7 +17,9 @@ import {
   itemsInWindow,
   overlapWorkingDays,
   overlapsTouchWindow,
+  normalizePersonName,
   projectColors,
+  workCalendars,
   type WorkloadData,
   type WorkloadItem,
   type WorkloadLeave,
@@ -26,6 +28,11 @@ import {
 import { reverseWorkloadChange, workloadChange, type WorkloadChange } from "../app/workloadPlanning";
 import { describeDateHold } from "../app/scheduleLinks";
 import { WorkloadGrid, type WorkloadSortKey } from "../components/workload/WorkloadGrid";
+import { WorkloadPlanners } from "../components/workload/WorkloadPlanners";
+import { NewWorkDialog } from "../components/workload/NewWorkDialog";
+import type { NewWorkRequest } from "../components/workload/useNewWorkSelection";
+import { appPathForView } from "../app/routes";
+import { DEFAULT_WORKLOAD_FILTERS, plannerConfig, plannerHorizon, readWorkloadFilters, type WorkloadFilters } from "../app/workloadPlanners";
 import { WorkloadItemPanel } from "../components/workload/WorkloadItemPanel";
 import type { WorkloadDragPreview } from "../components/workload/useWorkloadDrag";
 import { useI18n } from "../i18n/I18nProvider";
@@ -34,6 +41,15 @@ import { usePageContext } from "./PageContext";
 import { useTimelineFullscreen } from "../components/timeline/TimelineFullscreen";
 
 const HORIZONS: LeaveHorizon[] = [1, 3, 6, 12];
+const FILTERS_STORAGE_KEY = "pms-workload-filters";
+
+function storedFilters(): WorkloadFilters {
+  try {
+    return readWorkloadFilters(JSON.parse(window.localStorage.getItem(FILTERS_STORAGE_KEY) ?? "null"));
+  } catch {
+    return DEFAULT_WORKLOAD_FILTERS;
+  }
+}
 const HORIZON_STORAGE_KEY = "pms-workload-horizon";
 
 function storedHorizon(): LeaveHorizon {
@@ -46,13 +62,19 @@ function storedHorizon(): LeaveHorizon {
 }
 
 type SavedItem = { item: { owner: string; startDate: string | null; dueDate: string | null; updatedAt?: string } };
-type Feedback = { tone: "done" | "error" | "note"; message: string; undo?: { item: WorkloadItem; change: WorkloadChange } };
+type Feedback = {
+  tone: "done" | "error" | "note";
+  message: string;
+  undo?: { item: WorkloadItem; change: WorkloadChange };
+  /** Work just created, to open in its Structure. */
+  open?: { projectId: string; href: string };
+};
 
 const day = (value: string | null, fallback: string) => (value ? value.slice(0, 10) : fallback);
 
 export function WorkloadPage() {
   const { t, locale } = useI18n();
-  const { selectProject } = usePageContext();
+  const { selectProject, currentUser } = usePageContext();
   const fullscreen = useTimelineFullscreen("workload");
   const today = localDay();
   const [horizon, setHorizon] = useState<LeaveHorizon>(storedHorizon);
@@ -63,15 +85,28 @@ export function WorkloadPage() {
   // The request that failed, so a new range or a reload clears the message by itself.
   const [failedRequest, setFailedRequest] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
-  const [search, setSearch] = useState("");
-  const [projectFilter, setProjectFilter] = useState<string[]>([]);
-  const [overlapsOnly, setOverlapsOnly] = useState(false);
-  const [grouped, setGrouped] = useState(false);
-  const [showIdle, setShowIdle] = useState(false);
+  // What is shown and how: kept between visits, and what a planner saves.
+  const [filters, setFilters] = useState<WorkloadFilters>(storedFilters);
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(FILTERS_STORAGE_KEY, JSON.stringify(filters));
+    } catch {
+      /* Persistence is optional. */
+    }
+  }, [filters]);
+  const { search, projectIds: projectFilter, people: peopleFilter, overlapsOnly, grouped, showIdle, sort } = filters;
+  const setFilter = <K extends keyof WorkloadFilters>(key: K, value: WorkloadFilters[K] | ((current: WorkloadFilters[K]) => WorkloadFilters[K])) =>
+    setFilters((current) => ({ ...current, [key]: typeof value === "function" ? (value as (previous: WorkloadFilters[K]) => WorkloadFilters[K])(current[key]) : value }));
+  const setSearch = (value: string) => setFilter("search", value);
+  const setProjectFilter = (value: (current: string[]) => string[]) => setFilter("projectIds", value);
+  const setPeopleFilter = (value: (current: string[]) => string[]) => setFilter("people", value);
+  const setOverlapsOnly = (value: boolean) => setFilter("overlapsOnly", value);
+  const setGrouped = (value: boolean) => setFilter("grouped", value);
+  const setShowIdle = (value: boolean) => setFilter("showIdle", value);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  const [sort, setSort] = useState<{ key: WorkloadSortKey; direction: "asc" | "desc" }>({ key: "name", direction: "asc" });
+  const [newWork, setNewWork] = useState<NewWorkRequest | null>(null);
 
   const extendRange = useCallback(
     (side: "before" | "after") => setRange((current) => extendLeaveRange(current, side, horizon)),
@@ -95,6 +130,8 @@ export function WorkloadPage() {
   }, [range.from, range.to, requestKey]);
 
   const overrides = useMemo(() => calendarOverrides(data?.calendarDays ?? []), [data?.calendarDays]);
+  // Dates of work move in its project's calendar; days off, leaves and overlaps follow the people's.
+  const calendarFor = useMemo(() => workCalendars(data), [data]);
   const timeline = useMemo(() => buildLeaveTimeline(range.from, range.to, overrides, today), [overrides, range, today]);
   // Colours come from every project in the answer, before any filter.
   const colors = useMemo(() => projectColors(data?.projects ?? []), [data?.projects]);
@@ -131,7 +168,9 @@ export function WorkloadPage() {
     const query = search.trim().toLocaleLowerCase(locale);
     const collator = new Intl.Collator(locale, { sensitivity: "base", numeric: true });
     const sign = sort.direction === "asc" ? 1 : -1;
+    const people = new Set(peopleFilter);
     return rows
+      .filter((row) => people.size === 0 || people.has(row.key))
       .filter((row) => !query || row.name.toLocaleLowerCase(locale).includes(query))
       .filter((row) => !overlapsOnly || overlapsTouchWindow(row.overlaps, visibleWindow))
       .sort((left, right) => {
@@ -140,7 +179,7 @@ export function WorkloadPage() {
         const primary = sort.key === "tasks" ? a.tasks - b.tasks : sort.key === "overlap" ? a.overlap - b.overlap : 0;
         return sign * (primary || collator.compare(left.name, right.name));
       });
-  }, [counts, locale, overlapsOnly, rows, search, sort, visibleWindow]);
+  }, [counts, locale, overlapsOnly, peopleFilter, rows, search, sort, visibleWindow]);
   const groups = useMemo(() => {
     if (!grouped) return [{ department: null, rows: visibleRows }];
     const byDepartment = new Map<string, WorkloadRow[]>();
@@ -154,15 +193,37 @@ export function WorkloadPage() {
     return (data?.projects ?? []).filter((project) => present.has(project.id));
   }, [data?.items, data?.projects]);
 
+  const changeHorizon = (value: LeaveHorizon) => {
+    setHorizon(value);
+    setRange((current) => widenLeaveRange(current, visibleWindow.from, value));
+    try {
+      window.localStorage.setItem(HORIZON_STORAGE_KEY, String(value));
+    } catch {
+      /* Persistence is optional. */
+    }
+  };
+  // People who can be picked: everyone with a row now and everyone in the directory.
+  const peopleChoices = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const row of rows) byKey.set(row.key, row.name);
+    for (const employee of data?.employees ?? []) if (!byKey.has(normalizePersonName(employee.name))) byKey.set(normalizePersonName(employee.name), employee.name);
+    return [...byKey.entries()].map(([key, name]) => ({ key, name })).sort((left, right) => left.name.localeCompare(right.name, locale));
+  }, [data?.employees, locale, rows]);
+  const applyPlanner = (config: Record<string, unknown>) => {
+    const projects = new Set([...(data?.projects ?? []), ...(data?.editableProjects ?? [])].map((project) => project.id));
+    setFilters(readWorkloadFilters(config, { projectIds: projects, people: new Set(peopleChoices.map((person) => person.key)) }));
+    const plannedHorizon = plannerHorizon(config);
+    if (plannedHorizon && plannedHorizon !== horizon) changeHorizon(plannedHorizon);
+  };
   const toggleSort = (key: WorkloadSortKey) =>
-    setSort((current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
+    setFilter("sort", (current) => ({ key, direction: current.key === key && current.direction === "asc" ? "desc" : "asc" }));
   const openItem = (item: WorkloadItem) => setOpenItemId(item.id);
   const openedItem = data?.items.find((item) => item.id === openItemId) ?? null;
-  const openStructure = (event: ReactMouseEvent<HTMLAnchorElement>) => {
-    if (!openedItem || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const openStructureOf = (projectId: string | undefined) => (event: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!projectId || event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
     event.preventDefault();
     const url = new URL(event.currentTarget.href);
-    selectProject(openedItem.projectId, "project-structure");
+    selectProject(projectId, "project-structure");
     // Point at the work only once the structure really opened: a guard may keep the user here.
     if (window.location.pathname === url.pathname) window.history.replaceState(null, "", `${url.pathname}${url.search}`);
   };
@@ -281,15 +342,7 @@ export function WorkloadPage() {
                 aria-pressed={horizon === value}
                 className={horizon === value ? "active" : ""}
                 key={value}
-                onClick={() => {
-                  setHorizon(value);
-                  setRange((current) => widenLeaveRange(current, visibleWindow.from, value));
-                  try {
-                    window.localStorage.setItem(HORIZON_STORAGE_KEY, String(value));
-                  } catch {
-                    /* Persistence is optional. */
-                  }
-                }}
+                onClick={() => changeHorizon(value)}
                 type="button"
               >
                 {t("ui.leave.horizonMonths", { count: value })}
@@ -332,6 +385,26 @@ export function WorkloadPage() {
               ))}
             </div>
           </details>
+          <details className="leave-departments">
+            <summary>
+              {peopleFilter.length === 0 ? t("ui.workload.peopleAll") : t("ui.workload.peopleSelected", { count: peopleFilter.length })}
+            </summary>
+            <div>
+              {peopleChoices.map((person) => (
+                <label key={person.key}>
+                  <input
+                    checked={peopleFilter.includes(person.key)}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setPeopleFilter((current) => (event.target.checked ? [...current, person.key] : current.filter((key) => key !== person.key)))
+                    }
+                  />
+                  {person.name}
+                </label>
+              ))}
+            </div>
+          </details>
+          <WorkloadPlanners current={plannerConfig(filters, horizon)} currentUser={currentUser ?? null} onApply={applyPlanner} />
           <label className="leave-check">
             <input checked={overlapsOnly} type="checkbox" onChange={(event) => setOverlapsOnly(event.target.checked)} />
             {t("ui.workload.overlapsOnly")}
@@ -366,6 +439,11 @@ export function WorkloadPage() {
           {feedback && (
             <div className={`workload-feedback ${feedback.tone}`} role={feedback.tone === "done" ? "status" : "alert"}>
               <span>{feedback.message}</span>
+              {feedback.open && (
+                <a href={feedback.open.href} onClick={openStructureOf(feedback.open.projectId)}>
+                  {t("ui.workload.newWorkOpen")}
+                </a>
+              )}
               {feedback.undo && (
                 <button
                   disabled={saving}
@@ -399,6 +477,8 @@ export function WorkloadPage() {
               onSort={toggleSort}
               onVisibleWindowChange={setVisibleWindow}
               overrides={overrides}
+              calendarFor={calendarFor}
+              onNewWork={currentUser && (data?.editableProjects?.length ?? 0) > 0 ? setNewWork : undefined}
               projectsById={projectsById}
               range={range}
               showDepartment={!grouped}
@@ -417,13 +497,30 @@ export function WorkloadPage() {
           item={openedItem}
           key={`${openedItem.id}:${openedItem.updatedAt ?? ""}`}
           onClose={() => setOpenItemId(null)}
-          onOpenStructure={openStructure}
+          onOpenStructure={openStructureOf(openedItem.projectId)}
           onSave={(change) => {
             setOpenItemId(null);
             void applyChange(openedItem, change);
           }}
           project={projectsById.get(openedItem.projectId)}
           saving={saving}
+        />
+      )}
+      {newWork && (
+        <NewWorkDialog
+          onClose={() => setNewWork(null)}
+          onCreated={({ item, project }) => {
+            setNewWork(null);
+            setFeedback({
+              tone: "done",
+              message: t("ui.workload.newWorkCreated", { code: item.code, title: item.title, project: project.code }),
+              open: { projectId: project.id, href: `${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(item.id)}` },
+            });
+            setReloadToken((value) => value + 1);
+          }}
+          people={employeeNames}
+          projects={data?.editableProjects ?? []}
+          request={newWork}
         />
       )}
       {fullscreen.hint}

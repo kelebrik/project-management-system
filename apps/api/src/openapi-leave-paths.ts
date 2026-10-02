@@ -72,10 +72,54 @@ export const openApiLeavePaths = {
     get: {
       ...apiSecuredOperation(
         ["LeaveSchedule"],
-        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years. Each item tells which dates its links set and whether an open issue manages it; editableProjectIds lists the projects the user may change.",
+        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years. Each item tells which dates its links set, whether an open issue manages it and its calendarCode; projectCalendars lists each project's calendar days around the period; editableProjectIds and editableProjects list the projects the user may change.",
       ),
       parameters: [dateQuery("from", "First day of the period"), dateQuery("to", "Last day of the period, inclusive")],
     },
+  },
+  "/api/workload/parents": {
+    get: {
+      ...apiSecuredOperation(
+        ["LeaveSchedule"],
+        "Phases and work packages a new piece of work can go under in a project the user may change (not those an open issue manages), each with its calendarCode, the calendar of a new top-level row, and the project's calendar days around the period",
+      ),
+      parameters: [
+        { name: "projectId", in: "query", required: true, schema: { type: "string" } },
+        dateQuery("from", "First day of the period"),
+        dateQuery("to", "Last day of the period, inclusive"),
+      ],
+    },
+  },
+  "/api/projects/{projectId}/wbs-items/append": {
+    post: (() => {
+      const operation = createOperation(
+        ["WBS"],
+        "Add a piece of work at the end of a phase or work package (or the top level) with a title, owner and dates; dates move onto working days of the project calendar, and no other row changes its code. Refused when the Structure's codes do not follow its order, or the parent is managed by an open issue.",
+      );
+      return {
+        ...operation,
+        parameters: [pathParam("projectId")],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["parentId", "title", "startDate", "dueDate"],
+                properties: {
+                  parentId: { type: ["string", "null"] },
+                  title: { type: "string", maxLength: 500 },
+                  owner: { type: "string", maxLength: 200 },
+                  startDate: { type: "string", format: "date" },
+                  dueDate: { type: "string", format: "date" },
+                  type: { type: "string", enum: ["TASK", "WORK_PACKAGE", "DELIVERABLE"] },
+                },
+              },
+            },
+          },
+        },
+      };
+    })(),
   },
   "/api/leave-schedule/employees": {
     post: (() => {

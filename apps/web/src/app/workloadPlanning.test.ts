@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { calendarOverrides } from "./leaveScheduleModel";
+import { countWorkingDays, productionCalendarTest, projectCalendarTest } from "./projectCalendar";
 import type { WorkloadItem } from "./workloadModel";
 import {
   endAfterWorkingDays,
@@ -12,9 +13,9 @@ import {
   workloadEditRights,
 } from "./workloadPlanning";
 
-const none = calendarOverrides([]);
+const none = productionCalendarTest(calendarOverrides([]));
 // A made-up holiday on Wednesday 2026-11-04.
-const holidays = calendarOverrides([{ date: "2026-11-04", isWorkingDay: false, description: "Праздник" }]);
+const holidays = productionCalendarTest(calendarOverrides([{ date: "2026-11-04", isWorkingDay: false, description: "Праздник" }]));
 
 test("a working day is found in the direction of travel", () => {
   // 2026-10-03 is a Saturday.
@@ -111,4 +112,23 @@ test("a change keeps only what differs and can be put back", () => {
   const change = workloadChange(item, { owner: "Петров", startDate: "2026-10-05", dueDate: "2026-10-12" });
   assert.deepEqual(change, { owner: "Петров", dueDate: "2026-10-12" });
   assert.deepEqual(reverseWorkloadChange(item, change!), { owner: "Иванов", dueDate: "2026-10-09" });
+});
+
+test("a project calendar is read the way the server's schedule reads it", () => {
+  const overrides = [
+    { calendarCode: "CN" as const, date: "2026-10-01", isWorkingDay: false },
+    { calendarCode: "CN" as const, date: "2026-10-02", isWorkingDay: false },
+    { calendarCode: "CN" as const, date: "2026-10-10", isWorkingDay: true },
+    { calendarCode: "RU" as const, date: "2026-11-04", isWorkingDay: false },
+  ];
+  const ru = projectCalendarTest("RU", overrides);
+  const cn = projectCalendarTest("CN", overrides);
+  const both = projectCalendarTest("RU_CN", overrides);
+  assert.deepEqual([ru("2026-10-01"), cn("2026-10-01"), both("2026-10-01")], [true, false, false]);
+  assert.deepEqual([ru("2026-10-10"), cn("2026-10-10"), both("2026-10-10")], [false, true, false]);
+  assert.deepEqual([ru("2026-11-04"), cn("2026-11-04"), both("2026-11-04")], [false, true, false]);
+  assert.equal(countWorkingDays("2026-09-28", "2026-10-11", cn), 9);
+  // Moving three working days in the Chinese calendar steps over its days off.
+  assert.deepEqual(planDrag({ startDate: "2026-09-28", dueDate: "2026-09-29" }, "move", 3, cn), { startDate: "2026-10-05", dueDate: "2026-10-06" });
+  assert.deepEqual(planDrag({ startDate: "2026-09-28", dueDate: "2026-09-29" }, "move", 3, ru), { startDate: "2026-10-01", dueDate: "2026-10-02" });
 });

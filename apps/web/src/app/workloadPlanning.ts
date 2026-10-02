@@ -1,4 +1,5 @@
-import { addDays, daysBetween, isWorkingDay, workingDaysInRange, type LeaveCalendarDay } from "./leaveScheduleModel";
+import { addDays, daysBetween } from "./leaveScheduleModel";
+import { countWorkingDays, WORKING_DAY_SEARCH_LIMIT, type WorkingDayTest } from "./projectCalendar";
 import type { WorkloadItem } from "./workloadModel";
 
 /** What a drag grabs: the whole bar, or its start or finish edge. */
@@ -6,57 +7,55 @@ export type WorkloadDragMode = "move" | "start" | "end";
 
 export type WorkloadDates = { startDate: string; dueDate: string };
 
-/** A day far enough to cover any run of holidays when looking for a working day. */
-const MAX_SEARCH_DAYS = 31;
-
 /** The nearest working day from `day` in the given direction, `day` itself when it is one. */
-export function snapToWorkingDay(day: string, direction: 1 | -1, overrides: Map<string, LeaveCalendarDay>) {
+export function snapToWorkingDay(day: string, direction: 1 | -1, isWorking: WorkingDayTest) {
   let candidate = day;
-  for (let step = 0; step < MAX_SEARCH_DAYS; step += 1) {
-    if (isWorkingDay(candidate, overrides)) return candidate;
+  for (let step = 0; step < WORKING_DAY_SEARCH_LIMIT; step += 1) {
+    if (isWorking(candidate)) return candidate;
     candidate = addDays(candidate, direction);
   }
   return day;
 }
 
 /** The day on which `count` working days starting at `start` end; `start` itself for one day. */
-export function endAfterWorkingDays(start: string, count: number, overrides: Map<string, LeaveCalendarDay>) {
+export function endAfterWorkingDays(start: string, count: number, isWorking: WorkingDayTest) {
   let day = start;
-  let left = Math.max(1, count) - (isWorkingDay(start, overrides) ? 1 : 0);
-  while (left > 0) {
+  let left = Math.max(1, count) - (isWorking(start) ? 1 : 0);
+  for (let guard = 0; left > 0 && guard < WORKING_DAY_SEARCH_LIMIT * 10; guard += 1) {
     day = addDays(day, 1);
-    if (isWorkingDay(day, overrides)) left -= 1;
+    if (isWorking(day)) left -= 1;
   }
   return day;
 }
 
 /**
- * New dates for a bar dragged by `deltaDays`. Moving keeps the number of working
- * days and lands the start on a working day; an edge lands on a working day and
- * never passes the other edge. Returns null when nothing changes.
+ * New dates for a bar dragged by `deltaDays`, counted in the calendar of the
+ * work's project (the one the server's schedule uses). Moving keeps the number
+ * of working days and lands the start on a working day; an edge lands on a
+ * working day and never passes the other edge. Returns null when nothing changes.
  */
 export function planDrag(
   dates: WorkloadDates,
   mode: WorkloadDragMode,
   deltaDays: number,
-  overrides: Map<string, LeaveCalendarDay>,
+  isWorking: WorkingDayTest,
 ): WorkloadDates | null {
   if (deltaDays === 0) return null;
   const direction = deltaDays > 0 ? 1 : -1;
   let next: WorkloadDates;
   if (mode === "move") {
-    const startDate = snapToWorkingDay(addDays(dates.startDate, deltaDays), direction, overrides);
-    const working = workingDaysInRange(dates.startDate, dates.dueDate, overrides);
+    const startDate = snapToWorkingDay(addDays(dates.startDate, deltaDays), direction, isWorking);
+    const working = countWorkingDays(dates.startDate, dates.dueDate, isWorking);
     const dueDate =
       working > 0
-        ? endAfterWorkingDays(startDate, working, overrides)
+        ? endAfterWorkingDays(startDate, working, isWorking)
         : addDays(startDate, Math.max(0, daysBetween(dates.startDate, dates.dueDate)));
     next = { startDate, dueDate };
   } else if (mode === "start") {
-    const startDate = snapToWorkingDay(addDays(dates.startDate, deltaDays), 1, overrides);
+    const startDate = snapToWorkingDay(addDays(dates.startDate, deltaDays), 1, isWorking);
     next = { startDate: startDate > dates.dueDate ? dates.dueDate : startDate, dueDate: dates.dueDate };
   } else {
-    const dueDate = snapToWorkingDay(addDays(dates.dueDate, deltaDays), -1, overrides);
+    const dueDate = snapToWorkingDay(addDays(dates.dueDate, deltaDays), -1, isWorking);
     next = { startDate: dates.startDate, dueDate: dueDate < dates.startDate ? dates.startDate : dueDate };
   }
   return next.startDate === dates.startDate && next.dueDate === dates.dueDate ? null : next;

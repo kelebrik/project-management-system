@@ -303,3 +303,13 @@
 .leave-period-nav .workspace-fullscreen-button {
   margin-left: 4px;
 }
+.workload-lane.can-add-work { cursor: crosshair; }
+.workload-new-selection { background: color-mix(in srgb, var(--accent, #1a56db) 18%, transparent); border: 1px dashed var(--accent, #1a56db); border-radius: 4px; bottom: 2px; pointer-events: none; position: absolute; top: 2px; }
+.side-drawer.workload-new-work { align-content: start; display: grid; gap: 10px; max-width: 100vw; width: 460px; }
+.workload-new-work label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; }
+.workload-new-work input, .workload-new-work select { font: inherit; font-size: 13px; font-weight: 400; }
+.workload-new-work-dates { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.workload-planners > div { display: grid; gap: 8px; min-width: 280px; }
+.workload-planners label { display: grid; gap: 4px; }
+.workload-planner-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.workload-feedback a { color: inherit; font-weight: 600; }

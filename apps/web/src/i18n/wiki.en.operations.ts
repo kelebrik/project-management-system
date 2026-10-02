@@ -121,6 +121,8 @@ export const englishOperationsWikiGroup: WikiGroup = {
             "The bar colour is the project. Colours follow the list of projects sorted by code, so filtering does not repaint projects.",
             "Filters: search by owner, project choice, Only with overlaps, By department and Everyone in the directory.",
             "The 1, 3, 6 or 12 month scale is kept in the browser; the timeline scrolls freely and Today returns to the current day. Full screen works as on the Leave schedule.",
+            "The People filter keeps only the chosen people on the Workload page — those with work now and anyone from the directory. Filters and sorting are kept in the browser and stay when you come back to the page.",
+            "A planner is a saved set of people, projects, filters, sorting and horizon. In the Planners list you can open one, save the current filters as a new one (Show to everyone makes it shared), and update your own with the current filters or delete it; shared planners of other people can be opened but not changed. Projects and people that no longer exist or that you cannot see are skipped when a planner opens.",
           ],
         },
         {
@@ -131,6 +133,8 @@ export const englishOperationsWikiGroup: WikiGroup = {
             "Drag a bar onto another person's row to hand the work over: the owner changes in the WBS.",
             "Drag an edge to change the start or the finish. An edge lands on a working day and never passes the other one.",
             "Esc cancels a drag; a press without moving opens the work panel.",
+            "When a bar is dragged, its dates are counted in its project's calendar — the one the Structure recalculates the schedule in: RU, CN or RU_CN (a working day only if it works in both), with the holidays and working days set in the project. So a move in the Chinese calendar steps over its holidays even where the production calendar has working days. The grey day-off columns, leaves and overlaps still follow the people's production calendar.",
+            "New work can be added from the Workload page: drag across free days in a person's row (a click picks one day). In the New work window enter a title, adjust the owner and dates if needed, choose a project (only those you may change) and its place in the Structure — a phase or work package, or the top level. The window shows the working days in the project's calendar; a start or finish on a day off moves to the nearest working day when the work is created. The row goes at the end of the chosen branch with the next code (for example 1.3), and no other row changes its code; afterwards there is an Open in the Structure link. If the Structure's codes do not follow its order, the system asks to renumber the Structure first; work cannot be added to a work package an open issue manages.",
           ],
         },
         {

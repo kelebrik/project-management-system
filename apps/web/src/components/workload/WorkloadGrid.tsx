@@ -16,6 +16,8 @@ import { intlLocale } from "../../i18n/locale";
 import { TimelineBackdrop } from "../timeline/TimelineBackdrop";
 import { TimelineHeader } from "../timeline/TimelineHeader";
 import { useTimelineViewport } from "../timeline/useTimelineViewport";
+import type { WorkingDayTest } from "../../app/projectCalendar";
+import { useNewWorkSelection, type NewWorkRequest } from "./useNewWorkSelection";
 import { useWorkloadDrag, type WorkloadDragPreview } from "./useWorkloadDrag";
 
 export type WorkloadSortKey = "name" | "tasks" | "overlap";
@@ -41,6 +43,8 @@ export function WorkloadGrid({
   colors,
   leavesByEmployee,
   overrides,
+  calendarFor,
+  onNewWork,
   sort,
   onSort,
   onOpenItem,
@@ -61,6 +65,10 @@ export function WorkloadGrid({
   colors: Map<string, string>;
   leavesByEmployee: Map<string, WorkloadLeave[]>;
   overrides: Map<string, LeaveCalendarDay>;
+  /** The calendar a piece of work is planned in (its project's); the backdrop shows the people's. */
+  calendarFor: (item: WorkloadItem) => WorkingDayTest;
+  /** Starts a new piece of work on days picked on a person's row; absent when the user may not add work. */
+  onNewWork?: (request: NewWorkRequest) => void;
   sort: { key: WorkloadSortKey; direction: "asc" | "desc" };
   onSort: (key: WorkloadSortKey) => void;
   onOpenItem: (item: WorkloadItem) => void;
@@ -82,7 +90,8 @@ export function WorkloadGrid({
       onExtend,
       onVisibleWindowChange,
     });
-  const drag = useWorkloadDrag({ dayWidth, overrides, onCommit: onDragCommit });
+  const drag = useWorkloadDrag({ dayWidth, calendarFor, onCommit: onDragCommit });
+  const newWork = useNewWorkSelection({ dayWidth, rangeFrom: range.from, totalDays, onRequest: onNewWork });
   const dragPreview = drag.preview;
   const dayFormat = useMemo(
     () => new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
@@ -202,10 +211,16 @@ export function WorkloadGrid({
                       <span className={rowCounts.overlap > 0 ? "has-overlap" : ""}>{rowCounts.overlap}</span>
                     </div>
                     <div
-                      className="leave-time-lane workload-lane"
+                      className={`leave-time-lane workload-lane${onNewWork ? " can-add-work" : ""}`}
                       data-owner={row.key}
                       style={{ width: `${timelineWidth}px`, height: `${height}px` }}
+                      title={onNewWork ? t("ui.workload.newWorkHint") : undefined}
+                      {...newWork.laneHandlers(row.key, row.name)}
                     >
+                      {(() => {
+                        const picked = newWork.selected(row.key);
+                        return picked ? <div aria-hidden="true" className="workload-new-selection" style={{ left: px(picked.start), width: px(picked.length) }} /> : null;
+                      })()}
                       {row.employeeId &&
                         (leavesByEmployee.get(row.employeeId) ?? []).map((leave) => {
                           const position = span(leave.startDate, leave.endDate);

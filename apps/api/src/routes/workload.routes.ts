@@ -1,7 +1,8 @@
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
-import { loadWorkload } from '../services/workload.js';
+import { readableProject } from './project-writer.js';
+import { editableProjectIds, loadAppendTargets, loadWorkload } from '../services/workload.js';
 
 type WorkloadContext = {
   requireAuth: RequestHandler;
@@ -59,6 +60,26 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
       return;
     }
     res.json(await loadWorkload(req, range));
+  });
+
+  /** Phases and work packages a new piece of work can go under, in a project the user may change. */
+  router.get('/workload/parents', requireAuth, async (req, res) => {
+    const range = period(req);
+    const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : '';
+    if (!range || !projectId) {
+      res.status(400).json({ error: 'Укажите проект и период from и to в формате ГГГГ-ММ-ДД' });
+      return;
+    }
+    const project = await readableProject(req, projectId);
+    if (!project || project.status === 'CLOSED') {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+    if ((await editableProjectIds(req, [project.id])).length === 0) {
+      res.status(403).json({ error: 'Нет доступа на изменение этого проекта' });
+      return;
+    }
+    res.json(await loadAppendTargets(project.id, range));
   });
 
   return router;

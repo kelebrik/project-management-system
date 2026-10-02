@@ -20,7 +20,7 @@ function dateText(value: Date) {
 }
 
 /** Projects the current user may change: the same rule the write middleware applies to WBS items. */
-async function editableProjectIds(req: Request, projectIds: string[]) {
+export async function editableProjectIds(req: Request, projectIds: string[]) {
   const user = currentUser(req);
   if (!user || projectIds.length === 0) return [];
   if (user.role === 'ADMIN' || (isPublicDemoMode() && user.id === PUBLIC_DEMO_USER_ID)) return projectIds;
@@ -76,6 +76,13 @@ async function scheduleLocks(projectIds: string[]) {
  * and the working-day calendar. The workload page and the AI rebalancing read
  * the same data.
  */
+const CALENDAR_MARGIN_DAYS = 120;
+const shiftDays = (day: string, days: number) => {
+  const date = toDate(day);
+  date.setUTCDate(date.getUTCDate() + days);
+  return dateText(date);
+};
+
 export async function loadWorkload(req: Request, range: { from: string; to: string }) {
   const projectScope = { status: { not: 'CLOSED' as const }, ...(await readableProjectWhere(req)) };
   const [items, employees, leaves, calendarDays] = await Promise.all([
@@ -101,6 +108,7 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
         startDate: true,
         dueDate: true,
         updatedAt: true,
+        calendarCode: true,
         project: { select: { id: true, code: true, name: true } },
       },
       orderBy: [{ startDate: 'asc' }],
@@ -119,7 +127,10 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
   // A blank owner names nobody.
   const shown = items.filter((item) => item.owner.trim() && item.startDate && item.dueDate && item.startDate <= item.dueDate);
   const projectIds = [...new Set(shown.map((item) => item.projectId))];
-  const [locks, issueLinks, editable] = await Promise.all([
+  // Days a project's calendar sets apart, with room around the period for drags past its edges.
+  const calendarFrom = shiftDays(range.from, -CALENDAR_MARGIN_DAYS);
+  const calendarTo = shiftDays(range.to, CALENDAR_MARGIN_DAYS);
+  const [locks, issueLinks, editable, calendarOverrides, openProjects] = await Promise.all([
     scheduleLocks(projectIds),
     prisma.issue.findMany({
       where: {
@@ -130,7 +141,19 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
       select: { workPackageId: true },
     }),
     editableProjectIds(req, projectIds),
+    prisma.projectCalendarOverride.findMany({
+      where: { projectId: { in: projectIds }, date: { gte: toDate(calendarFrom), lte: toDate(calendarTo) } },
+      select: { projectId: true, calendarCode: true, date: true, isWorkingDay: true },
+      orderBy: [{ date: 'asc' }],
+    }),
+    prisma.project.findMany({ where: projectScope, select: { id: true, code: true, name: true }, orderBy: { code: 'asc' } }),
   ]);
+  // Every open project the user may add work to, not only those with work shown.
+  const editableOpen = new Set(await editableProjectIds(req, openProjects.map((project) => project.id)));
+  const projectCalendars: Record<string, Array<{ calendarCode: string; date: string; isWorkingDay: boolean }>> = {};
+  for (const override of calendarOverrides) {
+    (projectCalendars[override.projectId] ??= []).push({ calendarCode: override.calendarCode, date: dateText(override.date), isWorkingDay: override.isWorkingDay });
+  }
   const managedByIssue = new Set(issueLinks.map((issue) => issue.workPackageId));
   const work = shown
     .map((item) => {
@@ -152,12 +175,15 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
         startLinks: lock?.startLinks ?? [],
         finishLinks: lock?.finishLinks ?? [],
         lockedByIssue: managedByIssue.has(item.id),
+        calendarCode: item.calendarCode,
       };
     });
   return {
     projects: [...projects.values()].sort((left, right) => left.code.localeCompare(right.code, 'ru')),
     items: work,
     editableProjectIds: editable,
+    editableProjects: openProjects.filter((project) => editableOpen.has(project.id)),
+    projectCalendars,
     employees,
     leaves: leaves.map((leave) => ({
       ...leave,
@@ -173,3 +199,34 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
 }
 
 export type WorkloadSnapshot = Awaited<ReturnType<typeof loadWorkload>>;
+
+/**
+ * Where a new piece of work can go in one project from the Workload page: its
+ * phases and work packages (not those an open issue manages), each with the
+ * calendar a child would take, the calendar of a new top-level row, and the
+ * days the project's calendar sets apart around the period.
+ */
+export async function loadAppendTargets(projectId: string, range: { from: string; to: string }) {
+  const [rows, managed, overrides] = await Promise.all([
+    prisma.wbsItem.findMany({
+      where: { projectId },
+      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, code: true, title: true, type: true, wbsLevel: true, calendarCode: true, status: true },
+    }),
+    prisma.issue.findMany({ where: { projectId, status: { notIn: CLOSED_ISSUE_STATUSES }, workPackageId: { not: null } }, select: { workPackageId: true } }),
+    prisma.projectCalendarOverride.findMany({
+      where: { projectId, date: { gte: toDate(shiftDays(range.from, -CALENDAR_MARGIN_DAYS)), lte: toDate(shiftDays(range.to, CALENDAR_MARGIN_DAYS)) } },
+      select: { calendarCode: true, date: true, isWorkingDay: true },
+      orderBy: [{ date: 'asc' }],
+    }),
+  ]);
+  const managedIds = new Set(managed.map((issue) => issue.workPackageId));
+  return {
+    projectId,
+    defaultCalendarCode: rows[0]?.calendarCode ?? 'RU',
+    parents: rows
+      .filter((row) => (row.type === 'PHASE' || row.type === 'WORK_PACKAGE') && row.status !== 'CANCELLED' && !managedIds.has(row.id))
+      .map((row) => ({ id: row.id, code: row.code, title: row.title, type: row.type, level: row.wbsLevel ?? row.code.split('.').length, calendarCode: row.calendarCode })),
+    calendar: overrides.map((override) => ({ calendarCode: override.calendarCode, date: dateText(override.date), isWorkingDay: override.isWorkingDay })),
+  };
+}

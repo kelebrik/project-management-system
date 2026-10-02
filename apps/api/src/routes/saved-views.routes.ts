@@ -16,6 +16,17 @@ const savedViewSchema = z.object({
 
 const savedViewPatchSchema = savedViewSchema.partial();
 const retiredJiraAnalyticsViewType = 'jira-analytics-dashboard';
+/** Views that span projects (the Workload planners): they never belong to one project. */
+const crossProjectViewTypes = new Set(['workload']);
+const MAX_CROSS_PROJECT_CONFIG_CHARS = 20_000;
+
+/** Why a cross-project view cannot be saved this way, or null. */
+function crossProjectViewProblem(viewType: string, projectId: string | null | undefined, config: unknown) {
+  if (!crossProjectViewTypes.has(viewType)) return null;
+  if (projectId) return 'Планировщик Загрузки не привязывается к проекту';
+  if (config !== undefined && JSON.stringify(config ?? null).length > MAX_CROSS_PROJECT_CONFIG_CHARS) return 'Слишком большой планировщик';
+  return null;
+}
 
 type SavedViewsContext = {
   currentUser: (req: Request) => any;
@@ -66,6 +77,11 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     const user = currentUser(req);
     if (!user) {
       res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
+    const createProblem = crossProjectViewProblem(parsed.data.viewType, parsed.data.projectId, parsed.data.config);
+    if (createProblem) {
+      res.status(400).json({ error: createProblem });
       return;
     }
     if (parsed.data.projectId && !(await userCanReadProject(req, parsed.data.projectId))) {
@@ -121,6 +137,15 @@ export function createSavedViewsRouter({ currentUser, requireAuth }: SavedViewsC
     }
     if (user?.role !== 'ADMIN' && before.ownerId !== user?.id) {
       res.status(403).json({ error: 'Недостаточно прав' });
+      return;
+    }
+    const patchProblem = crossProjectViewProblem(
+      parsed.data.viewType ?? before.viewType,
+      parsed.data.projectId === undefined ? before.projectId : parsed.data.projectId,
+      parsed.data.config,
+    );
+    if (patchProblem) {
+      res.status(400).json({ error: patchProblem });
       return;
     }
     if (parsed.data.projectId && !(await userCanReadProject(req, parsed.data.projectId))) {
