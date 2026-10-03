@@ -35,7 +35,7 @@ import { logEvent } from './logger.js';
 import { writePermissionMiddleware } from './permissions.js';
 import { ensureEntityProjectWritable, ensureProjectWritable, registerClosedProjectWriteGuards } from './project-write-guards.js';
 import { httpMetricsMiddleware, metricsHandler, rateLimitMiddleware } from './telemetry.js';
-import { LEGACY_TRUST_PROXY_HOPS, trustProxyHops } from './deployment-profile.js';
+import { isCloudProfile, LEGACY_TRUST_PROXY_HOPS, trustProxyHops } from './deployment-profile.js';
 
 const webOrigin = process.env.WEB_ORIGIN ?? 'http://localhost:5173';
 const isProduction = process.env.NODE_ENV === 'production';
@@ -69,6 +69,22 @@ export function shouldCompress(req: Request, res: Response) {
   // Downloads are sent as octet-stream and are mostly zip-based already (xlsx, docx).
   if (type.startsWith('text/event-stream') || type.startsWith('application/octet-stream')) return false;
   return compression.filter(req, res);
+}
+
+/**
+ * Loads the cloud-only routes when the folder is there; the corporate build does
+ * not ship it and runs without them. The path is a variable so that the build
+ * does not require the file.
+ */
+async function loadCloudRoutes(router: express.Router) {
+  const modulePath = '../cloudOnly/index.js';
+  try {
+    const cloud = (await import(modulePath)) as { registerCloudRoutes?: (router: express.Router) => void };
+    cloud.registerCloudRoutes?.(router);
+    return Boolean(cloud.registerCloudRoutes);
+  } catch {
+    return false;
+  }
 }
 
 export const startedAt = new Date();
@@ -149,6 +165,10 @@ export function createApp() {
   app.use('/api', businessUnitReadMiddleware);
   app.use('/api', createSearchRouter());
   app.use('/api', createSavedViewsRouter({ currentUser, requireAuth }));
+  // Routes of the cloud build (apps/api/src/cloudOnly), before write checks: anyone signed in may report a problem.
+  const cloudRouter = express.Router();
+  app.use('/api', cloudRouter);
+  app.locals.cloudRoutesReady = isCloudProfile() ? loadCloudRoutes(cloudRouter) : Promise.resolve(false);
 
   app.use('/api', writePermissionMiddleware);
 

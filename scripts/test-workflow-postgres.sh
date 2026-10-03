@@ -14,4 +14,6 @@ export WORKFLOW_TEST_DATABASE=true
 export SCHEDULE_SHIFT_TEST_DATABASE=true
 ./node_modules/.bin/prisma generate
 ./node_modules/.bin/prisma migrate deploy
-./node_modules/.bin/tsx --test tests/integration/*-postgres.test.ts
+# Cloud-only tests live with the cloud-only code, which the corporate build does not ship.
+cloud_tests=$(ls apps/api/src/cloudOnly/*-postgres.test.ts 2>/dev/null || true)
+./node_modules/.bin/tsx --test tests/integration/*-postgres.test.ts $cloud_tests

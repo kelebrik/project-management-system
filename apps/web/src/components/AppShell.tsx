@@ -1,6 +1,7 @@
 import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
 import { NotificationsBell } from "./notifications/NotificationsBell";
+import { CloudHeaderSlot } from "./CloudSlot";
 import { Archive, BarChart3, Workflow, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardCheck, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, Grid3x3, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 import type { Toast } from "../hooks/useAppFeedbackState";
@@ -470,6 +471,7 @@ export function AppShell({
           {renderGlobalSearch("global-search-topbar")}
         </div>
         {currentUser && <NotificationsBell />}
+        {currentUser && <CloudHeaderSlot user={currentUser} />}
         <LanguageToggle sidebarCollapsed />
       </header>
 
