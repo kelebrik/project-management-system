@@ -76,13 +76,6 @@ async function scheduleLocks(projectIds: string[]) {
  * and the working-day calendar. The workload page and the AI rebalancing read
  * the same data.
  */
-const CALENDAR_MARGIN_DAYS = 120;
-const shiftDays = (day: string, days: number) => {
-  const date = toDate(day);
-  date.setUTCDate(date.getUTCDate() + days);
-  return dateText(date);
-};
-
 export async function loadWorkload(req: Request, range: { from: string; to: string }) {
   const projectScope = { status: { not: 'CLOSED' as const }, ...(await readableProjectWhere(req)) };
   const [items, employees, leaves, calendarDays] = await Promise.all([
@@ -127,9 +120,6 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
   // A blank owner names nobody.
   const shown = items.filter((item) => item.owner.trim() && item.startDate && item.dueDate && item.startDate <= item.dueDate);
   const projectIds = [...new Set(shown.map((item) => item.projectId))];
-  // Days a project's calendar sets apart, with room around the period for drags past its edges.
-  const calendarFrom = shiftDays(range.from, -CALENDAR_MARGIN_DAYS);
-  const calendarTo = shiftDays(range.to, CALENDAR_MARGIN_DAYS);
   const [locks, issueLinks, editable, calendarOverrides, openProjects] = await Promise.all([
     scheduleLocks(projectIds),
     prisma.issue.findMany({
@@ -142,7 +132,9 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
     }),
     editableProjectIds(req, projectIds),
     prisma.projectCalendarOverride.findMany({
-      where: { projectId: { in: projectIds }, date: { gte: toDate(calendarFrom), lte: toDate(calendarTo) } },
+      // All of each project's calendar days, not a window: work may start or end far outside the period,
+      // and a moved bar keeps its working days counted over its whole length. A calendar has a few dozen a year.
+      where: { projectId: { in: projectIds } },
       select: { projectId: true, calendarCode: true, date: true, isWorkingDay: true },
       orderBy: [{ date: 'asc' }],
     }),
@@ -203,10 +195,10 @@ export type WorkloadSnapshot = Awaited<ReturnType<typeof loadWorkload>>;
 /**
  * Where a new piece of work can go in one project from the Workload page: its
  * phases and work packages (not those an open issue manages), each with the
- * calendar a child would take, the calendar of a new top-level row, and the
- * days the project's calendar sets apart around the period.
+ * calendar a child would take, the calendar of a new top-level row, and all the
+ * days the project's calendar sets apart.
  */
-export async function loadAppendTargets(projectId: string, range: { from: string; to: string }) {
+export async function loadAppendTargets(projectId: string) {
   const [rows, managed, overrides] = await Promise.all([
     prisma.wbsItem.findMany({
       where: { projectId },
@@ -215,7 +207,8 @@ export async function loadAppendTargets(projectId: string, range: { from: string
     }),
     prisma.issue.findMany({ where: { projectId, status: { notIn: CLOSED_ISSUE_STATUSES }, workPackageId: { not: null } }, select: { workPackageId: true } }),
     prisma.projectCalendarOverride.findMany({
-      where: { projectId, date: { gte: toDate(shiftDays(range.from, -CALENDAR_MARGIN_DAYS)), lte: toDate(shiftDays(range.to, CALENDAR_MARGIN_DAYS)) } },
+      // The whole calendar, as for the workload: dates in the dialog may go anywhere.
+      where: { projectId },
       select: { calendarCode: true, date: true, isWorkingDay: true },
       orderBy: [{ date: 'asc' }],
     }),

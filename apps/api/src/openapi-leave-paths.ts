@@ -72,7 +72,7 @@ export const openApiLeavePaths = {
     get: {
       ...apiSecuredOperation(
         ["LeaveSchedule"],
-        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years. Each item tells which dates its links set, whether an open issue manages it and its calendarCode; projectCalendars lists each project's calendar days around the period; editableProjectIds and editableProjects list the projects the user may change.",
+        "Leaf work with owners and dates across open projects, with people, leaves and calendar days, for a period of up to six years. Each item tells which dates its links set, whether an open issue manages it and its calendarCode; projectCalendars lists all calendar days of each project; editableProjectIds and editableProjects list the projects the user may change.",
       ),
       parameters: [dateQuery("from", "First day of the period"), dateQuery("to", "Last day of the period, inclusive")],
     },
@@ -81,7 +81,7 @@ export const openApiLeavePaths = {
     get: {
       ...apiSecuredOperation(
         ["LeaveSchedule"],
-        "Phases and work packages a new piece of work can go under in a project the user may change (not those an open issue manages), each with its calendarCode, the calendar of a new top-level row, and the project's calendar days around the period",
+        "Phases and work packages a new piece of work can go under in a project the user may change (not those an open issue manages), each with its calendarCode, the calendar of a new top-level row, and all the project's calendar days",
       ),
       parameters: [
         { name: "projectId", in: "query", required: true, schema: { type: "string" } },

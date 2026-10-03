@@ -48,7 +48,7 @@ export type WorkloadData = {
   editableProjectIds?: string[];
   /** Every open project the user may add work to, with or without work shown. */
   editableProjects?: WorkloadProject[];
-  /** The days each project's calendar sets apart, around the period. */
+  /** All the days each project's calendar sets apart. */
   projectCalendars?: Record<string, ProjectCalendarOverrideDay[]>;
 };
 

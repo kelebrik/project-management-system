@@ -79,7 +79,7 @@ export function createWorkloadRouter({ requireAuth }: WorkloadContext) {
       res.status(403).json({ error: 'Нет доступа на изменение этого проекта' });
       return;
     }
-    res.json(await loadAppendTargets(project.id, range));
+    res.json(await loadAppendTargets(project.id));
   });
 
   return router;

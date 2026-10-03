@@ -23,6 +23,8 @@ test('work is added from the Workload page under a phase in the project calendar
   const next = await prisma.wbsItem.create({ data: { projectId: project.id, code: '2', title: 'Вторая фаза', type: 'PHASE', owner: '', sortOrder: 30, wbsLevel: 1 } });
   // The Chinese holiday week.
   await prisma.projectCalendarOverride.createMany({ data: ['2026-10-01', '2026-10-02'].map((date) => ({ projectId: project.id, calendarCode: 'CN' as const, date: day(date), isWorkingDay: false, description: 'Праздник' })) });
+  // A day off far outside the period: long work moved by a day still has to count it.
+  await prisma.projectCalendarOverride.create({ data: { projectId: project.id, calendarCode: 'CN', date: day('2026-01-08'), isWorkingDay: false, description: 'Давний праздник' } });
 
   process.env.DEPLOYMENT_PROFILE = 'cloud';
   const server = createApp().listen(0, '127.0.0.1');
@@ -42,7 +44,7 @@ test('work is added from the Workload page under a phase in the project calendar
 
     const workload = await (await asEditor('/api/workload?from=2026-09-01&to=2026-10-31')).json();
     assert.equal(workload.items.find((item: { id: string }) => item.id === first.id).calendarCode, 'CN');
-    assert.deepEqual(workload.projectCalendars[project.id].map((override: { date: string }) => override.date), ['2026-10-01', '2026-10-02']);
+    assert.deepEqual(workload.projectCalendars[project.id].map((override: { date: string }) => override.date), ['2026-01-08', '2026-10-01', '2026-10-02']);
     assert.ok(workload.editableProjects.some((entry: { id: string }) => entry.id === project.id));
 
     const parents = await (await asEditor(`/api/workload/parents?projectId=${project.id}&from=2026-09-01&to=2026-10-31`)).json();
