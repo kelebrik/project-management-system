@@ -43,24 +43,25 @@ export function ProjectWorkspacePage() {
                       </p>
                     </div>
                     {activeView === "project-structure" && (
-                      <PlanSnapshotsButton
-                        canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
-                        hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
-                        projectId={ctx.project.id}
-                      />
-                    )}
-                    {activeView === "project-structure" && (
-                      <WbsTableButton
-                        canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
-                        hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
-                        items={ctx.project.wbsItems}
-                        onImported={() => ctx.refreshProject(ctx.project.id)}
-                        projectCode={ctx.project.code}
-                        projectId={ctx.project.id}
-                      />
-                    )}
-                    {activeView === "project-structure" && !ctx.isReadOnly && (
-                      <WbsDraftButton onApplied={() => ctx.refreshProject(ctx.project.id)} projectId={ctx.project.id} unsavedRows={ctx.dirtyWbsItemIds?.size ?? 0} />
+                      // The page's tools sit together on the right, in one row.
+                      <div className="structure-title-actions">
+                        <PlanSnapshotsButton
+                          canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
+                          hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
+                          projectId={ctx.project.id}
+                        />
+                        <WbsTableButton
+                          canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
+                          hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
+                          items={ctx.project.wbsItems}
+                          onImported={() => ctx.refreshProject(ctx.project.id)}
+                          projectCode={ctx.project.code}
+                          projectId={ctx.project.id}
+                        />
+                        {!ctx.isReadOnly && (
+                          <WbsDraftButton onApplied={() => ctx.refreshProject(ctx.project.id)} projectId={ctx.project.id} unsavedRows={ctx.dirtyWbsItemIds?.size ?? 0} />
+                        )}
+                      </div>
                     )}
                         </div>
                       <div className="wbs-gantt-layout">

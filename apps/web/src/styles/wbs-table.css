@@ -19,3 +19,16 @@
 .wbs-table-problems { color: var(--danger, #c0392b); }
 .wbs-table-warnings { color: var(--warning-text, #8a5a00); }
 .wbs-table-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
+
+/* Plan snapshots, Excel / Sheets and the draft button: together on the right of the title, one row. */
+.structure-title-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.structure-title-actions > * {
+  margin: 0;
+}
