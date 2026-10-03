@@ -14,6 +14,9 @@ import {
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useI18n } from "../i18n/I18nProvider";
 
+/** Height of the business unit hint, for choosing whether it goes above or below the field. */
+const CALLOUT_HEIGHT = 60;
+
 type PendingState = {
   options: ConfirmOptions;
   resolve: (result: boolean) => void;
@@ -52,7 +55,12 @@ function ConfirmDialog({
         Math.min(window.innerWidth - calloutWidth - 12, targetCenter - 19),
       );
       const belowTop = rect.bottom + 16;
-      const placeAbove = rect.top >= 76;
+      // Above the field unless there is no room, or the hint would cover the dialog and fits below it.
+      const dialog = containerRef.current?.getBoundingClientRect();
+      const aboveTop = rect.top - 16 - CALLOUT_HEIGHT;
+      const coversDialog = (top: number) => Boolean(dialog && top < dialog.bottom && top + CALLOUT_HEIGHT > dialog.top);
+      const fitsBelow = belowTop + CALLOUT_HEIGHT <= window.innerHeight - 8;
+      const placeAbove = rect.top >= 76 && !(coversDialog(aboveTop) && fitsBelow && !coversDialog(belowTop));
       setCalloutPosition({
         arrowLeft: targetCenter - left - 9,
         ...(placeAbove

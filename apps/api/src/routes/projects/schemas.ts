@@ -2,8 +2,22 @@ import { projectSchema } from '@pms/shared';
 import { z } from 'zod';
 import { patchSchema } from '../patch-schema.js';
 
+const isoDay = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((value) => {
+    const date = new Date(`${value}T00:00:00.000Z`);
+    return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+  });
+
+// A new project needs a name, a manager and dates; the sponsor and the summary can come later.
 export const createProjectSchema = projectSchema.extend({
   portfolio: z.string().trim().optional().default(''),
+  sponsor: z.string().trim().optional().default(''),
+  summary: z.string().trim().optional().default(''),
+  startDate: isoDay,
+  targetDate: isoDay,
   copyCurrentStructureFrom: z
     .array(
       z.object({
@@ -15,6 +29,9 @@ export const createProjectSchema = projectSchema.extend({
     .optional()
     .default([]),
 }).superRefine((value, context) => {
+  if (value.startDate > value.targetDate) {
+    context.addIssue({ code: 'custom', path: ['targetDate'], message: 'Окончание не может быть раньше начала' });
+  }
   const projectIds = value.copyCurrentStructureFrom.map((item) => item.projectId);
   if (new Set(projectIds).size !== projectIds.length) {
     context.addIssue({

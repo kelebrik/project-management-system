@@ -17,10 +17,10 @@ test("English default, language switch and persistence preserve unsaved input an
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await page.goto("/new-project");
   await expect(page.getByRole("heading", { name: "Создать проект", exact: true })).toBeVisible();
-  await page.getByPlaceholder("CRM", { exact: true }).fill("UNSAVED-42");
+  await page.getByLabel("Наименование").fill("Несохранённый проект 42");
   await page.getByTestId("language-toggle").click();
   await expect(page.getByRole("heading", { name: "Create project", exact: true })).toBeVisible();
-  await expect(page.getByPlaceholder("CRM", { exact: true })).toHaveValue("UNSAVED-42");
+  await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Несохранённый проект 42");
   expect(errors).toEqual([]);
 });
 

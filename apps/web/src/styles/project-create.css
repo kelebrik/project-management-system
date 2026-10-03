@@ -1,0 +1,39 @@
+/* The two steps of a new project and its folded optional fields. */
+.project-create-steps {
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+}
+
+.project-create-steps li {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 4px 12px;
+}
+
+.project-create-steps li[aria-current="step"] {
+  background: var(--brand-soft-2);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.project-create-more {
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.project-create-more > summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.project-create-more[open] > summary {
+  margin-bottom: 10px;
+}

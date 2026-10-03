@@ -50,3 +50,22 @@ test('create project rejects duplicate source projects', () => {
   });
   assert.equal(result.success, false);
 });
+
+test('a new project needs no sponsor or summary; they can be added later', () => {
+  const { sponsor: _sponsor, summary: _summary, ...minimal } = project;
+  const result = createProjectSchema.safeParse(minimal);
+  assert.equal(result.success, true);
+  if (result.success) {
+    assert.equal(result.data.sponsor, '');
+    assert.equal(result.data.summary, '');
+  }
+});
+
+test('a new project takes real calendar dates, and the finish is not before the start', () => {
+  assert.equal(createProjectSchema.safeParse({ ...project, startDate: '2026-02-30' }).success, false);
+  assert.equal(createProjectSchema.safeParse({ ...project, startDate: '21.07.2026' }).success, false);
+  const reversed = createProjectSchema.safeParse({ ...project, startDate: '2027-01-10', targetDate: '2026-12-31' });
+  assert.equal(reversed.success, false);
+  if (!reversed.success) assert.deepEqual(reversed.error.issues[0].path, ['targetDate']);
+  assert.equal(createProjectSchema.safeParse({ ...project, targetDate: project.startDate }).success, true);
+});

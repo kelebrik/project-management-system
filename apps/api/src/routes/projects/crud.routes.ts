@@ -168,6 +168,11 @@ export function registerProjectCrudRoutes(
       return;
     }
     const actor = currentUser(req);
+    const taken = await projectCodeTaken(projectData.code);
+    if (taken) {
+      res.status(409).json({ error: `Проект с кодом ${taken} уже есть`, field: 'code' });
+      return;
+    }
 
     for (const selection of copyCurrentStructureFrom) {
       if (!(await userCanReadProject(req, selection.projectId))) {
@@ -292,7 +297,7 @@ export function registerProjectCrudRoutes(
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        res.status(409).json({ error: 'Код проекта уже существует' });
+        res.status(409).json({ error: 'Проект с таким кодом уже есть', field: 'code' });
         return;
       }
       if (
@@ -395,6 +400,18 @@ export function registerProjectCrudRoutes(
       return;
     }
 
+    const takenCode = parsed.data.code ? await projectCodeTaken(parsed.data.code, project.id) : null;
+    if (takenCode) {
+      res.status(409).json({ error: `Проект с кодом ${takenCode} уже есть`, field: 'code' });
+      return;
+    }
+    const nextStart = (parsed.data.startDate ?? project.startDate.toISOString()).slice(0, 10);
+    const nextTarget = (parsed.data.targetDate ?? project.targetDate.toISOString()).slice(0, 10);
+    if ((parsed.data.startDate || parsed.data.targetDate) && nextStart > nextTarget) {
+      res.status(400).json({ error: 'Окончание не может быть раньше начала', field: 'targetDate' });
+      return;
+    }
+
     if (parsed.data.parentId) {
       const parent = await prisma.project.findUnique({
         where: { id: parsed.data.parentId },
@@ -482,7 +499,7 @@ export function registerProjectCrudRoutes(
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        res.status(409).json({ error: 'Код проекта уже существует' });
+        res.status(409).json({ error: 'Проект с таким кодом уже есть', field: 'code' });
         return;
       }
       throw error;
@@ -699,4 +716,13 @@ export function registerProjectCrudRoutes(
     }).catch(() => undefined);
     res.status(204).send();
   });
+}
+
+/** The code of another project that differs only in case, if any: both would open the same address. */
+async function projectCodeTaken(code: string, exceptProjectId?: string) {
+  const other = await prisma.project.findFirst({
+    where: { code: { equals: code, mode: 'insensitive' }, ...(exceptProjectId ? { NOT: { id: exceptProjectId } } : {}) },
+    select: { code: true },
+  });
+  return other?.code ?? null;
 }

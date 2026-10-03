@@ -337,7 +337,7 @@ export const projectIdentitySchema = z.object({
 export const projectSchema = projectIdentitySchema.extend({
   parentId: z.string().trim().optional().nullable(),
   portfolio: z.string().trim().min(1),
-  sponsor: z.string().trim().min(1),
+  sponsor: z.string().trim(),
   projectManager: z.string().trim().min(1),
   status: z.enum(projectStatuses).default("ACTIVE"),
   rag: z.enum(ragStatuses).default("GREEN"),
@@ -347,7 +347,7 @@ export const projectSchema = projectIdentitySchema.extend({
   budgetForecast: z.coerce.number().nonnegative(),
   scheduleVariance: z.coerce.number().int().default(0),
   progress: z.coerce.number().int().min(0).max(100).default(0),
-  summary: z.string().trim().min(3),
+  summary: z.string().trim(),
   sortOrder: z.coerce.number().int().default(0),
   uiState: z.record(z.string(), z.unknown()).optional().nullable(),
 });

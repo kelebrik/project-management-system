@@ -21,6 +21,10 @@ test("project creation confirms the selected business unit for an administrator"
   page,
 }) => {
   let createBody: {
+    name?: string;
+    code?: string;
+    projectManager?: string;
+    sponsor?: string;
     copyCurrentStructureFrom?: Array<{
       projectId: string;
       phaseIds: string[] | null;
@@ -90,7 +94,11 @@ test("project creation confirms the selected business unit for an administrator"
 
   await expect(page.getByRole("heading", { name: "Создать проект" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "Создать проект?" })).toBeHidden();
+  // Step one: what the project is. Step two: where its Structure comes from.
+  await page.getByLabel("Наименование").fill("Новый мобильный банк");
   await page.getByLabel("Портфель").selectOption("business-unit-sd");
+  await page.getByRole("button", { name: "Далее" }).click();
+  await expect(page.getByLabel("Портфель")).toHaveValue("business-unit-sd");
 
   await page
     .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
@@ -140,6 +148,10 @@ test("project creation confirms the selected business unit for an administrator"
   await page.getByRole("button", { name: "Создать проект", exact: true }).click();
   await dialog.getByRole("button", { name: "Создать", exact: true }).click();
   await expect.poll(() => createBusinessUnitHeader).toBe("business-unit-sd");
+  expect(createBody?.name).toBe("Новый мобильный банк");
+  expect(createBody?.code).toBe("NMB");
+  expect(createBody?.projectManager).toBe("Администратор");
+  expect(createBody?.sponsor).toBe("");
   expect(createBody?.copyCurrentStructureFrom).toEqual([
     { projectId: "source-alpha", phaseIds: ["phase-analysis"] },
     { projectId: "source-beta", phaseIds: ["phase-delivery"] },
@@ -200,6 +212,8 @@ test("project creation keeps business units available when structure options fai
   ]);
   await expect(page.getByText("Проект не найден", { exact: true })).toHaveCount(0);
 
+  await page.getByLabel("Наименование").fill("Проект без копии");
+  await page.getByRole("button", { name: "Далее" }).click();
   await page
     .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
     .click();

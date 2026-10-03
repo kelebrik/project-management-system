@@ -19,7 +19,7 @@ import type {
   WbsItemStatus,
   WbsItemType,
 } from "./domainTypes";
-import { addMonths, date, isoDate } from "./dateUtils";
+import { addCalendarMonths, date, isoDate } from "./dateUtils";
 import { projectHealthLabel, projectStatusLabel } from "./labels";
 import type { ProjectCalendarCode, WbsPredecessorTiming } from "./wbsTable";
 
@@ -269,22 +269,16 @@ const emptyProjectForm: ProjectFormState = {
   sortOrder: "0",
 };
 
-export function newProjectFormDefaults(): ProjectFormState {
-  const startDate = new Date();
-  const targetDate = addMonths(startDate, 1);
-  const suffix = String(Date.now()).slice(-5);
+/**
+ * A new project starts today and is planned for three months (a 31st becomes
+ * the last day of a shorter month). The name, code and manager are left empty:
+ * the form fills the manager with the person creating it and the code from the name.
+ */
+export function newProjectFormDefaults(now = new Date()): ProjectFormState {
   return {
     ...emptyProjectForm,
-    code: `PRJ-${suffix}`,
-    name: "Новый проект",
-    portfolio: "Портфель",
-    sponsor: "Спонсор",
-    projectManager: "Руководитель проекта",
-    startDate: isoDate(startDate),
-    targetDate: isoDate(targetDate),
-    budgetPlanned: "0",
-    budgetForecast: "0",
-    summary: "Новый проект",
+    startDate: isoDate(now),
+    targetDate: isoDate(addCalendarMonths(now, 3)),
   };
 }
 

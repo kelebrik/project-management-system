@@ -169,7 +169,11 @@ export function useProjectRegistryController({
   );
 
   const createProject = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
+    async (
+      event: FormEvent<HTMLFormElement>,
+      // Told which form field the server refused (a taken code), so the form can mark it.
+      onFieldError?: (field: string, message: string) => void,
+    ) => {
       event.preventDefault();
       setError(null);
       setNotice(null);
@@ -216,6 +220,9 @@ export function useProjectRegistryController({
           body: JSON.stringify(projectPayload(newProjectForm)),
         });
         const result = await response.json();
+        if (!response.ok && typeof result.field === "string" && typeof result.error === "string") {
+          onFieldError?.(result.field, result.error);
+        }
         if (!response.ok) {
           throw new Error(
             result.error?.formErrors?.join(", ") ||

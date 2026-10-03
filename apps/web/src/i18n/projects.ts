@@ -180,8 +180,48 @@ export const projects = {
     "ru": "Создать проект"
   },
   "create.description": {
-    "en": "Create a project with the core project management fields",
-    "ru": "Быстрый ввод нового проекта с базовыми полями проектного офиса"
+    "en": "Name, manager and dates are enough to start; the rest can be added later",
+    "ru": "Для начала хватит названия, руководителя и сроков; остальное можно добавить потом"
+  },
+  "create.stepsLabel": {
+    "en": "Steps",
+    "ru": "Шаги"
+  },
+  "create.stepAbout": {
+    "en": "1. About the project",
+    "ru": "1. О проекте"
+  },
+  "create.stepStructure": {
+    "en": "2. Structure",
+    "ru": "2. Структура"
+  },
+  "create.next": {
+    "en": "Next",
+    "ru": "Далее"
+  },
+  "create.back": {
+    "en": "Back",
+    "ru": "Назад"
+  },
+  "create.more": {
+    "en": "More: code, sponsor, parent project, summary",
+    "ru": "Дополнительно: код, спонсор, родительский проект, резюме"
+  },
+  "create.codeNote": {
+    "en": "Made from the name; it is part of the project's address",
+    "ru": "Составлен из названия; входит в адрес страниц проекта"
+  },
+  "create.managerRequired": {
+    "en": "Name the project manager",
+    "ru": "Укажите руководителя проекта"
+  },
+  "create.datesOrder": {
+    "en": "The finish cannot be before the start",
+    "ru": "Окончание не может быть раньше начала"
+  },
+  "create.defaultStructureNote": {
+    "en": "Without a choice the project gets the standard Structure of ten rows",
+    "ru": "Если ничего не выбрать, проект получит типовую Структуру из десяти строк"
   },
   "create.basics": {
     "en": "Basics",
