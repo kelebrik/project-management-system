@@ -6,6 +6,7 @@ import { recordAuditEvent } from '../services/audit.js';
 import { draftLessons, LESSON_CATEGORIES, LESSON_SOURCES } from '../services/lessons.js';
 import { projectShiftLadders } from '../services/schedule-shifts.js';
 import { projectWriter, readableProject } from './project-writer.js';
+import { patchSchema } from './patch-schema.js';
 
 const lessonSchema = z.object({
   category: z.enum(LESSON_CATEGORIES),
@@ -15,7 +16,7 @@ const lessonSchema = z.object({
   sourceKind: z.enum(LESSON_SOURCES).default('MANUAL'),
   sourceRef: z.string().trim().max(200).nullable().optional(),
 });
-const editSchema = lessonSchema.pick({ category: true, title: true, text: true, recommendation: true }).partial();
+const editSchema = patchSchema(lessonSchema.pick({ category: true, title: true, text: true, recommendation: true }));
 const PAGE = 50;
 
 /**

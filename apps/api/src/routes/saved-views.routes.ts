@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { readableProjectWhere, userCanReadProject } from '../server/business-units.js';
+import { patchSchema } from './patch-schema.js';
 
 const savedViewSchema = z.object({
   projectId: z.string().trim().optional().nullable(),
@@ -14,7 +15,7 @@ const savedViewSchema = z.object({
   sortOrder: z.coerce.number().int().default(0),
 });
 
-const savedViewPatchSchema = savedViewSchema.partial();
+const savedViewPatchSchema = patchSchema(savedViewSchema);
 const retiredJiraAnalyticsViewType = 'jira-analytics-dashboard';
 /** Views that span projects (the Workload planners): they never belong to one project. */
 const crossProjectViewTypes = new Set(['workload']);

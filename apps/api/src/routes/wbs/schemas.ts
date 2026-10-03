@@ -1,5 +1,6 @@
 import { wbsItemBaseSchema, wbsItemSchema, wbsItemTypes } from '@pms/shared';
 import { z } from 'zod';
+import { patchSchema } from '../patch-schema.js';
 
 export const wbsInsertAfterSchema = z.object({
   afterItemId: z.string().trim().min(1),
@@ -30,7 +31,7 @@ export const wbsBulkUpdateSchema = z.object({
     .array(
       z.object({
         id: z.string().trim().min(1),
-        patch: wbsItemBaseSchema.partial(),
+        patch: patchSchema(wbsItemBaseSchema),
         expectedUpdatedAt: z.string().datetime().optional(),
         expectedJira: z.object({ key: z.string().min(1), updatedAt: z.string().datetime() }).optional(),
       }),

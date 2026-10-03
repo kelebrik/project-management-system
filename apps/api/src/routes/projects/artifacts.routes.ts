@@ -3,6 +3,7 @@ import { prisma } from '../../db.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import { artifactSchema, reorderArtifactsSchema } from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
+import { patchSchema } from '../patch-schema.js';
 
 export function registerProjectArtifactsRoutes(
   router: Router,
@@ -39,7 +40,7 @@ export function registerProjectArtifactsRoutes(
   });
 
   router.patch('/project-artifacts/:artifactId', async (req, res) => {
-    const parsed = artifactSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(artifactSchema).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;

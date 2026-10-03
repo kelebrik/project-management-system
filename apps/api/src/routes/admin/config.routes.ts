@@ -19,6 +19,7 @@ import {
   ensureAdminConfigDefaults,
 } from './system.js';
 import type { AdminRoutesContext } from './types.js';
+import { patchSchema } from '../patch-schema.js';
 
 export function registerAdminConfigRoutes(router: Router, context: AdminRoutesContext) {
   const { requireAdmin, currentUser, startedAt } = context;
@@ -288,7 +289,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
   });
 
   router.patch('/admin/dictionary-items/:itemId', requireAdmin, async (req, res) => {
-    const parsed = dictionaryItemSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(dictionaryItemSchema).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;

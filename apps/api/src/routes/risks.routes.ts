@@ -5,6 +5,7 @@ import { prisma } from '../db.js';
 import { currentUser } from '../server/auth.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../services/audit.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
+import { patchSchema } from './patch-schema.js';
 
 export function createRisksRouter() {
   const router = Router();
@@ -152,7 +153,7 @@ router.post('/projects/:projectId/raid-items', async (req, res) => {
 });
 
 router.patch('/raid-items/:itemId', async (req, res) => {
-  const parsed = raidItemSchema.partial().safeParse(req.body);
+  const parsed = patchSchema(raidItemSchema).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;
@@ -366,7 +367,7 @@ router.post('/projects/:projectId/change-requests', async (req, res) => {
 });
 
 router.patch('/change-requests/:requestId', async (req, res) => {
-  const parsed = changeRequestSchema.partial().safeParse(req.body);
+  const parsed = patchSchema(changeRequestSchema).safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.flatten() });
     return;

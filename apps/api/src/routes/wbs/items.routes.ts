@@ -27,6 +27,7 @@ import {
   wouldCreateWbsCycle,
 } from './helpers.js';
 import { wbsBulkDeleteSchema, wbsBulkUpdateSchema, wbsExpectedVersionSchema } from './schemas.js';
+import { patchSchema } from '../patch-schema.js';
 
 function wbsLevelFromItem(item: { code: string; wbsLevel: number | null }) {
   return Math.max(1, item.wbsLevel ?? item.code.split('.').filter(Boolean).length);
@@ -629,7 +630,7 @@ export function registerWbsItemRoutes(router: Router) {
 
   router.patch('/wbs-items/:itemId', async (req, res) => {
     const version = wbsExpectedVersionSchema.safeParse(req.body);
-    const parsed = wbsItemBaseSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(wbsItemBaseSchema).safeParse(req.body);
     if (!version.success || !parsed.success) {
       res.status(400).json({ error: (version.success ? parsed.error! : version.error).flatten() });
       return;

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { isPublicDemoMode } from '../server/deployment-profile.js';
 import { recordAuditEvent } from '../services/audit.js';
+import { patchSchema } from './patch-schema.js';
 
 type LeaveScheduleContext = {
   currentUser: (req: Request) => any;
@@ -281,7 +282,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveSch
   });
 
   router.patch('/leave-schedule/employees/:employeeId', requireAuth, async (req, res) => {
-    const parsed = employeeSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(employeeSchema).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;
@@ -384,7 +385,7 @@ export function createLeaveScheduleRouter({ currentUser, requireAuth }: LeaveSch
   });
 
   router.patch('/leave-schedule/types/:typeId', requireAuth, async (req, res) => {
-    const parsed = typeSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(typeSchema).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;

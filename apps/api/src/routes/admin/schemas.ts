@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { patchSchema } from '../patch-schema.js';
 
 export const rolePermissionSchema = z.object({
   enabled: z.boolean(),
@@ -119,4 +120,4 @@ export const webhookEndpointSchema = z.object({
   isActive: z.boolean().default(true),
 });
 
-export const webhookEndpointPatchSchema = webhookEndpointSchema.partial();
+export const webhookEndpointPatchSchema = patchSchema(webhookEndpointSchema);

@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { milestoneSchema } from './schemas.js';
+import { patchSchema } from '../patch-schema.js';
 
 export function registerProjectMilestonesRoutes(router: Router) {
   router.post('/projects/:projectId/milestones', async (req, res) => {
@@ -35,7 +36,7 @@ export function registerProjectMilestonesRoutes(router: Router) {
   });
 
   router.patch('/milestones/:milestoneId', async (req, res) => {
-    const parsed = milestoneSchema.partial().safeParse(req.body);
+    const parsed = patchSchema(milestoneSchema).safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;

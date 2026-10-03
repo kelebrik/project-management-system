@@ -1,5 +1,6 @@
 import { projectSchema } from '@pms/shared';
 import { z } from 'zod';
+import { patchSchema } from '../patch-schema.js';
 
 export const createProjectSchema = projectSchema.extend({
   portfolio: z.string().trim().optional().default(''),
@@ -24,7 +25,8 @@ export const createProjectSchema = projectSchema.extend({
   }
 });
 
-export const updateProjectSchema = projectSchema.partial();
+// A change sends only the fields it changes; see patchSchema.
+export const updateProjectSchema = patchSchema(projectSchema);
 
 export const projectTargetDateChangeSchema = z.object({
   targetDate: z.string().trim().min(1),
