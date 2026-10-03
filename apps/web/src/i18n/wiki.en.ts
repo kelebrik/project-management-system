@@ -141,13 +141,15 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Project creation",
             "points": [
-              "The creation form submits code, title, parentId, portfolio, sponsor, projectManager, status, RAG, dates, planned and forecast budget, schedule variance, progress, summary and sortOrder. The portfolio value is filled with the name of the selected BU.",
+              "Creation takes two steps. Step 1, About the project: name, business unit (when there are several), manager and dates. The manager defaults to the person creating the project; the start is today and the finish three months later (a 31st becomes the last day of a shorter month). Step 2, Structure: a copy from other projects or the standard one.",
+              "The project code is made from the first letters of the name's words in Latin (for example «Новый мобильный банк» → NMB, or NMB-2 when taken); it, the sponsor, the parent project and the summary can be changed under «More». The sponsor and summary are optional and can be added later. RAG, progress and variance are not set in the form.",
+              "The server checks that the dates are real and the finish is not before the start, and refuses a code that differs from an existing one only in case; the error marks the code field. The portfolio value is filled with the name of the selected BU.",
               "The businessUnitId itself is passed separately as the context of the selected business unit and is stored by the backend when the project is created.",
               "At creation time initialTargetDate equals targetDate. This is the project's starting goal.",
               "The Copy from project field supports searching across projects and phases and multiple selection: you can pick several current project WBS or individual phases together with their child items.",
               "Copying transfers the selected WBS rows, the hierarchy and the internal WBS dependencies. The merged WBS is renumbered, after which the schedule is recalculated.",
               "If the current WBS is not copied, a demo structure is created with phases, tasks, milestones and FS dependencies starting from the start date.",
-              "The business unit is chosen in the Portfolio field. On the first click of Create project the user confirms the selected BU; a pointer in the dialog leads to that field.",
+              "The business unit is chosen in the Portfolio field (it is on the second step too). On Create project the user confirms the selected BU; a pointer in the dialog leads to that field and sits below it when above it would cover the dialog.",
               "After creation the user receives EDIT access and becomes the project manager of the project without any change to their system role."
             ]
           },
@@ -337,6 +339,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "points": [
               "The full-screen button is available in both locales and expands the WBS workspace to the whole screen. A hint about the full-screen mode is shown once while the page is scrolled.",
               "The PDF button is available in both locales and prints the current WBS table. The title of the printed document is the project name plus the section name, for example \"Project - WBS\"; if the project has no name, the word Project is substituted.",
+              "In a long Structure (more than 200 visible rows) the page keeps only the rows in view and a margin, so expanding, scrolling and editing stay quick even with thousands of rows. PDF printing and the browser's find (Ctrl+F / Cmd+F) draw the whole table; the row you are editing or dragging stays while you scroll; a link to a row scrolls to it first.",
               "The PDF EN and EN buttons are shown only in the Russian locale. In the English locale the toolbar keeps the ordinary PDF button.",
               "PDF EN prints a separate English WBS block with its own title of the form \"English project name - Structure\", with English column, type and status labels.",
               "The EN menu contains Import and Export of translations. Export produces an HTML file with Russian title / English translation pairs, and import accepts the same HTML back.",
