@@ -1,5 +1,5 @@
 import type { SimpleTranslationKey } from "../i18n/types";
-import { PortfolioReports, type PortfolioView } from "../components/reports/PortfolioReports";
+import { PortfolioReports, type PortfolioView } from "../components/portfolioReports/PortfolioReports";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   useEffect,
