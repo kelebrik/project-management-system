@@ -2,7 +2,7 @@ import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { DictionaryItem } from "../app/adminTypes";
-import type { ProjectCalendarOverride, ProjectDetails, ProjectListItem } from "../app/domainTypes";
+import type { ProjectCalendarOverride, ProjectListItem } from "../app/domainTypes";
 import { savedWbsForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
 import {
@@ -204,7 +204,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     return enabledModule ? projectModuleViewByKey[enabledModule.key] : "project-overview";
   }, [normalizedProjectModules]);
   const activeResourceProjects = useMemo(
-    () => (activeProjects as ProjectDetails[]).filter((item) => item.status !== "CLOSED"),
+    () => activeProjects.filter((item) => item.status !== "CLOSED"),
     [activeProjects],
   );
   const resourceSource = useMemo(

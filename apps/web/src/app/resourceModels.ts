@@ -1,5 +1,5 @@
 import { isoDate, isDefaultWorkingDay, startOfDay } from "./dateUtils";
-import type { ProjectListItem, WbsItem } from "./domainTypes";
+import type { ProjectListItem, ProjectListWbsItem, WbsItem } from "./domainTypes";
 import type { Translator } from "../i18n/types";
 import type {
   ResourceActiveItem,
@@ -104,7 +104,7 @@ export function createDefaultResourceProfile(
   };
 }
 
-export function createResourceSummaryRows(wbsItems: WbsItem[], now: Date, text: Translator) {
+export function createResourceSummaryRows(wbsItems: ProjectListWbsItem[], now: Date, text: Translator) {
   const byOwner = new Map<string, ResourceSummaryRow>();
   for (const item of wbsItems) {
     if (!isResourceWorkItem(item)) continue;
@@ -239,7 +239,7 @@ export function createResourceDashboard(
   };
 }
 
-function isResourceWorkItem(item: WbsItem) {
+function isResourceWorkItem(item: ProjectListWbsItem) {
   return (
     (item.type === "TASK" || item.type === "DELIVERABLE") &&
     item.status !== "CANCELLED"
@@ -376,7 +376,7 @@ function normalizeProgress(progress: number | null | undefined) {
 }
 
 function estimatePlannedHours(
-  item: WbsItem,
+  item: ProjectListWbsItem,
   profile: ResourceAllocationProfile,
   text: Translator,
 ) {
@@ -417,14 +417,14 @@ function positiveNumber(value: number | null | undefined) {
     : null;
 }
 
-function estimateWorkDaysFromDates(item: WbsItem) {
+function estimateWorkDaysFromDates(item: ProjectListWbsItem) {
   const start = parseDate(item.startDate);
   const due = parseDate(item.dueDate);
   if (!start || !due) return 1;
   return Math.max(1, countWorkingDays(start, due));
 }
 
-function estimateRemainingHours(item: WbsItem, plannedHours: number) {
+function estimateRemainingHours(item: ProjectListWbsItem, plannedHours: number) {
   if (item.status === "DONE") return 0;
   return Math.max(
     0,
@@ -433,7 +433,7 @@ function estimateRemainingHours(item: WbsItem, plannedHours: number) {
 }
 
 function createSchedulableItem(
-  item: WbsItem,
+  item: ProjectListWbsItem,
   today: Date,
   plannedHours: number,
   remainingHours: number,

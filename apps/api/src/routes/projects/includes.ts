@@ -38,6 +38,39 @@ export const projectInclude = {
   },
 } satisfies Prisma.ProjectInclude;
 
+/**
+ * The project list: the same as projectInclude, but its work rows carry only
+ * what the list's readers use (portfolio goals, project progress, people's
+ * load). An open project loads its full rows separately, so the list stays a
+ * fraction of the size on a large portfolio.
+ */
+export const projectListInclude = {
+  ...projectInclude,
+  wbsItems: {
+    where: projectInclude.wbsItems.where,
+    orderBy: projectInclude.wbsItems.orderBy,
+    select: {
+      id: true,
+      parentId: true,
+      code: true,
+      title: true,
+      type: true,
+      status: true,
+      owner: true,
+      priority: true,
+      startDate: true,
+      dueDate: true,
+      baselineDueDate: true,
+      forecastDueDate: true,
+      calendarCode: true,
+      effortPercent: true,
+      workDays: true,
+      planWorkDays: true,
+      progress: true,
+    },
+  },
+} satisfies Prisma.ProjectInclude;
+
 export const portfolioRoadmapProjectSelect = {
   id: true,
   code: true,

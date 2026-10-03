@@ -76,7 +76,8 @@ export type ProjectListItem = {
   jiraIntegration: JiraIntegration | null;
   jiraAnalyticsSettings?: JiraAnalyticsSettings | null;
   targetDateChanges: ProjectTargetDateChange[];
-  wbsItems: WbsItem[];
+  /** Only the fields the list's readers use; an open project has full rows. */
+  wbsItems: ProjectListWbsItem[];
   raidItems: RaidItem[];
   currentUserAccessLevel: ProjectAccessLevel | null;
   _count: {
@@ -86,6 +87,27 @@ export type ProjectListItem = {
     jiraSnapshots: number;
   };
 };
+
+export type ProjectListWbsItem = Pick<
+  WbsItem,
+  | "id"
+  | "parentId"
+  | "code"
+  | "title"
+  | "type"
+  | "status"
+  | "owner"
+  | "priority"
+  | "startDate"
+  | "dueDate"
+  | "baselineDueDate"
+  | "forecastDueDate"
+  | "calendarCode"
+  | "effortPercent"
+  | "workDays"
+  | "planWorkDays"
+  | "progress"
+>;
 
 export type ProjectTargetDateChange = {
   id: string;
@@ -138,7 +160,7 @@ export type JiraAnalyticsFacets = {
   assigneesTruncated: boolean;
 };
 
-export type ProjectDetails = ProjectListItem & {
+export type ProjectDetails = Omit<ProjectListItem, "wbsItems"> & {
   tasks: Task[];
   issues: Issue[];
   closedIssues?: Issue[];

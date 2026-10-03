@@ -10,7 +10,9 @@ export type ProjectWorkProgress = {
   notStartedPercent: number;
 };
 
-function itemWorkDays(item: WbsItem) {
+type ProgressItem = Pick<WbsItem, "id" | "parentId" | "status" | "workDays" | "planWorkDays">;
+
+function itemWorkDays(item: ProgressItem) {
   const value = item.workDays ?? item.planWorkDays ?? 0;
   return Number.isFinite(value) ? Math.max(0, value) : 0;
 }
@@ -31,7 +33,7 @@ function roundedPercentages(values: number[], total: number) {
   return rounded;
 }
 
-export function createProjectWorkProgress(items: WbsItem[]): ProjectWorkProgress {
+export function createProjectWorkProgress(items: ProgressItem[]): ProjectWorkProgress {
   const parentIds = new Set(
     items.map((item) => item.parentId).filter((id): id is string => Boolean(id)),
   );

@@ -1,4 +1,4 @@
-import type { ProjectListItem, WbsItem } from "./domainTypes";
+import type { ProjectListItem, ProjectListWbsItem, WbsItem } from "./domainTypes";
 
 export type ResourceProfileKind = "person" | "contractor-team" | "coordinator";
 
@@ -142,7 +142,7 @@ export type ResourceBucket = {
   weeklyDemand: Map<string, ResourceWeekDemand>;
 };
 
-export type SchedulableItem = WbsItem & {
+export type SchedulableItem = ProjectListWbsItem & {
   plannedHours: number;
   remainingHours: number;
   effectiveStart: Date;
@@ -150,6 +150,6 @@ export type SchedulableItem = WbsItem & {
 };
 
 export type ResourceWorkSourceItem = {
-  item: WbsItem;
+  item: ProjectListWbsItem;
   project: Pick<ProjectListItem, "code" | "name" | "status"> | null;
 };

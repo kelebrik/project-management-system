@@ -1,3 +1,4 @@
+import compression from 'compression';
 import cors from 'cors';
 import express from 'express';
 import type { NextFunction, Request, Response } from 'express';
@@ -57,6 +58,19 @@ export function corsOrigin(value = webOrigin, production = isProduction): cors.C
     .filter((origin) => origin && origin !== '*');
 }
 
+/**
+ * Compresses what compresses well (JSON, HTML, scripts). Skipped when the caller
+ * asks with x-no-compression, for event streams, which must reach the browser
+ * as they are written, and for file downloads.
+ */
+export function shouldCompress(req: Request, res: Response) {
+  if (req.headers['x-no-compression']) return false;
+  const type = String(res.getHeader('Content-Type') ?? '');
+  // Downloads are sent as octet-stream and are mostly zip-based already (xlsx, docx).
+  if (type.startsWith('text/event-stream') || type.startsWith('application/octet-stream')) return false;
+  return compression.filter(req, res);
+}
+
 export const startedAt = new Date();
 
 export function createApp() {
@@ -66,6 +80,8 @@ export function createApp() {
   // already the caller. In production the value has to match the deployment.
   app.set('trust proxy', isProduction ? (trustProxyHops() ?? LEGACY_TRUST_PROXY_HOPS) : 0);
 
+  // A project list or Structure snapshot is several megabytes of JSON; compressed it is a tenth of that.
+  app.use(compression({ threshold: 1024, filter: shouldCompress }));
   app.use('/api/projects/:projectId/artifact-table', express.json({ limit: '4mb' }));
   app.use(express.json({ limit: '5mb' }));
   app.use(

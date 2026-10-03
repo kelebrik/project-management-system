@@ -31,6 +31,7 @@ import {
   portfolioRoadmapProjectSelect,
   projectDetailsInclude,
   projectInclude,
+  projectListInclude,
 } from './includes.js';
 import {
   createProjectSchema,
@@ -64,7 +65,7 @@ export function registerProjectCrudRoutes(
     const projects = await prisma.project.findMany({
       where: await readableProjectWhere(req),
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
-      include: projectInclude,
+      include: projectListInclude,
     });
 
     const user = currentUser(req);

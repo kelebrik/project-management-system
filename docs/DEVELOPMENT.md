@@ -32,6 +32,21 @@ npm run dev:web
 API: `http://localhost:3000/api/health`  
 Web UI: `http://localhost:5173`
 
+## Load testing
+
+`scripts/perf/seed.ts` fills an **empty** database with a load-test portfolio (by default 50 projects of about 230 rows, one of 2000 and one of 5000, with links), and `scripts/perf/measure-web.mjs` times the Structure and the Gantt on it in Chromium:
+
+```bash
+createdb pms_perf
+DATABASE_URL=postgresql://.../pms_perf npx prisma migrate deploy
+DATABASE_URL=postgresql://.../pms_perf DEPLOYMENT_PROFILE=cloud npx tsx scripts/perf/seed.ts
+npm run build
+DATABASE_URL=postgresql://.../pms_perf DEPLOYMENT_PROFILE=cloud NODE_ENV=production PORT=3100 node apps/api/dist/server.js
+PERF_BASE_URL=http://127.0.0.1:3100 node scripts/perf/measure-web.mjs
+```
+
+The seed refuses a database that already has projects.
+
 ## Render Deployment
 
 Use the Blueprint flow and point Render to this repository. The included `render.yaml` creates:
