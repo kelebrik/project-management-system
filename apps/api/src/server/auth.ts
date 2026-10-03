@@ -81,8 +81,6 @@ const legacyPermissionFallbacks: Record<string, string[]> = {
   'admin.roles': ['admin.manage'],
   'admin.dictionaries': ['admin.manage'],
   'admin.templates': ['admin.manage'],
-  'admin.rag': ['admin.manage'],
-  'admin.workflow': ['admin.manage'],
   'admin.health': ['admin.manage'],
   'admin.backup': ['admin.manage'],
   'admin.config': ['admin.manage'],

@@ -1,7 +1,7 @@
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { recordAuditEvent } from '../../services/audit.js';
-import { integrationSettings, managedPermissions, managedRoles } from './defaults.js';
+import { integrationSettings, managedPermissions, managedRoles, retiredPermissions, retiredSystemSettings } from './defaults.js';
 import {
   adminConfigImportSchema,
   dictionaryItemSchema,
@@ -116,10 +116,10 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const rolePermissions = parsed.data.rolePermissions ?? [];
+    const rolePermissions = (parsed.data.rolePermissions ?? []).filter((permission) => !retiredPermissions.includes(permission.permission));
     const businessUnitRolePermissions = parsed.data.businessUnitRolePermissions ?? [];
     const dictionaryItems = parsed.data.dictionaryItems ?? [];
-    const systemSettings = parsed.data.systemSettings ?? [];
+    const systemSettings = (parsed.data.systemSettings ?? []).filter((setting) => !retiredSystemSettings.includes(setting.key));
     const projectModules = parsed.data.projectModules ?? [];
 
     await prisma.$transaction([
@@ -363,7 +363,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const keys = Object.keys(parsed.data.settings);
+    const keys = Object.keys(parsed.data.settings).filter((key) => !retiredSystemSettings.includes(key));
     if (keys.length === 0) {
       res.status(400).json({ error: 'Настройки не переданы' });
       return;

@@ -37,14 +37,6 @@ export function AdminTemplatesPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }
 
-export function AdminRagPage({ children }: AdminPageProps) {
-  return <PageShell>{children}</PageShell>;
-}
-
-export function AdminWorkflowsPage({ children }: AdminPageProps) {
-  return <PageShell>{children}</PageShell>;
-}
-
 export function AdminHealthPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }

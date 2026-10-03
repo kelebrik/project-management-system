@@ -228,12 +228,6 @@ export const emptySystemSettingsDraft: SystemSettingsDraft = {
   azureDevOpsToken: "",
   biEnabled: false,
   biExportUrl: "",
-  ragGreenFormula: "",
-  ragAmberFormula: "",
-  ragRedFormula: "",
-  overviewWorkflow: "",
-  baselineWorkflow: "",
-  projectCloseWorkflow: "",
   wbsTemplates: "",
 };
 

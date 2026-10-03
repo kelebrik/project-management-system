@@ -13,11 +13,9 @@ import {
   AdminPage,
   AdminProjectAccessPage,
   AdminProjectsPage,
-  AdminRagPage,
   AdminRolesPage,
   AdminTemplatesPage,
   AdminUsersPage,
-  AdminWorkflowsPage,
 } from "./admin/AdminPages";
 
 type PageBoundaryProps = {
@@ -63,12 +61,6 @@ export function PageBoundary({
   }
   if (view === "admin-templates") {
     return <AdminTemplatesPage>{children}</AdminTemplatesPage>;
-  }
-  if (view === "admin-rag") {
-    return <AdminRagPage>{children}</AdminRagPage>;
-  }
-  if (view === "admin-workflows") {
-    return <AdminWorkflowsPage>{children}</AdminWorkflowsPage>;
   }
   if (view === "admin-health") {
     return <AdminHealthPage>{children}</AdminHealthPage>;

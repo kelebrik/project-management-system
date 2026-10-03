@@ -64,12 +64,10 @@ export const platformWikiGroup: WikiGroup = {
           ],
         },
         {
-          heading: "Справочники, RAG, workflow и templates",
+          heading: "Справочники и шаблоны",
           points: [
             "Справочники seed-ятся дефолтными project_status, project_type, risk_type, wbs_type, wbs_status, issue_severity, raid_type и raid_status.",
             "Удаление справочника в UI фактически деактивирует запись isActive=false, а не удаляет ее физически.",
-            "RAG-формулы хранятся в system settings rag.formula.green/amber/red как текстовые правила для управленческого контура.",
-            "Workflow-настройки workflow.overview, workflow.baseline и workflow.projectClose хранят текстовые цепочки согласований.",
             "WBS templates лежат в system setting wbs.templates JSON и описывают стартовые наборы фаз/работ.",
           ],
         },

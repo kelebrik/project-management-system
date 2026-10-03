@@ -117,14 +117,6 @@ const permissions = {
     "ru": "Шаблоны Структуры",
     "en": "WBS templates"
   },
-  "admin.rag": {
-    "ru": "Формулы RAG",
-    "en": "RAG formulas"
-  },
-  "admin.workflow": {
-    "ru": "Workflow согласований",
-    "en": "Approval workflows"
-  },
   "admin.health": {
     "ru": "System health",
     "en": "System health"

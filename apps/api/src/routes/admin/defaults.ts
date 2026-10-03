@@ -35,8 +35,6 @@ export const managedPermissions = [
   'admin.roles',
   'admin.dictionaries',
   'admin.templates',
-  'admin.rag',
-  'admin.workflow',
   'admin.health',
   'admin.backup',
   'admin.config',
@@ -44,6 +42,17 @@ export const managedPermissions = [
   'admin.project_access',
   'admin.audit',
   'admin.integrations',
+];
+
+/** Settings and permissions that were removed; an older configuration export may still carry them. */
+export const retiredPermissions: readonly string[] = ['admin.rag', 'admin.workflow'];
+export const retiredSystemSettings: readonly string[] = [
+  'rag.formula.green',
+  'rag.formula.amber',
+  'rag.formula.red',
+  'workflow.overview',
+  'workflow.baseline',
+  'workflow.projectClose',
 ];
 
 export const defaultDictionaryItems = [
@@ -114,16 +123,6 @@ const defaultWbsTemplates = JSON.stringify(
 );
 
 export const defaultSystemSettings = [
-  ['rag.formula.green', 'Critical open issues = 0 AND overdue tasks = 0', false],
-  [
-    'rag.formula.amber',
-    'There are risks in the red zone OR schedule variance <= 10 calendar days',
-    false,
-  ],
-  ['rag.formula.red', 'Critical blocker OR schedule variance > 10 calendar days', false],
-  ['workflow.overview', 'PM -> Sponsor -> Publication for executives', false],
-  ['workflow.baseline', 'PM -> PMO -> Sponsor', false],
-  ['workflow.projectClose', 'PM -> PMO -> Sponsor -> Archive', false],
   ['wbs.templates', defaultWbsTemplates, false],
 ] as const;
 

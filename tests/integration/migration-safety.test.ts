@@ -17,6 +17,9 @@ const allowedDataRewriteMigrations = new Set([
   // Marks only the untouched empty v5 dashboard configuration for one-time
   // bootstrap; Jira datalake and project-planning rows are not changed.
   "20260827090000_jira_default_analytics_widgets",
+  // Removes only the RAG formula and approval workflow settings and their two
+  // admin permissions, which nothing read.
+  "20261003120000_drop_rag_workflow_settings",
 ]);
 
 const protectedProjectTables = [

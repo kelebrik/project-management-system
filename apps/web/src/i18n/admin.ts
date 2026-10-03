@@ -147,46 +147,6 @@ export const admin = {
     "en": "Save templates",
     "ru": "Сохранить шаблоны"
   },
-  "admin.rag.description": {
-    "en": "Rules for calculating green, amber and red project health",
-    "ru": "Правила расчета зеленого, желтого и красного статуса проекта"
-  },
-  "admin.rag.green": {
-    "en": "Green",
-    "ru": "Зеленый"
-  },
-  "admin.rag.amber": {
-    "en": "Amber",
-    "ru": "Желтый"
-  },
-  "admin.rag.red": {
-    "en": "Red",
-    "ru": "Красный"
-  },
-  "admin.rag.save": {
-    "en": "Save formulas",
-    "ru": "Сохранить формулы"
-  },
-  "admin.workflow.description": {
-    "en": "Approval routes for management reviews, baselines and project closure",
-    "ru": "Маршруты согласования обзора, базового плана и закрытия проекта"
-  },
-  "admin.workflow.overview": {
-    "en": "Management review",
-    "ru": "Обзор для руководства"
-  },
-  "admin.workflow.baseline": {
-    "en": "Baseline",
-    "ru": "Базовый план"
-  },
-  "admin.workflow.closure": {
-    "en": "Project closure",
-    "ru": "Закрытие проекта"
-  },
-  "admin.workflow.save": {
-    "en": "Save workflow",
-    "ru": "Сохранить workflow"
-  },
   "admin.health.description": {
     "en": "Application and connection health",
     "ru": "Техническое состояние приложения и подключений"

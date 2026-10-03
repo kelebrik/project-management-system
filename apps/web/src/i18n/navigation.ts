@@ -132,14 +132,6 @@ export const navigation = {
     "en": "WBS templates",
     "ru": "Шаблоны Структуры"
   },
-  "view.admin-rag": {
-    "en": "RAG formulas",
-    "ru": "Формулы RAG"
-  },
-  "view.admin-workflows": {
-    "en": "Approval workflows",
-    "ru": "Workflow согласований"
-  },
   "view.admin-integrations": {
     "en": "Integrations and API",
     "ru": "Интеграции и API"

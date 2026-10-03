@@ -264,11 +264,5 @@ export type SystemSettingsDraft = {
   azureDevOpsToken: string;
   biEnabled: boolean;
   biExportUrl: string;
-  ragGreenFormula: string;
-  ragAmberFormula: string;
-  ragRedFormula: string;
-  overviewWorkflow: string;
-  baselineWorkflow: string;
-  projectCloseWorkflow: string;
   wbsTemplates: string;
 };

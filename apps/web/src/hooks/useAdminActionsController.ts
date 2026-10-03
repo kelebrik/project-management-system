@@ -528,24 +528,6 @@ export function useAdminActionsController({
               "bi.exportUrl": {
                 value: systemSettingsDraft.biExportUrl.trim(),
               },
-              "rag.formula.green": {
-                value: systemSettingsDraft.ragGreenFormula.trim(),
-              },
-              "rag.formula.amber": {
-                value: systemSettingsDraft.ragAmberFormula.trim(),
-              },
-              "rag.formula.red": {
-                value: systemSettingsDraft.ragRedFormula.trim(),
-              },
-              "workflow.overview": {
-                value: systemSettingsDraft.overviewWorkflow.trim(),
-              },
-              "workflow.baseline": {
-                value: systemSettingsDraft.baselineWorkflow.trim(),
-              },
-              "workflow.projectClose": {
-                value: systemSettingsDraft.projectCloseWorkflow.trim(),
-              },
               "wbs.templates": {
                 value: systemSettingsDraft.wbsTemplates.trim(),
               },

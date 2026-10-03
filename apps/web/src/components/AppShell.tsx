@@ -227,16 +227,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <GanttChartSquare size={17} />,
   },
   {
-    view: "admin-rag",
-    label: "view.admin-rag",
-    icon: <SlidersHorizontal size={17} />,
-  },
-  {
-    view: "admin-workflows",
-    label: "view.admin-workflows",
-    icon: <GitBranch size={17} />,
-  },
-  {
     view: "admin-integrations",
     label: "view.admin-integrations",
     icon: <GitBranch size={17} />,

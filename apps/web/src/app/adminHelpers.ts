@@ -66,12 +66,6 @@ type SystemSettingsDraft = {
   azureDevOpsToken: string;
   biEnabled: boolean;
   biExportUrl: string;
-  ragGreenFormula: string;
-  ragAmberFormula: string;
-  ragRedFormula: string;
-  overviewWorkflow: string;
-  baselineWorkflow: string;
-  projectCloseWorkflow: string;
   wbsTemplates: string;
 };
 
@@ -105,8 +99,6 @@ export const adminPermissionOrder = [
   "admin.roles",
   "admin.dictionaries",
   "admin.templates",
-  "admin.rag",
-  "admin.workflow",
   "admin.health",
   "admin.backup",
   "admin.config",
@@ -161,8 +153,6 @@ export function adminPermissionLabel(permission: string) {
     "admin.roles": "Роли и права",
     "admin.dictionaries": "Справочники",
     "admin.templates": "Шаблоны Структуры",
-    "admin.rag": "Формулы RAG",
-    "admin.workflow": "Workflow согласований",
     "admin.health": "System health",
     "admin.backup": "Backup/restore status",
     "admin.config": "Import/export конфигурации",
@@ -222,12 +212,6 @@ export function systemSettingsToDraft(settings: SystemSetting[]): SystemSettings
     azureDevOpsToken: "",
     biEnabled: byKey.get("bi.enabled")?.value === "true",
     biExportUrl: byKey.get("bi.exportUrl")?.value ?? "",
-    ragGreenFormula: byKey.get("rag.formula.green")?.value ?? "",
-    ragAmberFormula: byKey.get("rag.formula.amber")?.value ?? "",
-    ragRedFormula: byKey.get("rag.formula.red")?.value ?? "",
-    overviewWorkflow: byKey.get("workflow.overview")?.value ?? "",
-    baselineWorkflow: byKey.get("workflow.baseline")?.value ?? "",
-    projectCloseWorkflow: byKey.get("workflow.projectClose")?.value ?? "",
     wbsTemplates: byKey.get("wbs.templates")?.value ?? "",
   };
 }

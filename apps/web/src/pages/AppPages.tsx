@@ -11,7 +11,7 @@ import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
 import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
-import { AdminRagPageContent, AdminTemplatesPageContent, AdminWorkflowsPageContent } from "./AdminSettingsPages";
+import { AdminTemplatesPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
@@ -158,8 +158,6 @@ export function AppPages() {
         {activeView === "admin-roles" && <AdminRolesPageContent />}
         {activeView === "admin-dictionaries" && <AdminDictionariesPageContent />}
         {activeView === "admin-templates" && <AdminTemplatesPageContent />}
-        {activeView === "admin-rag" && <AdminRagPageContent />}
-        {activeView === "admin-workflows" && <AdminWorkflowsPageContent />}
         {activeView === "admin-integrations" && <AdminIntegrationsPageContent />}
         {activeView === "admin-health" && <AdminHealthPageContent />}
         {activeView === "admin-backups" && <AdminBackupsPageContent />}

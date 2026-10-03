@@ -63,12 +63,10 @@ export const englishPlatformWikiGroup: WikiGroup = {
           ]
         },
         {
-          "heading": "Dictionaries, RAG, workflow and templates",
+          "heading": "Dictionaries and templates",
           "points": [
             "Dictionaries are seeded with the default project_status, project_type, risk_type, wbs_type, wbs_status, issue_severity, raid_type and raid_status.",
             "Deleting a dictionary in the UI actually deactivates the record with isActive=false rather than deleting it physically.",
-            "The RAG formulas are stored in the system settings rag.formula.green/amber/red as textual rules for the management layer.",
-            "The workflow settings workflow.overview, workflow.baseline and workflow.projectClose store textual approval chains.",
             "The WBS templates live in the system setting wbs.templates as JSON and describe the starting sets of phases/work."
           ]
         },

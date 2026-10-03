@@ -8,11 +8,9 @@ export {
   AdminPage,
   AdminProjectAccessPage,
   AdminProjectsPage,
-  AdminRagPage,
   AdminRolesPage,
   AdminTemplatesPage,
   AdminUsersPage,
-  AdminWorkflowsPage,
 } from "./admin/AdminPages";
 export { GanttPage } from "./GanttPage";
 export { OverviewPage } from "./OverviewPage";

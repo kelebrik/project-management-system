@@ -177,8 +177,6 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     "admin-roles": t("view.admin-roles"),
     "admin-dictionaries": t("view.admin-dictionaries"),
     "admin-templates": t("view.admin-templates"),
-    "admin-rag": t("view.admin-rag"),
-    "admin-workflows": t("view.admin-workflows"),
     "admin-integrations": t("view.admin-integrations"),
     "admin-health": t("view.admin-health"),
     "admin-backups": t("view.admin-backups"),
