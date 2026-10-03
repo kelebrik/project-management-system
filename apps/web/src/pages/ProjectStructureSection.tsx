@@ -2,7 +2,7 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { usePageContext } from "./PageContext";
@@ -30,35 +30,8 @@ import {
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
 import type { ProjectCalendarCode, WbsTableColumnKey } from "../app/wbsTable";
 import type { WbsItemStatus, WbsTreeItem } from "../app/domainTypes";
-
-function emptyValue(value: string | number | null | undefined) {
-  return value === null || value === undefined || value === "" ? "" : String(value);
-}
-
-function formatPercent(value: string | number | null | undefined) {
-  const normalizedValue = emptyValue(value);
-  return normalizedValue ? `${normalizedValue}%` : "";
-}
-
-function downloadTextFile(filename: string, content: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.append(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
-}
-
-function safeFilename(value: string) {
-  return value
-    .trim()
-    .replace(/[\\/:*?"<>|]+/g, "-")
-    .replace(/\s+/g, " ")
-    .slice(0, 120);
-}
+import { downloadTextFile, emptyValue, formatPercent, safeFilename } from "../app/structureSectionHelpers";
+import { useWbsRowWindow } from "../hooks/useWbsRowWindow";
 
 export function ProjectStructureSection() {
   const { t: uiText } = useInterfaceTranslation();
@@ -187,6 +160,22 @@ export function ProjectStructureSection() {
     setWbsSort,
   ]);
 
+  const wbsRowIds = useMemo(() => visibleStructureWbsTree.map((item) => item.id), [visibleStructureWbsTree]);
+  const { containerRef: attachRowWindow, items: rowWindowSlots, windowed: rowsWindowed, scrollToRow, renderAllForPrint } = useWbsRowWindow({
+    ids: wbsRowIds,
+    layoutKey: `${wbsTableTemplate}|${wbsLevelWidth}|${uiLocale}|${fullscreenWorkspaceView ?? ""}`,
+    resetKey: project.id,
+    pinnedIds: [draggedWbsItemId, wbsDropTargetId],
+  });
+  // A row asked for by a link or a selection may be outside the rendered window: scroll to it first.
+  const scrollToWindowRow = useEffectEvent((id: string) => scrollToRow(id));
+  const revealActiveRow = useEffectEvent((id: string) => {
+    if (rowsWindowed && !document.getElementById(`wbs-item-${id}`)) scrollToRow(id);
+  });
+  useEffect(() => {
+    if (activeWbsItemId) revealActiveRow(activeWbsItemId);
+  }, [activeWbsItemId]);
+
   useEffect(() => {
     if (
       !focusedBranch ||
@@ -198,7 +187,10 @@ export function ProjectStructureSection() {
       const focusedRow = document.getElementById(
         `wbs-item-${focusedBranch.scrollItemId}`,
       );
-      if (!focusedRow) return;
+      if (!focusedRow) {
+        scrollToWindowRow(focusedBranch.scrollItemId);
+        return;
+      }
       scrolledFocusItemIdRef.current = focusedBranch.activeItemId;
       focusedRow.scrollIntoView({ behavior: "smooth", block: "center" });
       const url = new URL(window.location.href);
@@ -493,12 +485,13 @@ export function ProjectStructureSection() {
                             <button
                               type="button"
                               className="wbs-pdf-button"
-                              onClick={() =>
+                              onClick={() => {
+                                renderAllForPrint();
                                 printSectionAsPdf(
                                   "project-structure-print",
                                   uiText("structure.printTitle", { name: project.name ?? uiText("structure.projectFallback") }),
-                                )
-                              }
+                                );
+                              }}
                               disabled={project.wbsItems.length === 0}
                               title={uiText("ui.projects.structureSaveToPdfAction")}
                             >
@@ -722,6 +715,7 @@ export function ProjectStructureSection() {
                       className="wbs-table-shell"
                       data-print-section="project-structure"
                       id="project-structure-print"
+                      ref={attachRowWindow}
                     >
                       <div
                         className="wbs-excel-table"
@@ -798,13 +792,17 @@ export function ProjectStructureSection() {
                             </span>
                           ))}
                         </div>
-                        {visibleStructureWbsTree.map((item) => {
+                        <div data-wbs-rows-start aria-hidden="true" />
+                        {rowWindowSlots.map((slot) => {
+                          if (slot.kind === "gap") return <div key={slot.key} className="wbs-row-gap" style={{ height: slot.height }} aria-hidden="true" />;
+                          const item = visibleStructureWbsTree[slot.index];
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
                           return (
                             <div
                               key={item.id}
                               id={`wbs-item-${item.id}`}
+                              data-wbs-row-id={item.id}
                               className={`wbs-row-stack ${draggedWbsItemId === item.id ? "dragging" : ""} ${wbsDropTargetId === item.id ? "drop-target" : ""}`}
                               onDragOver={(event) => {
                                 if (
