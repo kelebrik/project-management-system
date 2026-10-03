@@ -461,13 +461,16 @@ export function registerWbsItemRoutes(router: Router) {
     if (parsed.data.renumber) {
       await renumberProjectWbs(project.id);
     }
-    await recalculateProjectWbsSchedule(project.id, {
-      changedItems: parsed.data.items.map((item) => ({
-        itemId: item.id,
-        changedFields: schedulePatchesByItemId.get(item.id)!.changedFields,
-      })),
-    });
-    await recalculateProjectWbsHierarchyStatuses(project.id);
+    // As for one row: text, links, owner and cost alone do not move dates or statuses.
+    if (parsed.data.renumber || parsed.data.items.some((item) => wbsPatchAffectsSchedule(item.patch))) {
+      await recalculateProjectWbsSchedule(project.id, {
+        changedItems: parsed.data.items.map((item) => ({
+          itemId: item.id,
+          changedFields: schedulePatchesByItemId.get(item.id)!.changedFields,
+        })),
+      });
+      await recalculateProjectWbsHierarchyStatuses(project.id);
+    }
     const snapshot = await getProjectWbsSnapshot(project.id);
 
     await emitWebhookEvent({
@@ -852,11 +855,15 @@ export function registerWbsItemRoutes(router: Router) {
       afterSnapshot: updated,
     });
 
-    await recalculateProjectWbsSchedule(existing.projectId, {
-      changedItemId: existing.id,
-      changedFields: schedulePatch.changedFields,
-    });
-    await recalculateProjectWbsHierarchyStatuses(existing.projectId);
+    // Text, links, owner and cost do not move dates or statuses: such a change skips
+    // the recalculation, which reads and checks the whole project.
+    if (wbsPatchAffectsSchedule(parsed.data)) {
+      await recalculateProjectWbsSchedule(existing.projectId, {
+        changedItemId: existing.id,
+        changedFields: schedulePatch.changedFields,
+      });
+      await recalculateProjectWbsHierarchyStatuses(existing.projectId);
+    }
     const snapshot = await getProjectWbsSnapshot(existing.projectId);
     const recalculatedItem =
       snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
@@ -976,4 +983,19 @@ export function registerWbsItemRoutes(router: Router) {
 
     res.json(snapshot);
   });
+}
+
+/** Fields whose change cannot move a date or a status in the Structure. */
+export const WBS_FIELDS_OUTSIDE_SCHEDULE = new Set([
+  'title', 'owner', 'comment', 'description', 'jiraTicketKey', 'jiraTicketUrl', 'jiraGoalLabels',
+  'mattermostUrl', 'priority', 'templateColor', 'plannedCost', 'forecastCost',
+]);
+
+/**
+ * Whether a change touches anything the schedule or the hierarchy statuses
+ * depend on. The page sends only the fields that changed, so an edit of a
+ * title or a comment alone answers no.
+ */
+export function wbsPatchAffectsSchedule(patch: Record<string, unknown>) {
+  return Object.entries(patch).some(([field, value]) => value !== undefined && !WBS_FIELDS_OUTSIDE_SCHEDULE.has(field));
 }

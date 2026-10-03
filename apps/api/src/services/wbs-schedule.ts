@@ -17,14 +17,23 @@ export type {
   WbsScheduleUpdate,
 } from "./wbs-schedule/types.js";
 
+const SCHEDULE_COLUMNS = {
+  id: true, parentId: true, code: true, title: true, type: true, status: true, owner: true, progress: true,
+  startDate: true, dueDate: true, forecastStartDate: true, forecastDueDate: true, baselineDueDate: true,
+  predecessor1: true, predecessor2: true, predecessor3: true, predecessor4: true, predecessor5: true, predecessor6: true,
+  leadLagDays: true, workDays: true, calendarDays: true, calendarCode: true, wbsLevel: true, sortOrder: true,
+} satisfies Prisma.WbsItemSelect;
+
 export async function recalculateProjectWbsSchedule(
   projectId: string,
   options: WbsScheduleCalculationOptions = {},
 ) {
   const [items, dependencies, calendarOverrides] = await Promise.all([
+    // Only what the schedule and the history row read: a 5000-row project loads a fraction of its data.
     prisma.wbsItem.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      select: SCHEDULE_COLUMNS,
     }),
     prisma.wbsDependency.findMany({
       where: { projectId },
