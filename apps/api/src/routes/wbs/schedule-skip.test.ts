@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { wbsPatchAffectsSchedule } from './items.routes.js';
+import { wbsPatchAffectsSchedule } from './schedule-relevance.js';
 
 test('editing text, links, the owner or cost does not recalculate the schedule; dates, status and links between rows do', () => {
   assert.equal(wbsPatchAffectsSchedule({ title: 'Новое название' }), false);
