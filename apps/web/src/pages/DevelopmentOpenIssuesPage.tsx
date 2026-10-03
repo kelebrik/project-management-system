@@ -9,6 +9,7 @@ import {
   type OpenIssuesPrototypeColumnKey,
 } from "../app/openIssueTable";
 import { useI18n } from "../i18n/I18nProvider";
+import { effectiveProjectView } from "../app/projectView";
 import { usePageContext } from "./PageContext";
 import { MeetingNotesDrawer } from "../components/automation/MeetingNotesPanel";
 import { MeetingPrepButton } from "../components/ai/AiProjectButtons";
@@ -49,6 +50,7 @@ export function DevelopmentOpenIssuesPage() {
     issueEditDrafts,
     updateIssueDraft,
     updateIssueStatusDraft,
+    currentUser,
   } = usePageContext();
   const [meetingNotesOpen, setMeetingNotesOpen] = useState(false);
   const [expandedIssueId, setExpandedIssueId] = useState<string | null>(null);
@@ -117,8 +119,8 @@ export function DevelopmentOpenIssuesPage() {
     [project.issues],
   );
   const storedColumnWidths = useMemo(
-    () => normalizeOpenIssuesPrototypeColumnWidths(project.uiState?.openIssuesPrototypeColumnWidths),
-    [project.uiState?.openIssuesPrototypeColumnWidths],
+    () => normalizeOpenIssuesPrototypeColumnWidths(effectiveProjectView(project, currentUser?.id).openIssuesPrototypeColumnWidths),
+    [project, currentUser?.id],
   );
   const columnWidths = columnWidthOverrides[project.id] ?? storedColumnWidths;
   const tableWidth = openIssuesPrototypeTableWidth(columnWidths);

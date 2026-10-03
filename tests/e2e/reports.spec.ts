@@ -390,7 +390,7 @@ test("report builder creates and filters a project status report", async ({ page
 
 });
 
-test("reports sit in Development: the old address still leads there and a project manager is kept out", async ({ page }) => {
+test("reports are in the top bar for everyone signed in, and the old Development address leads there", async ({ page }) => {
   let role = "ADMIN";
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -403,16 +403,35 @@ test("reports sit in Development: the old address still leads there and a projec
     route.fulfill({ json: { enabled: false, hostname: null } }),
   );
   await page.route("**/api/projects", (route) => route.fulfill({ json: [] }));
+  await page.route("**/api/reports/portfolio**", (route) =>
+    route.fulfill({
+      json: {
+        generatedAt: "2026-10-03T00:00:00.000Z",
+        summary: [{
+          projectId: "p1", projectCode: "TV", projectName: "Телевизор", businessUnit: "TV&Box", portfolio: "TV&Box", projectManager: "Анна",
+          status: "ACTIVE", rag: "AMBER", startTargetDate: "2026-12-01", targetDate: "2026-12-15", targetShiftDays: 14,
+          nextCheckpoint: { code: "2", title: "Образцы", plannedDate: "2026-10-10", forecastDate: "2026-10-17" },
+          redRisks: 2, overdueWork: 3, lastShift: { checkpointTitle: "Образцы", deltaDays: 7, reasonCategory: "SUPPLIER", reasonText: "Задержка плат", at: "2026-10-01T10:00:00.000Z" },
+        }],
+        shifts: [], upcoming: [], risks: [], decisions: [],
+      },
+    }),
+  );
 
   await page.goto("/reports");
-  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
-  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Архив" })).toBeVisible();
+  const topBar = page.getByRole("banner");
+  await expect(topBar.getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await page.getByRole("button", { name: "Сводка портфеля" }).click();
+  await expect(page.locator(".portfolio-report-scroll tbody tr")).toHaveCount(1);
+  await expect(page.locator(".portfolio-report-scroll tbody tr")).toContainText("Поставщик: Задержка плат");
+  await expect(page.getByRole("button", { name: "Excel" })).toBeEnabled();
+  await expect(page).toHaveURL(/reportView=summary/);
 
+  // A project manager opens them too, also by the old address.
   role = "PROJECT_MANAGER";
   await page.goto("/development/reports");
-  await expect(page.getByRole("heading", { name: "Что сделано" })).toHaveCount(0);
+  await expect(page.getByRole("banner").getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
   await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Операционка" })).toBeVisible();
 });
 
 test("the archive opens for an administrator and the demo visitor but not for a project manager", async ({ page }) => {

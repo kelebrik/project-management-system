@@ -1,6 +1,8 @@
 import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useEffect, useRef, type FormEvent } from "react";
+import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { apiClient } from "../api/client";
+import { effectiveProjectView, viewPatchOf, writeDemoView } from "../app/projectView";
 import type { ProjectDetails, ProjectUiState } from "../app/domainTypes";
 import {
   artifactToForm,
@@ -26,7 +28,6 @@ import {
   normalizeWbsHiddenColumns,
   normalizeWbsSort,
   type ProjectCalendarCode,
-  type WbsSortState,
   type WbsTableColumnKey,
 } from "../app/wbsTable";
 import { shouldApplyProjectSnapshotAfterWbsSave } from "../wbsProjectLoadGuard";
@@ -56,6 +57,7 @@ const JIRA_SYNC_CLIENT_POLL_MAX_MS = 15 * 60_000;
 
 export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
   const collapsedDefaultsProjectIdRef = useRef<string | null>(null);
+  const viewAppliedProjectIdRef = useRef<string | null>(null);
   const lifecycleMountedRef = useRef(true);
   useEffect(() => {
     lifecycleMountedRef.current = true;
@@ -66,10 +68,8 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
   const {
     activeView,
     authMode,
+    currentUser,
     calendarOverridesByKey,
-    ganttPanelHeight,
-    ganttPanelWidth,
-    ganttWbsWidth,
     isDefaultWorkingDay,
     jiraForm,
     jiraWorkSectionDrafts,
@@ -122,13 +122,8 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     setWbsRedoHistory,
     setWbsSort,
     setWbsUndoHistory,
-    sidebarCollapsed,
-    wbsColumnOrder,
-    wbsColumnWidths,
     wbsDraftsRef,
-    wbsHiddenColumns,
     wbsSaveSequenceRef,
-    wbsSort,
   } = deps;
 
 async function syncJira(options: {
@@ -313,33 +308,42 @@ const applyProject = useCallback(
     setProjectTargetApprovedBy("");
     setWbsUndoHistory([]);
     setWbsRedoHistory([]);
-    setSidebarCollapsed(nextProject.uiState?.sidebarCollapsed ?? false);
-    setWbsColumnOrder(
-      normalizeWbsColumnOrder(nextProject.uiState?.wbsColumnOrder),
-    );
-    setWbsHiddenColumns(
-      normalizeWbsHiddenColumns(nextProject.uiState?.wbsHiddenColumns),
-    );
-    setWbsColumnWidths((current) =>
-      normalizeWbsColumnWidths({
-        ...current,
-        ...(nextProject.uiState?.wbsColumnWidths ?? {}),
-      }),
-    );
-    setWbsSort(normalizeWbsSort(nextProject.uiState?.wbsSort));
-    setGanttWbsWidth(
-      clampNumber(nextProject.uiState?.ganttWbsWidth ?? 360, 260, 640),
-    );
-    setGanttPanelHeight(
-      clampNumber(
-        nextProject.uiState?.ganttPanelHeight ?? GANTT_PANEL_HEIGHT_DEFAULT,
-        320,
-        900,
-      ),
-    );
-    setGanttPanelWidth(
-      nextProject.uiState?.ganttPanelWidth ?? GANTT_PANEL_WIDTH_DEFAULT,
-    );
+    // The view is this person's own (see effectiveProjectView), not the project's. It is
+    // applied when a project opens, not on every reload of its data, so a reload racing a
+    // layout save cannot put the old columns back.
+    const viewKey = `${currentUser?.id ?? ""}:${nextProject.id}`;
+    const opensProject = viewAppliedProjectIdRef.current !== viewKey;
+    viewAppliedProjectIdRef.current = viewKey;
+    const view = effectiveProjectView(nextProject, currentUser?.id);
+    if (opensProject) {
+      setSidebarCollapsed(view.sidebarCollapsed ?? false);
+      setWbsColumnOrder(
+        normalizeWbsColumnOrder(view.wbsColumnOrder as WbsTableColumnKey[] | undefined),
+      );
+      setWbsHiddenColumns(
+        normalizeWbsHiddenColumns(view.wbsHiddenColumns as WbsTableColumnKey[] | undefined),
+      );
+      setWbsColumnWidths((current) =>
+        normalizeWbsColumnWidths({
+          ...current,
+          ...(view.wbsColumnWidths ?? {}),
+        }),
+      );
+      setWbsSort(normalizeWbsSort(view.wbsSort));
+      setGanttWbsWidth(
+        clampNumber(view.ganttWbsWidth ?? 360, 260, 640),
+      );
+      setGanttPanelHeight(
+        clampNumber(
+          view.ganttPanelHeight ?? GANTT_PANEL_HEIGHT_DEFAULT,
+          320,
+          900,
+        ),
+      );
+      setGanttPanelWidth(
+        view.ganttPanelWidth ?? GANTT_PANEL_WIDTH_DEFAULT,
+      );
+    }
     setPassportRows(normalizePassportRows(nextProject));
     setSelectedCalendarYear((currentYear) => {
       const startDate = nextProject.startDate
@@ -409,11 +413,13 @@ const applyProject = useCallback(
         ),
     );
     const isNewProjectForWbsDefaults =
-      collapsedDefaultsProjectIdRef.current !== nextProject.id;
-    collapsedDefaultsProjectIdRef.current = nextProject.id;
+      collapsedDefaultsProjectIdRef.current !== `${currentUser?.id ?? ""}:${nextProject.id}`;
+    collapsedDefaultsProjectIdRef.current = `${currentUser?.id ?? ""}:${nextProject.id}`;
     setCollapsedWbsIds((currentIds) => {
       if (isNewProjectForWbsDefaults) {
-        return collapsedWbsIdsForLevel(buildWbsTree(nextProject.wbsItems), 1);
+        // The level this person last chose; none means everything open.
+        const level = effectiveProjectView(nextProject, currentUser?.id).wbsHierarchyLevel;
+        return level === null ? new Set<string>() : collapsedWbsIdsForLevel(buildWbsTree(nextProject.wbsItems), level ?? 1);
       }
       return new Set(
         [...currentIds].filter((itemId) =>
@@ -451,7 +457,7 @@ const applyProject = useCallback(
     );
   },
   // All of these are state setters and refs, stable between renders.
-  [projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
+  [currentUser?.id, projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
 );
 
 useEffect(() => {
@@ -721,36 +727,37 @@ async function saveProjectTargetDate() {
   }
 }
 
-async function saveProjectUiState(
-  patch: ProjectUiState,
-  options?: {
-    sidebarCollapsed?: boolean;
-    wbsColumnOrder?: WbsTableColumnKey[];
-    wbsHiddenColumns?: WbsTableColumnKey[];
-    wbsColumnWidths?: Record<WbsTableColumnKey, number>;
-    wbsSort?: WbsSortState | null;
-    ganttPanelHeight?: number;
-    ganttPanelWidth?: number;
-    ganttWbsWidth?: number;
-  },
-) {
+/**
+ * Saves interface settings. The view (columns, widths, sorting, level, panel
+ * sizes) is this person's own and goes to their view of the project; the
+ * project's shared content in uiState (passport rows, milestone label layout)
+ * still goes to the project.
+ */
+async function saveProjectUiState(patch: ProjectUiState, _options?: unknown) {
   if (!project) return;
-  const nextUiState: ProjectUiState = {
-    ...(project.uiState ?? {}),
-    sidebarCollapsed: options?.sidebarCollapsed ?? sidebarCollapsed,
-    wbsColumnOrder: options?.wbsColumnOrder ?? wbsColumnOrder,
-    wbsHiddenColumns: options?.wbsHiddenColumns ?? wbsHiddenColumns,
-    wbsColumnWidths: options?.wbsColumnWidths ?? wbsColumnWidths,
-    wbsSort: options?.wbsSort ?? wbsSort,
-    ganttPanelHeight: options?.ganttPanelHeight ?? ganttPanelHeight,
-    ganttPanelWidth: options?.ganttPanelWidth ?? ganttPanelWidth,
-    ganttWbsWidth: options?.ganttWbsWidth ?? ganttWbsWidth,
-    ...patch,
+  const viewPatch = viewPatchOf(patch);
+  const { passportRows, milestoneLabelLayout } = patch;
+  const sharedPatch: ProjectUiState = {
+    ...(passportRows !== undefined ? { passportRows } : {}),
+    ...(milestoneLabelLayout !== undefined ? { milestoneLabelLayout } : {}),
   };
+  const projectId = project.id;
+  if (Object.keys(viewPatch).length > 0) {
+    setProject((current) =>
+      current && current.id === projectId ? { ...current, myViewState: { ...(current.myViewState ?? {}), ...viewPatch } } : current,
+    );
+    if (currentUser?.id === PUBLIC_DEMO_USER_ID) {
+      writeDemoView(projectId, viewPatch);
+    } else {
+      await apiClient.patch(`/api/projects/${projectId}/my-view`, viewPatch, "Не удалось сохранить настройки вида");
+    }
+  }
+  if (Object.keys(sharedPatch).length === 0) return;
+  const nextUiState: ProjectUiState = { ...(project.uiState ?? {}), ...sharedPatch };
   setProject((current) =>
     current ? { ...current, uiState: nextUiState } : current,
   );
-  const response = await authenticatedFetch(`${apiBase}/api/projects/${project.id}`, {
+  const response = await authenticatedFetch(`${apiBase}/api/projects/${projectId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ uiState: nextUiState }),

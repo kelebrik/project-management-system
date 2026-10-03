@@ -15,7 +15,6 @@ import {
 type WbsColumnActionsDeps = {
   draggedWbsColumn: WbsTableColumnKey | null;
   isAuthenticated: boolean;
-  isClosedProject: boolean;
   project: ProjectDetails | null;
   saveProjectUiState: (
     patch: ProjectUiState,
@@ -39,7 +38,6 @@ type WbsColumnActionsDeps = {
 export function useWbsColumnActions({
   draggedWbsColumn,
   isAuthenticated,
-  isClosedProject,
   project,
   saveProjectUiState,
   setDraggedWbsColumn,
@@ -135,7 +133,8 @@ export function useWbsColumnActions({
           : current.direction === "asc"
             ? { columnKey, direction: "desc" as const }
             : null;
-      if (project && isAuthenticated && !isClosedProject) {
+      // Sorting is part of this person's view, so a closed project keeps it too.
+      if (project && isAuthenticated) {
         void saveProjectUiState({ wbsSort: next }, { wbsSort: next });
       }
       return next;

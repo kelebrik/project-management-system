@@ -15,6 +15,7 @@ import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
 import { isPublicDemoMode } from '../../server/auth.js';
 import { calculateProjectCriticalPath } from '../../services/wbs-critical-path.js';
 import { closedIssuesInclude, projectDetailsInclude } from './includes.js';
+import { loadProjectViewState } from '../project-view.routes.js';
 import { overviewTransitionSchema } from './schemas.js';
 import type { ProjectsRoutesContext } from './types.js';
 
@@ -54,7 +55,9 @@ export function registerProjectOverviewRoutes(
           ? await userProjectAccessLevel(user.id, project.id)
           : null;
 
-    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel });
+    // The person's own view comes with the project, so the page opens with their layout at once.
+    const myViewState = await loadProjectViewState(user?.id, project.id);
+    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState });
   });
 
   router.post('/projects/:projectId/executive-overviews/generate', async (req, res) => {

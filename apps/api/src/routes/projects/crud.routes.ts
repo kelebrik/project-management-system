@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
-import { getProjectWbsSnapshot } from '../../services/wbs.js';
+import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
@@ -21,7 +21,8 @@ import {
   userCanCreateInBusinessUnit,
   userCanReadProject,
 } from '../../server/business-units.js';
-import { PUBLIC_DEMO_USER_ID } from '@pms/shared';
+import { PROJECT_VIEW_STATE_KEYS, PUBLIC_DEMO_USER_ID } from '@pms/shared';
+import { applyWbsImport, ImportRejected } from '../wbs-import.routes.js';
 import { isPublicDemoMode } from '../../server/auth.js';
 import { projectAuditSnapshot } from './audit.js';
 import { deleteProjectCascade } from './cascade.js';
@@ -149,7 +150,9 @@ export function registerProjectCrudRoutes(
       return;
     }
 
-    const { copyCurrentStructureFrom, ...projectData } = parsed.data;
+    const { copyCurrentStructureFrom: requestedCopies, structureSource: requestedSource, importRows, importKey, ...projectData } = parsed.data;
+    const structureSource = requestedSource ?? (requestedCopies.length > 0 ? 'copy' : 'standard');
+    const copyCurrentStructureFrom = structureSource === 'copy' ? requestedCopies : [];
     const businessUnitId = requestedBusinessUnitId(req) ?? (await defaultBusinessUnitId());
     if (!businessUnitId) {
       res.status(400).json({ error: 'Бизнес-юнит не выбран' });
@@ -196,7 +199,7 @@ export function registerProjectCrudRoutes(
     }
 
     try {
-      const { project, copiedStructure } = await prisma.$transaction(async (tx) => {
+      const { project, copiedStructure, imported } = await prisma.$transaction(async (tx) => {
         const createdProject = await tx.project.create({
           data: {
             ...projectData,
@@ -243,8 +246,13 @@ export function registerProjectCrudRoutes(
               selections: copyCurrentStructureFrom,
             })
           : null;
-        return { project: createdProject, copiedStructure: copyResult };
-      });
+        // A table refused by the import planner leaves no project behind: it is the same transaction.
+        const importResult =
+          structureSource === 'table' && importRows && importKey
+            ? await applyWbsImport(tx, { projectId: createdProject.id, rows: importRows, importKey, userId: actor && actor.id !== PUBLIC_DEMO_USER_ID ? actor.id : null })
+            : null;
+        return { project: createdProject, copiedStructure: copyResult, imported: importResult };
+      }, { timeout: 60_000 });
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
       if (copiedStructure) {
         await recalculateProjectWbsSchedule(project.id);
@@ -260,6 +268,9 @@ export function registerProjectCrudRoutes(
           },
           afterSnapshot: snapshot,
         });
+      } else if (imported) {
+        await recalculateProjectWbsSchedule(project.id);
+        await recalculateProjectWbsHierarchyStatuses(project.id);
       } else {
         await createDefaultProjectStructure(project.id, project.startDate);
       }
@@ -279,7 +290,9 @@ export function registerProjectCrudRoutes(
               itemCount: copiedStructure.itemCount,
               dependencyCount: copiedStructure.dependencyCount,
             }
-          : { defaultStructureCreated: true },
+          : imported
+            ? { importedRows: imported.createdIds.length, importKey }
+            : { defaultStructureCreated: true },
       });
       await emitWebhookEvent({
         eventType: 'project.created',
@@ -298,6 +311,10 @@ export function registerProjectCrudRoutes(
         error.code === 'P2002'
       ) {
         res.status(409).json({ error: 'Проект с таким кодом уже есть', field: 'code' });
+        return;
+      }
+      if (error instanceof ImportRejected) {
+        res.status(422).json({ error: 'Таблица Структуры не прошла проверку', importSummary: error.summary });
         return;
       }
       if (
@@ -447,7 +464,7 @@ export function registerProjectCrudRoutes(
           uiState:
             parsed.data.uiState === undefined
               ? undefined
-              : sanitizeProjectUiState(parsed.data.uiState),
+              : (sharedUiStateUpdate(project.uiState, parsed.data.uiState) as Prisma.InputJsonObject),
         },
       });
       const updated = await prisma.project.findUnique({
@@ -725,4 +742,20 @@ async function projectCodeTaken(code: string, exceptProjectId?: string) {
     select: { code: true },
   });
   return other?.code ?? null;
+}
+
+/**
+ * The project's uiState after a change: the shared content it sends (passport
+ * rows, milestone label layout), while the view fields kept from before stay
+ * as they were. Views are personal (UserProjectViewState); the old shared
+ * ones only seed a person's first view, and no client may overwrite them.
+ */
+export function sharedUiStateUpdate(current: unknown, incoming: unknown) {
+  const isView = (key: string) => (PROJECT_VIEW_STATE_KEYS as readonly string[]).includes(key);
+  const before = sanitizeProjectUiState(current) as Record<string, unknown>;
+  const after = sanitizeProjectUiState(incoming) as Record<string, unknown>;
+  return {
+    ...Object.fromEntries(Object.entries(before).filter(([key]) => isView(key))),
+    ...Object.fromEntries(Object.entries(after).filter(([key]) => !isView(key))),
+  };
 }

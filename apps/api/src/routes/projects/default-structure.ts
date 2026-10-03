@@ -6,11 +6,11 @@ const defaultProjectWbsItems = [
   { code: '1', title: 'Инициация проекта', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 0, duration: 14, level: 1 },
   { code: '1.1', title: 'Паспорт проекта', type: 'TASK', status: 'DONE', owner: 'РП', startOffset: 0, duration: 4, level: 2 },
   { code: '1.2', title: 'Команда и роли', type: 'TASK', status: 'DONE', owner: 'Проектный офис', startOffset: 4, duration: 3, level: 2 },
-  { code: '1.3', title: 'Старт проекта', type: 'MILESTONE', status: 'DONE', owner: 'Спонсор', startOffset: 7, duration: 0, level: 2 },
+  { code: '1.3', title: 'Старт проекта', type: 'MILESTONE', status: 'DONE', owner: 'Бизнес-заказчик', startOffset: 7, duration: 0, level: 2 },
   { code: '2', title: 'Планирование', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 22, level: 1 },
   { code: '2.1', title: 'Декомпозиция структуры', type: 'TASK', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 6, level: 2 },
   { code: '2.1.1', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Технический лидер', startOffset: 14, duration: 5, level: 3 },
-  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Спонсор', startOffset: 21, duration: 0, level: 2 },
+  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Бизнес-заказчик', startOffset: 21, duration: 0, level: 2 },
   { code: '3', title: 'Исполнение', type: 'PHASE', status: 'NOT_STARTED', owner: 'Лидер поставки', startOffset: 22, duration: 30, level: 1 },
   { code: '3.1', title: 'Первый пакет работ', type: 'TASK', status: 'NOT_STARTED', owner: 'Лидер команды', startOffset: 22, duration: 10, level: 2 },
 ] as const;

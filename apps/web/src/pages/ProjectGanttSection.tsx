@@ -25,6 +25,7 @@ export function ProjectGanttSection() {
     setShowGanttBaseline,
     setShowGanttForecast,
     setWbsHierarchyLevel,
+    saveProjectUiState,
     showGanttBaseline,
     showGanttCriticalPath,
     showGanttDependencies,
@@ -36,6 +37,11 @@ export function ProjectGanttSection() {
     wbsRedoStack,
     wbsUndoStack,
   } = usePageContext();
+  // The level is part of this person's view: clicking the active one opens everything (no level).
+  const chooseHierarchyLevel = (level: number) => {
+    setWbsHierarchyLevel(level);
+    void saveProjectUiState({ wbsHierarchyLevel: activeWbsHierarchyLevel === level ? null : level }).catch(() => undefined);
+  };
 
   const sourceKey = useMemo(() => JSON.stringify([project.wbsItems, project.wbsDependencies, project.criticalPath]), [project.wbsItems, project.wbsDependencies, project.criticalPath]);
   const [scenario, setScenario] = useState<ScenarioResult | null>(null);
@@ -205,7 +211,7 @@ export function ProjectGanttSection() {
                                     type="button"
                                     key={level}
                                     className={activeWbsHierarchyLevel === level ? "active" : ""}
-                                    onClick={() => setWbsHierarchyLevel(level)}
+                                    onClick={() => chooseHierarchyLevel(level)}
                                     title={`Показать иерархию до ${level} уровня`}
                                   >
                                     {level}

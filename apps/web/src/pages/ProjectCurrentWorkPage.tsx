@@ -18,6 +18,7 @@ import type { WbsItemStatus } from "../app/domainTypes";
 
 import { appPathForView } from "../app/routes";
 import { WbsUrlField } from "../components/WbsUrlField";
+import { effectiveProjectView } from "../app/projectView";
 import { usePageContext } from "./PageContext";
 import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
@@ -38,7 +39,6 @@ export function ProjectCurrentWorkPage() {
   const {
     isReadOnly,
     isAuthenticated,
-    isClosedProject,
     openView,
     project,
     saveProjectUiState,
@@ -47,10 +47,11 @@ export function ProjectCurrentWorkPage() {
     setError,
     updateWbsDraft,
     wbsDrafts,
+    currentUser,
   } = usePageContext();
   const [query, setQuery] = usePersistedViewState(`pms:current-work:${project.id}:query`, "");
   const [columnWidths, setColumnWidths] = useState(() =>
-    normalizeCurrentWorkColumnWidths(project.uiState?.currentWorkColumnWidths),
+    normalizeCurrentWorkColumnWidths(effectiveProjectView(project, currentUser?.id).currentWorkColumnWidths),
   );
   const [widthError, setWidthError] = useState<{ message: string | null } | null>(null);
   const [workFilter, setWorkFilter] = useState<CurrentWorkFilter>("all");
@@ -96,7 +97,8 @@ export function ProjectCurrentWorkPage() {
     const onPointerUp = () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", onPointerUp);
-      if (!isAuthenticated || isClosedProject) return;
+      // A personal view: a closed project keeps its widths too.
+      if (!isAuthenticated) return;
       void saveProjectUiState({
         currentWorkColumnWidths: latestWidths,
       }).catch((error: unknown) =>

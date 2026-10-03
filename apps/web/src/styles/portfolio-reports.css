@@ -1,0 +1,16 @@
+/* Reports across projects: filters, a scrolling table and its Excel button. */
+.portfolio-reports { display: grid; gap: 12px; }
+.portfolio-reports h3 { font-size: 15px; margin: 8px 0 0; }
+.portfolio-report-controls { align-items: end; display: flex; flex-wrap: wrap; gap: 12px; }
+.portfolio-report-controls label { display: grid; font-size: 12px; gap: 4px; min-width: 180px; }
+.portfolio-report-table { display: grid; gap: 8px; }
+.portfolio-report-tools { display: flex; justify-content: flex-end; }
+.portfolio-report-tools button { align-items: center; display: inline-flex; gap: 6px; }
+.portfolio-report-scroll { border: 1px solid var(--border); border-radius: 8px; max-height: 70vh; overflow: auto; }
+.portfolio-report-scroll table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
+.portfolio-report-scroll th { background: var(--surface-3); color: var(--text-muted); font-size: 12px; font-weight: 800; position: sticky; text-align: left; top: 0; z-index: 1; }
+.portfolio-report-scroll th, .portfolio-report-scroll td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; white-space: nowrap; }
+.portfolio-report-scroll td.late { color: var(--danger, #c0392b); font-weight: 700; }
+.portfolio-report-scroll td.rag-green { color: var(--success, #1b7f4c); font-weight: 700; }
+.portfolio-report-scroll td.rag-amber { color: var(--warning, #b7791f); font-weight: 700; }
+.portfolio-report-scroll td.rag-red { color: var(--danger, #c0392b); font-weight: 700; }

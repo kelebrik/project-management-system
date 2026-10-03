@@ -1,4 +1,4 @@
-import { projectSchema } from '@pms/shared';
+import { projectSchema, wbsImportRowSchema, WBS_IMPORT_LIMITS } from '@pms/shared';
 import { z } from 'zod';
 import { patchSchema } from '../patch-schema.js';
 
@@ -16,6 +16,13 @@ export const createProjectSchema = projectSchema.extend({
   portfolio: z.string().trim().optional().default(''),
   sponsor: z.string().trim().optional().default(''),
   summary: z.string().trim().optional().default(''),
+  productOwner: z.string().trim().max(200).optional().default(''),
+  hwTpm: z.string().trim().max(200).optional().default(''),
+  swTpm: z.string().trim().max(200).optional().default(''),
+  // Where the first Structure comes from: the standard one, copies of other projects, or a table (Excel, Google Sheets).
+  structureSource: z.enum(['standard', 'copy', 'table']).optional(),
+  importRows: z.array(wbsImportRowSchema).min(1).max(WBS_IMPORT_LIMITS.rows).optional(),
+  importKey: z.string().trim().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   startDate: isoDay,
   targetDate: isoDay,
   copyCurrentStructureFrom: z
@@ -29,6 +36,13 @@ export const createProjectSchema = projectSchema.extend({
     .optional()
     .default([]),
 }).superRefine((value, context) => {
+  const source = value.structureSource ?? (value.copyCurrentStructureFrom.length > 0 ? 'copy' : 'standard');
+  if (source === 'copy' && value.copyCurrentStructureFrom.length === 0) {
+    context.addIssue({ code: 'custom', path: ['copyCurrentStructureFrom'], message: 'Выберите проекты или фазы для копирования' });
+  }
+  if (source === 'table' && (!value.importRows || !value.importKey)) {
+    context.addIssue({ code: 'custom', path: ['importRows'], message: 'Загрузите таблицу Структуры' });
+  }
   if (value.startDate > value.targetDate) {
     context.addIssue({ code: 'custom', path: ['targetDate'], message: 'Окончание не может быть раньше начала' });
   }

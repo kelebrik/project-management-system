@@ -12,6 +12,8 @@ import { createPageVisitsRouter } from '../routes/page-visits.routes.js';
 import { createProjectsRouter } from '../routes/projects.routes.js';
 import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
+import { createReportsRouter } from '../routes/reports.routes.js';
+import { createProjectViewRouter } from '../routes/project-view.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
 import { createAiRouter } from '../routes/ai.routes.js';
 import { createScheduleShiftsRouter } from '../routes/schedule-shifts.routes.js';
@@ -165,6 +167,7 @@ export function createApp() {
   app.use('/api', businessUnitReadMiddleware);
   app.use('/api', createSearchRouter());
   app.use('/api', createSavedViewsRouter({ currentUser, requireAuth }));
+  app.use('/api', createProjectViewRouter());
   // Routes of the cloud build (apps/api/src/cloudOnly), before write checks: anyone signed in may report a problem.
   const cloudRouter = express.Router();
   app.use('/api', cloudRouter);
@@ -196,6 +199,7 @@ export function createApp() {
   app.use('/api', createWbsImportRouter());
   app.use('/api', createAutomationRulesRouter());
   app.use('/api', createNotificationsRouter());
+  app.use('/api', createReportsRouter());
 
   registerClosedProjectWriteGuards(app);
 

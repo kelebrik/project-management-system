@@ -27,10 +27,12 @@ test("questions prototype exposes editable fields and expanded actions", async (
   let statusPayload: Record<string, unknown> | null = null;
   let threadPayload: Record<string, unknown> | null = null;
   await page.route("**/api/projects/project-1", async (route) => {
-    if (route.request().method() === "PATCH") {
-      uiStatePatch = route.request().postDataJSON() as Record<string, unknown>;
-    }
     await route.fulfill({ json: project });
+  });
+  // Column widths are this person's own view of the project.
+  await page.route("**/api/projects/project-1/my-view", async (route) => {
+    uiStatePatch = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ json: { state: uiStatePatch } });
   });
   await page.route("**/api/open-issues/issue-1", async (route) => {
     const patch = route.request().postDataJSON() as Record<string, unknown>;
@@ -100,8 +102,8 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await page.mouse.move(resizerBox!.x + 254, resizerBox!.y + 8);
   await page.mouse.up();
   await expect.poll(() => (
-    uiStatePatch as { uiState?: { openIssuesPrototypeColumnWidths?: { status?: number } } } | null
-  )?.uiState?.openIssuesPrototypeColumnWidths?.status ?? 0).toBeGreaterThan(500);
+    uiStatePatch as { openIssuesPrototypeColumnWidths?: { status?: number } } | null
+  )?.openIssuesPrototypeColumnWidths?.status ?? 0).toBeGreaterThan(500);
   expect((await row.getByLabel("Status date").boundingBox())!.width).toBe(statusDateWidth);
   expect((await row.getByLabel("Current status").boundingBox())!.width).toBeGreaterThan(currentStatusWidth + 200);
 

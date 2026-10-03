@@ -16,10 +16,13 @@ test("English default, language switch and persistence preserve unsaved input an
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await page.goto("/new-project");
-  await expect(page.getByRole("heading", { name: "Создать проект", exact: true })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Создать проект" })).toBeVisible();
   await page.getByLabel("Наименование").fill("Несохранённый проект 42");
+  // The dialog covers the page; closed, what was typed waits while the language changes.
+  await page.getByRole("button", { name: "Закрыть" }).click();
   await page.getByTestId("language-toggle").click();
-  await expect(page.getByRole("heading", { name: "Create project", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Create", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Create project" })).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Несохранённый проект 42");
   expect(errors).toEqual([]);
 });

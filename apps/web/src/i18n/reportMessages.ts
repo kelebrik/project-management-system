@@ -170,5 +170,189 @@ export const reportMessages = {
   "report.kind.issues": {
     "en": "Issues",
     "ru": "Вопросы"
+  },
+  "portfolio.tab.summary": {
+    "en": "Portfolio summary",
+    "ru": "Сводка портфеля"
+  },
+  "portfolio.tab.shifts": {
+    "en": "Milestone shifts",
+    "ru": "Сдвиги вех"
+  },
+  "portfolio.tab.upcoming": {
+    "en": "Upcoming milestones",
+    "ru": "Ближайшие вехи"
+  },
+  "portfolio.tab.risks": {
+    "en": "Red risks and decisions",
+    "ru": "Красные риски и решения"
+  },
+  "portfolio.loading": {
+    "en": "Collecting the report…",
+    "ru": "Собираю отчёт…"
+  },
+  "portfolio.loadError": {
+    "en": "Could not load the report",
+    "ru": "Не удалось загрузить отчёт"
+  },
+  "portfolio.empty": {
+    "en": "Nothing to show",
+    "ru": "Нет данных"
+  },
+  "portfolio.excel": {
+    "en": "Excel",
+    "ru": "Excel"
+  },
+  "portfolio.period": {
+    "en": "Period",
+    "ru": "Период"
+  },
+  "portfolio.horizon": {
+    "en": "Horizon",
+    "ru": "Горизонт"
+  },
+  "portfolio.days": {
+    "en": "{count} days",
+    "ru": "{count} дн."
+  },
+  "portfolio.weeks": {
+    "en": "{count} weeks",
+    "ru": "{count} нед."
+  },
+  "portfolio.filterUnit": {
+    "en": "Business unit",
+    "ru": "Бизнес-юнит"
+  },
+  "portfolio.filterPortfolio": {
+    "en": "Portfolio",
+    "ru": "Портфель"
+  },
+  "portfolio.filterManager": {
+    "en": "Project manager",
+    "ru": "Руководитель"
+  },
+  "portfolio.all": {
+    "en": "All",
+    "ru": "Все"
+  },
+  "portfolio.col.project": {
+    "en": "Project",
+    "ru": "Проект"
+  },
+  "portfolio.col.manager": {
+    "en": "Manager",
+    "ru": "РП"
+  },
+  "portfolio.col.status": {
+    "en": "Status",
+    "ru": "Статус"
+  },
+  "portfolio.col.rag": {
+    "en": "RAG",
+    "ru": "RAG"
+  },
+  "portfolio.col.target": {
+    "en": "Target",
+    "ru": "Цель"
+  },
+  "portfolio.col.startTarget": {
+    "en": "Starting target",
+    "ru": "Цель на старте"
+  },
+  "portfolio.col.targetShift": {
+    "en": "Target moved, days",
+    "ru": "Сдвиг цели, дн."
+  },
+  "portfolio.col.next": {
+    "en": "Next checkpoint",
+    "ru": "Ближайшая веха"
+  },
+  "portfolio.col.planned": {
+    "en": "Planned",
+    "ru": "План"
+  },
+  "portfolio.col.forecast": {
+    "en": "Forecast",
+    "ru": "Прогноз"
+  },
+  "portfolio.col.slip": {
+    "en": "Slip, days",
+    "ru": "Отклонение, дн."
+  },
+  "portfolio.col.redRisks": {
+    "en": "Red risks",
+    "ru": "Красные риски"
+  },
+  "portfolio.col.overdue": {
+    "en": "Overdue work",
+    "ru": "Просрочено работ"
+  },
+  "portfolio.col.lastShift": {
+    "en": "Last shift",
+    "ru": "Последний сдвиг"
+  },
+  "portfolio.col.reason": {
+    "en": "Reason",
+    "ru": "Причина"
+  },
+  "portfolio.col.checkpoint": {
+    "en": "Checkpoint",
+    "ru": "Веха"
+  },
+  "portfolio.col.from": {
+    "en": "Was",
+    "ru": "Было"
+  },
+  "portfolio.col.to": {
+    "en": "Now",
+    "ru": "Стало"
+  },
+  "portfolio.col.delta": {
+    "en": "Days",
+    "ru": "Дни"
+  },
+  "portfolio.col.by": {
+    "en": "Who",
+    "ru": "Кто"
+  },
+  "portfolio.col.when": {
+    "en": "When",
+    "ru": "Когда"
+  },
+  "portfolio.col.title": {
+    "en": "Title",
+    "ru": "Название"
+  },
+  "portfolio.col.owner": {
+    "en": "Owner",
+    "ru": "Ответственный"
+  },
+  "portfolio.col.score": {
+    "en": "Score",
+    "ru": "Оценка"
+  },
+  "portfolio.col.due": {
+    "en": "Due",
+    "ru": "Срок"
+  },
+  "portfolio.col.approver": {
+    "en": "Approver",
+    "ru": "Согласующий"
+  },
+  "portfolio.col.waiting": {
+    "en": "Waiting, days",
+    "ru": "Ждёт, дн."
+  },
+  "portfolio.risksTitle": {
+    "en": "Open red risks",
+    "ru": "Открытые красные риски"
+  },
+  "portfolio.decisionsTitle": {
+    "en": "Decisions waiting for an answer",
+    "ru": "Решения, ждущие ответа"
+  },
+  "portfolio.noReason": {
+    "en": "no reason given",
+    "ru": "причина не указана"
   }
 } as const;

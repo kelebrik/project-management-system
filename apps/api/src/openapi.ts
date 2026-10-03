@@ -8,6 +8,7 @@ import { openApiAiPaths } from "./openapi-ai-paths.js";
 import { openApiScheduleShiftPaths } from "./openapi-schedule-shift-paths.js";
 import { openApiDecisionPaths } from "./openapi-decision-paths.js";
 import { openApiAutomationRulesPaths } from "./openapi-automation-rules-paths.js";
+import { openApiViewsReportsPaths } from "./openapi-views-reports-paths.js";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -54,5 +55,6 @@ export const openApiDocument = {
     ...openApiScheduleShiftPaths,
     ...openApiDecisionPaths,
     ...openApiAutomationRulesPaths,
+    ...openApiViewsReportsPaths,
   },
 } as const;

@@ -1,9 +1,8 @@
+import type { WbsImportPlanSummary, WbsImportRow } from "@pms/shared";
 import {
   useCallback,
-  useEffect,
-  useRef,
+  useState,
   type Dispatch,
-  type FormEvent,
   type SetStateAction,
 } from "react";
 import { apiClient } from "../api/client";
@@ -24,11 +23,6 @@ import {
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
 import type { AppView } from "../app/routes";
-import {
-  businessUnitForProjectCreation,
-  projectCreationBusinessUnitMessage,
-  type BusinessUnitOption,
-} from "../app/projectCreation";
 import { useConfirm } from "./useConfirm";
 
 type OpenView = (
@@ -69,7 +63,6 @@ export function useProjectRegistryController({
   setProject,
   selectedProjectId,
   setSelectedProjectId,
-  newProjectForm,
   setNewProjectForm,
   projectRegistryDrafts,
   setProjectRegistryDrafts,
@@ -83,20 +76,23 @@ export function useProjectRegistryController({
 }: UseProjectRegistryControllerOptions) {
   const confirm = useConfirm();
   const currentProjectId = project?.id ?? null;
-  const confirmedBusinessUnitIdRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    if (activeView !== "project-create") {
-      confirmedBusinessUnitIdRef.current = null;
-    }
-  }, [activeView]);
-
+  // Creating a project is a dialog over the page; /new-project opens it over the project list.
+  const [projectCreateOpen, setProjectCreateOpen] = useState(() => activeView === "project-create");
+  const [openedForView, setOpenedForView] = useState(activeView);
+  if (openedForView !== activeView) {
+    setOpenedForView(activeView);
+    if (activeView === "project-create") setProjectCreateOpen(true);
+  }
   const openProjectCreate = useCallback(() => {
     setError(null);
     setNotice(null);
-    confirmedBusinessUnitIdRef.current = null;
-    openView("project-create");
-  }, [openView, setError, setNotice]);
+    setProjectCreateOpen(true);
+  }, [setError, setNotice]);
+  const closeProjectCreate = useCallback(() => {
+    setProjectCreateOpen(false);
+    if (activeView === "project-create") openView("projects", { replace: true });
+  }, [activeView, openView]);
 
   const applyProjectMasterRecord = useCallback(
     (updated: ProjectListItem) => {
@@ -168,80 +164,54 @@ export function useProjectRegistryController({
     [setProjectRegistryDrafts, setProjects, setSelectedProjectId],
   );
 
+  /**
+   * Creates a project from the creation dialog. The business unit was
+   * confirmed in the dialog itself; problems come back to the dialog (a taken
+   * code marks its field, a refused table lists what is wrong with it).
+   */
   const createProject = useCallback(
     async (
-      event: FormEvent<HTMLFormElement>,
-      // Told which form field the server refused (a taken code), so the form can mark it.
-      onFieldError?: (field: string, message: string) => void,
-    ) => {
-      event.preventDefault();
+      form: ProjectFormState,
+      options: {
+        onFieldError?: (field: string, message: string) => void;
+        structure?: { source: "standard" | "copy" | "table"; importRows?: WbsImportRow[]; importKey?: string };
+      } = {},
+    ): Promise<{ ok: true } | { ok: false; error: string; importSummary?: WbsImportPlanSummary }> => {
       setError(null);
       setNotice(null);
       try {
-        const businessUnitId = newProjectForm.businessUnitId;
+        const businessUnitId = form.businessUnitId;
         if (currentUser && !businessUnitId) {
-          throw new Error("Выберите бизнес-юнит в поле «Портфель»");
-        }
-        if (
-          currentUser &&
-          confirmedBusinessUnitIdRef.current !== businessUnitId
-        ) {
-          const selectedUnit = businessUnitForProjectCreation(
-            await apiClient.get<BusinessUnitOption[]>(
-              "/api/business-units",
-              "Не удалось определить выбранный бизнес-юнит",
-            ),
-            businessUnitId,
-          );
-          if (!selectedUnit || selectedUnit.id !== businessUnitId) {
-            throw new Error("Выбранный бизнес-юнит не найден");
-          }
-          const approved = await confirm({
-            title: "Создать проект?",
-            message: projectCreationBusinessUnitMessage(selectedUnit.name),
-            confirmLabel: "Создать",
-            tone: "default",
-            callout: {
-              selector: ".project-create-business-unit select",
-              message: "Отмените и смените БЮ в этом поле",
-            },
-          });
-          if (!approved) return;
-          confirmedBusinessUnitIdRef.current = businessUnitId;
+          return { ok: false, error: "Выберите бизнес-юнит в поле «Портфель»" };
         }
         const response = await authenticatedFetch(`${apiBase}/api/projects`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(businessUnitId
-              ? { [BUSINESS_UNIT_HEADER]: businessUnitId }
-              : {}),
+            ...(businessUnitId ? { [BUSINESS_UNIT_HEADER]: businessUnitId } : {}),
           },
-          body: JSON.stringify(projectPayload(newProjectForm)),
+          body: JSON.stringify({
+            ...projectPayload(form),
+            structureSource: options.structure?.source ?? "standard",
+            ...(options.structure?.source === "table" ? { importRows: options.structure.importRows, importKey: options.structure.importKey } : {}),
+          }),
         });
-        const result = await response.json();
-        if (!response.ok && typeof result.field === "string" && typeof result.error === "string") {
-          onFieldError?.(result.field, result.error);
-        }
+        const result = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(
-            result.error?.formErrors?.join(", ") ||
-              result.error ||
-              "Не удалось создать проект",
-          );
+          if (typeof result.field === "string" && typeof result.error === "string") options.onFieldError?.(result.field, result.error);
+          return {
+            ok: false,
+            error: result.error?.formErrors?.join(", ") || (typeof result.error === "string" ? result.error : "") || "Не удалось создать проект",
+            importSummary: result.importSummary,
+          };
         }
-        if (!result.id) {
-          throw new Error("API не вернул идентификатор созданного проекта");
-        }
-        if (businessUnitId && newProjectForm.portfolio) {
-          storeBusinessUnitSelection(window.localStorage, {
-            id: businessUnitId,
-            name: newProjectForm.portfolio,
-          });
+        if (!result.id) return { ok: false, error: "API не вернул идентификатор созданного проекта" };
+        if (businessUnitId && form.portfolio) {
+          storeBusinessUnitSelection(window.localStorage, { id: businessUnitId, name: form.portfolio });
           window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
         }
-        confirmedBusinessUnitIdRef.current = null;
         setNewProjectForm(newProjectFormDefaults());
+        setProjectCreateOpen(false);
         openView("project-structure", { replace: true });
         setSelectedProjectId(result.id);
         setProject(null);
@@ -249,28 +219,12 @@ export function useProjectRegistryController({
         await refreshProject(result.id);
         await reloadAuditEvents();
         setNotice(`Проект ${result.code} создан`);
+        return { ok: true };
       } catch (createError) {
-        setError(
-          createError instanceof Error
-            ? createError.message
-            : "Не удалось создать проект",
-        );
+        return { ok: false, error: createError instanceof Error ? createError.message : "Не удалось создать проект" };
       }
     },
-    [
-      confirm,
-      newProjectForm,
-      currentUser,
-      openView,
-      refreshProject,
-      reloadAuditEvents,
-      reloadProjects,
-      setError,
-      setNewProjectForm,
-      setNotice,
-      setProject,
-      setSelectedProjectId,
-    ],
+    [currentUser, openView, refreshProject, reloadAuditEvents, reloadProjects, setError, setNewProjectForm, setNotice, setProject, setSelectedProjectId],
   );
 
   const updateProjectRegistryDraft = useCallback(
@@ -626,6 +580,8 @@ export function useProjectRegistryController({
     reloadProjects,
     openProjectCreate,
     createProject,
+    projectCreateOpen,
+    closeProjectCreate,
     updateProjectRegistryDraft,
     savePortfolioProjectIdentity,
     saveProjectPortfolio,

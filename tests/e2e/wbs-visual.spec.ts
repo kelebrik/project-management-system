@@ -293,12 +293,11 @@ test("project navigation and current work reflect the structure", async ({ page 
       },
     });
   });
-  await page.route("**/api/projects/project-1", async (route) => {
-    const body = route.request().postDataJSON() as {
-      uiState?: { currentWorkColumnWidths?: Record<string, number> };
-    };
-    savedCurrentWorkWidths = body.uiState?.currentWorkColumnWidths ?? null;
-    await route.fulfill({ json: { id: project.id, uiState: body.uiState } });
+  // Column widths are this person's own view of the project.
+  await page.route("**/api/projects/project-1/my-view", async (route) => {
+    const body = route.request().postDataJSON() as { currentWorkColumnWidths?: Record<string, number> };
+    savedCurrentWorkWidths = body.currentWorkColumnWidths ?? null;
+    await route.fulfill({ json: { state: body } });
   });
   await page.goto("/TV-OVERVIEW/current-work");
 

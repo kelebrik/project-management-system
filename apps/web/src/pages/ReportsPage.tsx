@@ -1,4 +1,5 @@
 import type { SimpleTranslationKey } from "../i18n/types";
+import { PortfolioReports, type PortfolioView } from "../components/reports/PortfolioReports";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   useEffect,
@@ -240,18 +241,41 @@ function TaskReportSections({
   );
 }
 
+type ReportView = "builder" | "weekly" | PortfolioView;
+const REPORT_VIEWS: ReportView[] = ["builder", "weekly", "summary", "shifts", "upcoming", "risks"];
+const viewFromUrl = (): ReportView => {
+  const value = new URLSearchParams(window.location.search).get("reportView") as ReportView | null;
+  return value && REPORT_VIEWS.includes(value) ? value : "builder";
+};
+
 export function ReportsPage() {
   const { t: uiText } = useInterfaceTranslation();
-  const [weekly, setWeekly] = useState(() => new URLSearchParams(window.location.search).get('reportView') === 'weekly');
+  const [view, setView] = useState<ReportView>(viewFromUrl);
   useEffect(() => {
-    const sync = () => setWeekly(new URLSearchParams(window.location.search).get('reportView') === 'weekly');
+    const sync = () => setView(viewFromUrl());
     window.addEventListener('popstate', sync);
     return () => window.removeEventListener('popstate', sync);
   }, []);
+  const open = (next: ReportView) => {
+    setView(next);
+    const url = new URL(window.location.href);
+    if (next === "builder") url.searchParams.delete('reportView');
+    else url.searchParams.set('reportView', next);
+    window.history.pushState(null, '', url);
+  };
+  const tabs: Array<[ReportView, string]> = [
+    ["builder", uiText("ui.reports.reportBuilderOptionLabel")],
+    ["weekly", uiText("ui.automation.whatChangedThisWeek")],
+    ["summary", uiText("portfolio.tab.summary")],
+    ["shifts", uiText("portfolio.tab.shifts")],
+    ["upcoming", uiText("portfolio.tab.upcoming")],
+    ["risks", uiText("portfolio.tab.risks")],
+  ];
   return <><div className="automation-tabs" role="group" aria-label={uiText("ui.reports.reportViewLabel")}>
-    <button aria-pressed={!weekly} onClick={() => { setWeekly(false); const url = new URL(window.location.href); url.searchParams.delete('reportView'); window.history.pushState(null, '', url); }}>{uiText("ui.reports.reportBuilderOptionLabel")}</button>
-    <button aria-pressed={weekly} onClick={() => { setWeekly(true); const url = new URL(window.location.href); url.searchParams.set('reportView', 'weekly'); window.history.pushState(null, '', url); }}>{uiText("ui.automation.whatChangedThisWeek")}</button>
-  </div>{weekly && <WeeklyBriefPanel />}<div hidden={weekly}><CurrentReportsPage /></div></>;
+    {tabs.map(([key, label]) => <button aria-pressed={view === key} key={key} onClick={() => open(key)}>{label}</button>)}
+  </div>{view === "weekly" && <WeeklyBriefPanel />}
+  {view !== "builder" && view !== "weekly" && <PortfolioReports view={view} />}
+  <div hidden={view !== "builder"}><CurrentReportsPage /></div></>;
 }
 
 function CurrentReportsPage() {

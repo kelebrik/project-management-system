@@ -7,7 +7,6 @@ import {
 } from "@pms/shared";
 import {
   countPdfPages,
-  expectBusinessUnitCalloutToPointAtField,
   isoDay,
   mockAdminPortfolio,
   mockAdminProject,
@@ -17,19 +16,10 @@ import {
   projectFixture,
 } from "./overview-and-baseline.support";
 
-test("project creation confirms the selected business unit for an administrator", async ({
+test("a project is created in a dialog: project, team, then a Structure copied from other projects", async ({
   page,
 }) => {
-  let createBody: {
-    name?: string;
-    code?: string;
-    projectManager?: string;
-    sponsor?: string;
-    copyCurrentStructureFrom?: Array<{
-      projectId: string;
-      phaseIds: string[] | null;
-    }>;
-  } | null = null;
+  let createBody: Record<string, unknown> | null = null;
   let createBusinessUnitHeader: string | null = null;
   await page.route("**/api/business-units", (route) =>
     route.fulfill({
@@ -84,78 +74,98 @@ test("project creation confirms the selected business unit for an administrator"
       await route.fallback();
       return;
     }
-    createBody = route.request().postDataJSON() as typeof createBody;
+    createBody = route.request().postDataJSON() as Record<string, unknown>;
     createBusinessUnitHeader = route.request().headers()["x-business-unit-id"] ?? null;
     await route.fulfill({ status: 400, json: { error: "Проверка запроса" } });
   });
   await page.goto("/projects");
 
   await page.getByRole("button", { name: "Создать", exact: true }).click();
-
-  await expect(page.getByRole("heading", { name: "Создать проект" })).toBeVisible();
-  await expect(page.getByRole("dialog", { name: "Создать проект?" })).toBeHidden();
-  // Step one: what the project is. Step two: where its Structure comes from.
-  await page.getByLabel("Наименование").fill("Новый мобильный банк");
-  await page.getByLabel("Портфель").selectOption("business-unit-sd");
-  await page.getByRole("button", { name: "Далее" }).click();
-  await expect(page.getByLabel("Портфель")).toHaveValue("business-unit-sd");
-
-  await page
-    .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
-    .click();
-  const structureSearch = page.getByLabel("Поиск проектов и фаз");
-  await structureSearch.fill("Анализ");
-  await page.getByRole("checkbox", { name: /1 · Анализ/ }).check();
-  await structureSearch.fill("Поставка");
-  await page.getByRole("checkbox", { name: /1 · Поставка/ }).check();
-  await structureSearch.fill("");
-  await expect(page.getByRole("button", { name: "Выбрано: 2" })).toBeVisible();
-  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
-    await page.screenshot({
-      path: "/private/tmp/pms-project-create-structure-desktop.png",
-      fullPage: true,
-    });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.screenshot({
-      path: "/private/tmp/pms-project-create-structure-mobile.png",
-      fullPage: true,
-    });
-    await page.setViewportSize({ width: 1280, height: 720 });
-  }
-  await page.getByRole("button", { name: "Выбрано: 2" }).click();
-
-  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
-
-  const dialog = page.getByRole("dialog", { name: "Создать проект?" });
+  const dialog = page.getByRole("dialog", { name: "Создать проект" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("SberDevices");
-  await expect(dialog).toContainText("Проверьте выбранный БЮ");
-  await expectBusinessUnitCalloutToPointAtField(page);
-  if (process.env.CAPTURE_BUSINESS_UNIT_CONFIRM === "1") {
-    await page.screenshot({
-      path: "/private/tmp/pms-business-unit-confirm-desktop.png",
-      fullPage: true,
-    });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expectBusinessUnitCalloutToPointAtField(page);
-    await page.screenshot({
-      path: "/private/tmp/pms-business-unit-confirm-mobile.png",
-      fullPage: false,
-    });
-  }
-  await dialog.getByRole("button", { name: "Отмена" }).click();
-  await expect(dialog).toBeHidden();
-  await page.getByRole("button", { name: "Создать проект", exact: true }).click();
-  await dialog.getByRole("button", { name: "Создать", exact: true }).click();
+  // The page stays under the dialog.
+  await expect(page.getByRole("heading", { name: "Проекты", exact: true })).toBeVisible();
+
+  // Step 1: everything is required, and another business unit is confirmed right here.
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await expect(dialog.getByText("Укажите наименование проекта")).toBeVisible();
+  await dialog.getByLabel("Портфель").selectOption("business-unit-sd");
+  await dialog.getByLabel("Наименование").fill("Новый мобильный банк");
+  await expect(dialog.getByLabel("Код")).toHaveValue("NMB");
+  await expect(dialog.getByLabel("РП")).toHaveValue("Администратор");
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await expect(dialog.getByText("Подтвердите бизнес-юнит, в котором создаётся проект")).toBeVisible();
+  await dialog.getByRole("checkbox", { name: "Да, создать проект в «SberDevices»" }).check();
+  await dialog.getByRole("button", { name: "Далее" }).click();
+
+  // Step 2: the team, all optional.
+  await dialog.getByLabel("Бизнес-заказчик").fill("Мария");
+  await dialog.getByLabel("Владелец продукта").fill("Олег");
+  await dialog.getByRole("button", { name: "Далее" }).click();
+
+  // Step 3: copy two phases of other projects.
+  await dialog.getByRole("radio", { name: /Скопировать из проектов/ }).check();
+  await expect(dialog.getByRole("button", { name: "Создать проект" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Не копировать, создать тестовую структуру" }).click();
+  const structureSearch = dialog.getByLabel("Поиск проектов и фаз");
+  await structureSearch.fill("Анализ");
+  await dialog.getByRole("checkbox", { name: /1 · Анализ/ }).check();
+  await structureSearch.fill("Поставка");
+  await dialog.getByRole("checkbox", { name: /1 · Поставка/ }).check();
+  await structureSearch.fill("");
+  await dialog.getByRole("button", { name: "Выбрано: 2" }).click();
+  await dialog.getByRole("button", { name: "Создать проект" }).click();
+
   await expect.poll(() => createBusinessUnitHeader).toBe("business-unit-sd");
-  expect(createBody?.name).toBe("Новый мобильный банк");
-  expect(createBody?.code).toBe("NMB");
-  expect(createBody?.projectManager).toBe("Администратор");
-  expect(createBody?.sponsor).toBe("");
-  expect(createBody?.copyCurrentStructureFrom).toEqual([
-    { projectId: "source-alpha", phaseIds: ["phase-analysis"] },
-    { projectId: "source-beta", phaseIds: ["phase-delivery"] },
-  ]);
+  expect(createBody).toMatchObject({
+    name: "Новый мобильный банк",
+    code: "NMB",
+    projectManager: "Администратор",
+    sponsor: "Мария",
+    productOwner: "Олег",
+    hwTpm: "",
+    structureSource: "copy",
+    copyCurrentStructureFrom: [
+      { projectId: "source-alpha", phaseIds: ["phase-analysis"] },
+      { projectId: "source-beta", phaseIds: ["phase-delivery"] },
+    ],
+  });
+  // A refusal stays in the dialog.
+  await expect(dialog.getByRole("alert")).toContainText("Проверка запроса");
+  await dialog.getByRole("button", { name: "Закрыть" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("a project is created from a pasted table, checked before it is created", async ({ page }) => {
+  let createBody: Record<string, unknown> | null = null;
+  await mockAdminProject(page);
+  await page.route("**/api/business-units", (route) =>
+    route.fulfill({ json: [{ id: "business-unit-main", code: "main", name: "TV&Box", isDefault: true, role: "ADMIN", canManage: true, projectCount: 1 }] }),
+  );
+  await page.route("**/api/wbs-import/preview", (route) =>
+    route.fulfill({ json: { creates: [{ code: "1", title: "Подготовка", type: "PHASE", parentCode: null }, { code: "1.1", title: "Требования", type: "TASK", parentCode: "1" }], updates: [], unchanged: 0, warnings: [], errors: [] } }),
+  );
+  await page.route(/\/api\/projects$/, async (route) => {
+    if (route.request().method() !== "POST") return route.fallback();
+    createBody = route.request().postDataJSON() as Record<string, unknown>;
+    await route.fulfill({ status: 422, json: { error: "Таблица Структуры не прошла проверку", importSummary: { creates: [], updates: [], unchanged: 0, warnings: [], errors: [{ kind: "PARENT_MISSING", code: "1.1" }] } } });
+  });
+  await page.goto("/new-project");
+  const dialog = page.getByRole("dialog", { name: "Создать проект" });
+  await dialog.getByLabel("Наименование").fill("Проект из таблицы");
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await dialog.getByRole("radio", { name: /Excel или Google Таблицы/ }).check();
+  await dialog.getByLabel("Или вставьте ячейки").fill("Код\tНазвание\tТип\n1\tПодготовка\tФаза\n1.1\tТребования\tЗадача");
+  await dialog.getByRole("button", { name: "Прочитать вставленное" }).click();
+  await expect(dialog.getByRole("button", { name: "Создать проект" })).toBeDisabled();
+  await dialog.getByRole("button", { name: "Проверить изменения" }).click();
+  await expect(dialog.locator(".wbs-table-changes")).toContainText("Требования");
+  await dialog.getByRole("button", { name: "Создать проект" }).click();
+  await expect.poll(() => createBody?.structureSource).toBe("table");
+  expect((createBody?.importRows as unknown[]).length).toBe(2);
+  expect(String(createBody?.importKey)).toMatch(/^imp_/);
+  await expect(dialog.getByRole("alert")).toContainText("Таблица Структуры не прошла проверку");
 });
 
 test("project creation keeps business units available when structure options fail", async ({
@@ -201,8 +211,9 @@ test("project creation keeps business units available when structure options fai
   await page.goto("/projects");
 
   await page.getByRole("button", { name: "Создать", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Создать проект" });
 
-  const businessUnitSelect = page.getByLabel("Портфель");
+  const businessUnitSelect = dialog.getByLabel("Портфель");
   const businessUnitOptions = businessUnitSelect.locator('option:not([value=""])');
   await expect(businessUnitOptions).toHaveCount(3);
   await expect(businessUnitOptions).toHaveText([
@@ -212,9 +223,11 @@ test("project creation keeps business units available when structure options fai
   ]);
   await expect(page.getByText("Проект не найден", { exact: true })).toHaveCount(0);
 
-  await page.getByLabel("Наименование").fill("Проект без копии");
-  await page.getByRole("button", { name: "Далее" }).click();
-  await page
+  await dialog.getByLabel("Наименование").fill("Проект без копии");
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await dialog.getByRole("button", { name: "Далее" }).click();
+  await dialog.getByRole("radio", { name: /Скопировать из проектов/ }).check();
+  await dialog
     .getByRole("button", { name: "Не копировать, создать тестовую структуру" })
     .click();
   await expect(

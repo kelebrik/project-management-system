@@ -23,7 +23,6 @@ import { ReportsPage } from "./ReportsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
 import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
 import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
-import { ProjectCreatePage } from "./ProjectCreatePage";
 import { ProjectCurrentWorkPage } from "./ProjectCurrentWorkPage";
 import { DevelopmentOpenIssuesPage } from "./DevelopmentOpenIssuesPage";
 import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
@@ -142,7 +141,7 @@ export function AppPages() {
           <DecisionQueuePage />
         </Suspense>
       )}
-      {activeView === "projects" && <ProjectsPage />}
+      {(activeView === "projects" || activeView === "project-create") && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
       {activeView === "jira-reconciliation" && <JiraReconciliationPage />}
       {activeView === "wiki" && <WikiPage />}
@@ -152,7 +151,6 @@ export function AppPages() {
       {activeView === "closed-projects" && <ClosedProjectsPage />}
 
       <section className="content-grid">
-        {activeView === "project-create" && <ProjectCreatePage />}
         {activeView === "admin-users" && <AdminUsersPageContent />}
         {activeView === "admin-modules" && <AdminModulesPageContent />}
         {activeView === "admin-roles" && <AdminRolesPageContent />}

@@ -18,6 +18,7 @@ import {
 import { getWikiGroups } from "../i18n/wiki";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
+import { ProjectCreateDialog } from "./projectCreate/ProjectCreateDialog";
 import { AppTopbar } from "./AppTopbar";
 import { BusinessUnitSwitcher } from "./BusinessUnitSwitcher";
 import { ProjectPicker } from "./ProjectPicker";
@@ -260,8 +261,6 @@ const adminNavItems: AdminNavItem[] = [
 ];
 
 const developmentNavItems: AdminNavItem[] = [
-  // Same names as the former top-level buttons, so people find them again.
-  { view: "reports", label: "nav.reports", icon: <NotebookText size={15} /> },
   { view: "closed-projects", label: "nav.archive", icon: <Archive size={15} /> },
   { view: "portfolio-v2", label: "view.portfolio-v2", icon: <BriefcaseBusiness size={15} /> },
   { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
@@ -441,6 +440,15 @@ export function AppShell({
               <ClipboardList size={15} /> {t("nav.operations")}
             </button>
           )}
+          {isAuthenticated && (
+            <button
+              type="button"
+              className={activeView === "reports" ? "active" : ""}
+              onClick={() => openView("reports")}
+            >
+              <NotebookText size={15} /> {t("nav.reports")}
+            </button>
+          )}
           {canViewAdminSections && (
             <button
               type="button"
@@ -504,7 +512,7 @@ export function AppShell({
               ))}
             <button
               type="button"
-              className={activeView === "project-create" ? "active" : ""}
+              className={pageContext.projectCreateOpen ? "active" : ""}
               onClick={() => void pageContext.openProjectCreate()}
             >
               <Plus size={15} /> {t("common.create")}
@@ -617,6 +625,7 @@ export function AppShell({
           </PageBoundary>
           <IssueDrawer />
           <ShiftReasonPrompt />
+          {pageContext.projectCreateOpen && <ProjectCreateDialog />}
         </PageContextProvider>
       </main>
     </div>

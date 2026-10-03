@@ -18,7 +18,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Top navigation",
             "points": [
               "The top header holds the sections Portfolio, Projects, Operations, Administration, Development and FAQ. Operations, Administration and Development are shown only to users who have access to them.",
-              "Reports and Archive moved to tabs of the Development section. The old addresses /reports, /closed-projects and /closed still open these pages.",
+              "Reports is an item of the top bar, open to everyone signed in (the old /development/reports address leads there). Besides the project report builder and What changed this week it has reports across all open projects: Portfolio summary (status, RAG, target against the starting one, the next checkpoint and its forecast, red risks, overdue work, the last milestone shift and its reason), Milestone shifts over 7, 30 or 90 days, Upcoming milestones over 2, 4 or 8 weeks (planned against forecast) and Red risks (score 15 or more) with decisions sent for approval. Business unit, portfolio and PM filters apply to every tab; each table can be exported to Excel. The Archive stays a tab of the Development section; /closed-projects and /closed open it.",
               "Once a project is selected, a separate row appears below the header: the project picker on the left, then Registry, the sections of the enabled modules and the Create button.",
               "The order of the project sections is: Overview, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Requirements, Issues, Risks, Artifacts, Calendars. A disabled module removes its sections from the row: Schedule goes with the Project status module, Current Work with the WBS module.",
               "Administration is available to the system administrator and to the administrator of the selected BU. A BU administrator sees only the Project registry and Access tabs.",
@@ -29,7 +29,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text.",
               "The product icon on the left of the header opens the Gantry page on GitHub in a new window.",
               "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
-              "The Development section holds the Reports, Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
+              "The Development section holds the Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
               "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget.",
               "The bell in the header, next to the language switch, shows notifications from project rules (the Rules page in the Development section) and the unread count. The list refreshes every minute while the tab is open; clicking a notification marks it read and opens the milestone, the Structure row, the proposals or My work. Mark all as read clears them all. Everyone sees only their own notifications."
             ]
@@ -141,15 +141,15 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Project creation",
             "points": [
-              "Creation takes two steps. Step 1, About the project: name, business unit (when there are several), manager and dates. The manager defaults to the person creating the project; the start is today and the finish three months later (a 31st becomes the last day of a shorter month). Step 2, Structure: a copy from other projects or the standard one.",
-              "The project code is made from the first letters of the name's words in Latin (for example «Новый мобильный банк» → NMB, or NMB-2 when taken); it, the sponsor, the parent project and the summary can be changed under «More». The sponsor and summary are optional and can be added later. RAG, progress and variance are not set in the form.",
-              "The server checks that the dates are real and the finish is not before the start, and refuses a code that differs from an existing one only in case; the error marks the code field. The portfolio value is filled with the name of the selected BU.",
+              "A project is created in a dialog over the page (the Create button; the /new-project address opens the same dialog over the project list), in three steps. Step 1, Project, all required: portfolio (business unit), name, code, PM, start and finish. The start is today and the finish three months later (a 31st becomes the last day of a shorter month); the PM is the person creating the project (a non-administrator cannot change it: they become the manager).",
+              "The code is made from the first letters of the name's words in Latin («Новый мобильный банк» → NMB, or NMB-2 when taken) and can be changed. Step 2, Team, all optional: business customer (the former Sponsor field), product owner, HW TPM, SW TPM; they show in the passport and are searched in the registry. Step 3, Structure: the standard one, a copy from other projects, or an Excel / Google Sheets table (the same forms as on the Structure page); the table is checked before creating, and if the server refuses it no project is created.",
+              "The server checks that the dates are real and the finish is not before the start, and refuses a code that differs from an existing one only in case: the dialog goes back to the first step and marks the code. The portfolio value is filled with the name of the selected BU.",
               "The businessUnitId itself is passed separately as the context of the selected business unit and is stored by the backend when the project is created.",
               "At creation time initialTargetDate equals targetDate. This is the project's starting goal.",
               "The Copy from project field supports searching across projects and phases and multiple selection: you can pick several current project WBS or individual phases together with their child items.",
               "Copying transfers the selected WBS rows, the hierarchy and the internal WBS dependencies. The merged WBS is renumbered, after which the schedule is recalculated.",
               "If the current WBS is not copied, a demo structure is created with phases, tasks, milestones and FS dependencies starting from the start date.",
-              "The business unit is chosen in the Portfolio field (it is on the second step too). On Create project the user confirms the selected BU; a pointer in the dialog leads to that field and sits below it when above it would cover the dialog.",
+              "When the chosen business unit is not the one you are working in, step 1 asks you to tick «Yes, create the project in …»; there is no separate confirmation dialog any more.",
               "After creation the user receives EDIT access and becomes the project manager of the project without any change to their system role."
             ]
           },
@@ -340,6 +340,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "The full-screen button is available in both locales and expands the WBS workspace to the whole screen. A hint about the full-screen mode is shown once while the page is scrolled.",
               "The PDF button is available in both locales and prints the current WBS table. The title of the printed document is the project name plus the section name, for example \"Project - WBS\"; if the project has no name, the word Project is substituted.",
               "In a long Structure (more than 200 visible rows) the page keeps only the rows in view and a margin, so expanding, scrolling and editing stay quick even with thousands of rows. PDF printing and the browser's find (Ctrl+F / Cmd+F) draw the whole table; the row you are editing or dragging stays while you scroll; a link to a row scrolls to it first.",
+              "Everyone has their own view of the Structure: column order, visibility and widths, sorting, the hierarchy level chosen, Gantt panel sizes and the column widths of other project tables are kept for you and do not change for colleagues. The view can be arranged in a read-only project and in a closed one too. On first opening the project's former shared view is the starting point.",
+              "The Plan snapshots and Excel / Sheets buttons sit to the right of the Structure title, in one row.",
               "The PDF EN and EN buttons are shown only in the Russian locale. In the English locale the toolbar keeps the ordinary PDF button.",
               "PDF EN prints a separate English WBS block with its own title of the form \"English project name - Structure\", with English column, type and status labels.",
               "The EN menu contains Import and Export of translations. Export produces an HTML file with Russian title / English translation pairs, and import accepts the same HTML back.",

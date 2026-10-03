@@ -5,6 +5,7 @@ export * from "./project-automation.js";
 export * from "./wbs-predecessors.js";
 export * from "./wbs-import.js";
 export * from "./automation-rules.js";
+export * from "./project-view.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.
@@ -339,6 +340,9 @@ export const projectSchema = projectIdentitySchema.extend({
   portfolio: z.string().trim().min(1),
   sponsor: z.string().trim(),
   projectManager: z.string().trim().min(1),
+  productOwner: z.string().trim().max(200).optional(),
+  hwTpm: z.string().trim().max(200).optional(),
+  swTpm: z.string().trim().max(200).optional(),
   status: z.enum(projectStatuses).default("ACTIVE"),
   rag: z.enum(ragStatuses).default("GREEN"),
   startDate: z.string().trim().min(1),

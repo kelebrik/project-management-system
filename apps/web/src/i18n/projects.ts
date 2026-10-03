@@ -80,9 +80,21 @@ export const projects = {
     "ru": "Портфель"
   },
   "fields.sponsor": {
-    "en": "Sponsor",
-    "ru": "Спонсор"
+    "en": "Business customer",
+    "ru": "Бизнес-заказчик"
+  },  "fields.productOwner": {
+    "en": "Product owner",
+    "ru": "Владелец продукта"
   },
+  "fields.hwTpm": {
+    "en": "HW TPM",
+    "ru": "HW TPM"
+  },
+  "fields.swTpm": {
+    "en": "SW TPM",
+    "ru": "SW TPM"
+  },
+
   "fields.summary": {
     "en": "Summary",
     "ru": "Сводка"
@@ -180,20 +192,84 @@ export const projects = {
     "ru": "Создать проект"
   },
   "create.description": {
-    "en": "Name, manager and dates are enough to start; the rest can be added later",
-    "ru": "Для начала хватит названия, руководителя и сроков; остальное можно добавить потом"
+    "en": "Three steps: the project, its team and its Structure",
+    "ru": "Три шага: проект, команда и Структура"
+  },
+  "create.stepTeam": {
+    "en": "2. Team",
+    "ru": "2. Команда"
+  },
+  "create.close": {
+    "en": "Close",
+    "ru": "Закрыть"
+  },
+  "create.startRequired": {
+    "en": "Set the start date",
+    "ru": "Укажите дату старта"
+  },
+  "create.targetRequired": {
+    "en": "Set the finish date",
+    "ru": "Укажите дату окончания"
+  },
+  "create.confirmUnit": {
+    "en": "Yes, create the project in «{unit}»",
+    "ru": "Да, создать проект в «{unit}»"
+  },
+  "create.confirmUnitRequired": {
+    "en": "Confirm the business unit the project is created in",
+    "ru": "Подтвердите бизнес-юнит, в котором создаётся проект"
+  },
+  "create.managerIsYou": {
+    "en": "You become the manager of a project you create",
+    "ru": "Руководителем создаваемого проекта становитесь вы"
+  },
+  "create.teamNote": {
+    "en": "Optional: these can be filled in later in the project passport",
+    "ru": "Необязательно: это можно заполнить позже в паспорте проекта"
+  },
+  "create.structureSource": {
+    "en": "Where the Structure comes from",
+    "ru": "Откуда взять Структуру"
+  },
+  "create.source.standard": {
+    "en": "Standard",
+    "ru": "Типовая"
+  },
+  "create.source.standardHint": {
+    "en": "Ten rows of phases, tasks and milestones from the start date",
+    "ru": "Десять строк: фазы, задачи и вехи от даты старта"
+  },
+  "create.source.copy": {
+    "en": "Copy from projects",
+    "ru": "Скопировать из проектов"
+  },
+  "create.source.copyHint": {
+    "en": "Whole Structures or chosen phases of other projects",
+    "ru": "Целые Структуры или выбранные фазы других проектов"
+  },
+  "create.source.table": {
+    "en": "Excel or Google Sheets",
+    "ru": "Excel или Google Таблицы"
+  },
+  "create.source.tableHint": {
+    "en": "An .xlsx or CSV file, or cells pasted from a sheet; checked before creating",
+    "ru": "Файл .xlsx или CSV либо ячейки из таблицы; проверяется до создания"
+  },
+  "create.creating": {
+    "en": "Creating…",
+    "ru": "Создаю…"
   },
   "create.stepsLabel": {
     "en": "Steps",
     "ru": "Шаги"
   },
   "create.stepAbout": {
-    "en": "1. About the project",
-    "ru": "1. О проекте"
+    "en": "1. Project",
+    "ru": "1. Проект"
   },
   "create.stepStructure": {
-    "en": "2. Structure",
-    "ru": "2. Структура"
+    "en": "3. Structure",
+    "ru": "3. Структура"
   },
   "create.next": {
     "en": "Next",
@@ -202,10 +278,6 @@ export const projects = {
   "create.back": {
     "en": "Back",
     "ru": "Назад"
-  },
-  "create.more": {
-    "en": "More: code, sponsor, parent project, summary",
-    "ru": "Дополнительно: код, спонсор, родительский проект, резюме"
   },
   "create.codeNote": {
     "en": "Made from the name; it is part of the project's address",
@@ -218,10 +290,6 @@ export const projects = {
   "create.datesOrder": {
     "en": "The finish cannot be before the start",
     "ru": "Окончание не может быть раньше начала"
-  },
-  "create.defaultStructureNote": {
-    "en": "Without a choice the project gets the standard Structure of ten rows",
-    "ru": "Если ничего не выбрать, проект получит типовую Структуру из десяти строк"
   },
   "create.basics": {
     "en": "Basics",

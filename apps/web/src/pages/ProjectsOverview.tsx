@@ -65,7 +65,7 @@ export function ProjectsOverview({
 
   const sortedItems = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    const items = getActiveProjects(projects).filter((project) => !normalizedQuery || [project.code, project.name, project.projectManager, project.sponsor].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
+    const items = getActiveProjects(projects).filter((project) => !normalizedQuery || [project.code, project.name, project.projectManager, project.sponsor, project.productOwner, project.hwTpm, project.swTpm].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
     const direction = sortDir === "asc" ? 1 : -1;
     const valueOf = (project: ProjectListItem) => {
       switch (sortKey) {

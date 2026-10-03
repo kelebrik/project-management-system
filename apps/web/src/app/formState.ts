@@ -35,6 +35,9 @@ export type ProjectFormState = {
   portfolio: string;
   sponsor: string;
   projectManager: string;
+  productOwner: string;
+  hwTpm: string;
+  swTpm: string;
   status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED";
   rag: RagStatus;
   startDate: string;
@@ -257,6 +260,9 @@ const emptyProjectForm: ProjectFormState = {
   portfolio: "",
   sponsor: "",
   projectManager: "",
+  productOwner: "",
+  hwTpm: "",
+  swTpm: "",
   status: "ACTIVE",
   rag: "GREEN",
   startDate: "",
@@ -332,8 +338,11 @@ export function artifactToForm(artifact: ProjectArtifact): ArtifactFormState {
 
 function defaultPassportRows(project: ProjectDetails): PassportRow[] {
   return [
-    { id: "sponsor", field: "Спонсор", description: project.sponsor },
+    { id: "sponsor", field: "Бизнес-заказчик", description: project.sponsor },
     { id: "projectManager", field: "РП", description: project.projectManager },
+    { id: "productOwner", field: "Владелец продукта", description: project.productOwner ?? "" },
+    { id: "hwTpm", field: "HW TPM", description: project.hwTpm ?? "" },
+    { id: "swTpm", field: "SW TPM", description: project.swTpm ?? "" },
     { id: "status", field: "Статус", description: projectStatusLabel(project.status) },
     { id: "rag", field: "Индикатор", description: projectHealthLabel(project.rag) },
     { id: "startDate", field: "Старт", description: date(project.startDate) },

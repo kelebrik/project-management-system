@@ -49,7 +49,6 @@ export type ResourceSectionView = Extract<
 export type DevelopmentSectionView = Extract<
   AppView,
   | "portfolio-v2"
-  | "reports"
   | "closed-projects"
   | "jira-reconciliation"
   | "decision-queue"
@@ -101,7 +100,6 @@ export function canAccessAdminView(
 }
 
 export const developmentSectionViews: DevelopmentSectionView[] = [
-  "reports",
   "closed-projects",
   "jira-reconciliation",
   "decision-queue",
@@ -119,6 +117,8 @@ export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule"
 
 export const writeProtectedViews = new Set<AppView>([
   "project-create",
+  // Reports are for everyone signed in; the API shows each person only the projects they may read.
+  "reports",
   ...adminSectionViews,
   ...developmentSectionViews,
   ...operationsSectionViews,
@@ -204,7 +204,7 @@ export const appViewPaths: Record<AppView, string> = {
   "automation-rules": "/development/rules",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
-  reports: "/development/reports",
+  reports: "/reports",
   wiki: "/faq",
   resources: "/development/resources",
   "resources-capacity": "/development/resources/capacity",

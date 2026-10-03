@@ -33,7 +33,7 @@ test("the help menu shows what's new, sends a problem report and lists reports f
   await expect(help.locator(".help-menu-dot")).toBeVisible();
   await help.click();
   await page.getByRole("button", { name: /Что нового/ }).click();
-  await expect(page.locator(".help-news section").first()).toContainText("Большие Структуры");
+  await expect(page.locator(".help-news section").first()).toContainText("Новое окно создания проекта");
   await page.getByRole("button", { name: "Назад" }).click();
 
   await page.getByRole("button", { name: "Сообщить о проблеме" }).click();

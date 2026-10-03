@@ -235,6 +235,9 @@ model Project {
   portfolio                String
   sponsor                  String
   projectManager           String
+  productOwner             String                            @default("")
+  hwTpm                    String                            @default("")
+  swTpm                    String                            @default("")
   status                   ProjectStatus                     @default(ACTIVE)
   rag                      RagStatus                         @default(GREEN)
   startDate                DateTime
@@ -287,6 +290,7 @@ model Project {
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
   lessons                  Lesson[]
+  userViewStates           UserProjectViewState[]
   raciAssignments          RaciAssignment[]
   workCheckIns             WorkCheckIn[]
   wbsImports               WbsImport[]
@@ -340,6 +344,7 @@ model User {
   leaveEmployees          LeaveEmployee[]
   pageVisits              PageVisit[]
   notifications           Notification[]
+  projectViewStates       UserProjectViewState[]
 
   @@index([role, isActive])
 }
@@ -1767,4 +1772,23 @@ model AutomationProposal {
   firing        AutomationFiring @relation(fields: [firingId], references: [id], onDelete: Cascade)
 
   @@index([projectId, status])
+}
+
+/**
+ * How one person sees one project: column order, hidden columns and widths of
+ * the Structure and other tables, sorting, the hierarchy level shown, panel
+ * sizes. Personal, so arranging the view never changes it for anyone else.
+ */
+model UserProjectViewState {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  state     Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
 }

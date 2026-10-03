@@ -1,3 +1,4 @@
+import type { ProjectViewState } from "@pms/shared";
 import type {
   IssueSeverity,
   RagStatus,
@@ -61,6 +62,9 @@ export type ProjectListItem = {
   portfolio: string;
   sponsor: string;
   projectManager: string;
+  productOwner?: string;
+  hwTpm?: string;
+  swTpm?: string;
   status: "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED";
   rag: RagStatus;
   startDate: string;
@@ -174,6 +178,8 @@ export type ProjectDetails = Omit<ProjectListItem, "wbsItems"> & {
   artifacts: ProjectArtifact[];
   raidItems: RaidItem[];
   changeRequests: unknown[];
+  /** This person's own view of the project, null until they arrange it. */
+  myViewState?: ProjectViewState | null;
 };
 
 export type PassportRow = {
@@ -188,6 +194,7 @@ export type ProjectUiState = {
   wbsHiddenColumns?: WbsTableColumnKey[];
   wbsColumnWidths?: Partial<Record<WbsTableColumnKey, number>>;
   wbsSort?: WbsSortState | null;
+  wbsHierarchyLevel?: number | null;
   currentWorkColumnWidths?: Partial<Record<CurrentWorkColumnKey, number>>;
   openIssueColumnWidths?: Partial<Record<OpenIssueColumnKey, number>>;
   openIssuesPrototypeColumnWidths?: Partial<Record<OpenIssuesPrototypeColumnKey, number>>;

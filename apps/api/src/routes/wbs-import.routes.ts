@@ -1,6 +1,7 @@
-import { wbsImportRequestSchema, type WbsImportPlanSummary } from '@pms/shared';
+import { wbsImportRequestSchema, wbsImportRowSchema, WBS_IMPORT_LIMITS, type WbsImportPlanSummary, type WbsImportRow } from '@pms/shared';
 import { Prisma, type ProjectCalendarCode } from '@prisma/client';
 import { Router } from 'express';
+import { z } from 'zod';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
@@ -16,7 +17,7 @@ import { projectWriter } from './project-writer.js';
 const OPEN_ISSUE_EXCLUDED = ['Done', 'Closed', 'Resolved'];
 const date = (value: string | null | undefined) => (value === undefined ? undefined : value ? new Date(`${value}T00:00:00.000Z`) : null);
 
-class ImportRejected extends Error {
+export class ImportRejected extends Error {
   constructor(readonly summary: WbsImportPlanSummary) {
     super('IMPORT_REJECTED');
   }
@@ -37,6 +38,119 @@ async function loadImportBase(client: Prisma.TransactionClient | typeof prisma, 
 }
 
 /**
+ * Writes a planned import into a project's Structure inside the caller's
+ * transaction: updates, new rows, their order and the import record, or
+ * nothing when the plan has errors (ImportRejected). Used by the import itself
+ * and by creating a project from a table, which must not leave a project behind
+ * when its table is refused.
+ */
+export async function applyWbsImport(
+  tx: Prisma.TransactionClient,
+  { projectId, rows, importKey, userId }: { projectId: string; rows: WbsImportRow[]; importKey: string; userId: string | null },
+) {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${projectId}`}))`;
+    const done = await tx.wbsImport.findUnique({ where: { projectId_importKey: { projectId: projectId, importKey } } });
+    if (done) return { summary: done.summary as unknown as WbsImportPlanSummary, createdIds: done.createdIds, replayed: true, changedItems: [] };
+    const { items, managedIds } = await loadImportBase(tx, projectId);
+    const plan = planWbsImport(items as ImportExistingRow[], rows, managedIds);
+    if (plan.summary.errors.length > 0) throw new ImportRejected(plan.summary);
+    const byId = new Map(items.map((item) => [item.id, item]));
+
+    const changedItems: Array<{ itemId: string; changedFields: string[] }> = [];
+    for (const update of plan.updates) {
+      const current = byId.get(update.id)!;
+      const { values } = update;
+      const predecessors =
+        values.predecessors === undefined
+          ? {}
+          : Object.fromEntries(PREDECESSOR_FIELDS.map((field, index) => [field, values.predecessors![index] ?? null]));
+      const schedulePatch = { startDate: date(values.startDate), dueDate: date(values.dueDate), workDays: values.workDays, ...predecessors };
+      const resolved = resolveWbsSchedulePatch(schedulePatch, current);
+      const dates = resolveWbsScheduleDateWrites(schedulePatch, resolved);
+      await tx.wbsItem.update({
+        where: { id: current.id },
+        data: {
+          title: values.title,
+          owner: values.owner,
+          status: values.status,
+          closedAt: closedAtForWbsStatus(values.status, current),
+          progress: values.progress,
+          priority: values.priority,
+          comment: values.comment,
+          ...predecessors,
+          startDate: dates.startDate,
+          dueDate: dates.dueDate,
+          forecastStartDate: dates.forecastStartDate,
+          forecastDueDate: dates.forecastDueDate,
+          workDays: resolved.writeWorkDays ? values.workDays : undefined,
+        },
+      });
+      if (resolved.changedFields.length > 0) changedItems.push({ itemId: current.id, changedFields: resolved.changedFields });
+    }
+
+    const idByCode = new Map(items.map((item) => [item.code, item.id]));
+    const levelByCode = new Map(items.map((item) => [item.code, levelFromWbsItem(item)]));
+    const createdIds: string[] = [];
+    for (const create of plan.creates) {
+      const { row } = create;
+      const parentId = create.parentId ?? (create.parentCode ? idByCode.get(create.parentCode) ?? null : null);
+      const level = create.parentCode ? (levelByCode.get(create.parentCode) ?? create.parentCode.split('.').length) + 1 : 1;
+      const startDate = date(row.startDate) ?? null;
+      const dueDate = date(row.dueDate) ?? null;
+      const created = await tx.wbsItem.create({
+        data: {
+          projectId: projectId,
+          parentId,
+          code: create.code,
+          title: row.title!,
+          type: row.type ?? 'TASK',
+          status: row.status ?? 'NOT_STARTED',
+          owner: row.owner ?? '',
+          startDate,
+          dueDate,
+          baselineStartDate: startDate,
+          baselineDueDate: dueDate,
+          forecastStartDate: startDate,
+          forecastDueDate: dueDate,
+          excelStartDate: startDate,
+          excelEndDate: dueDate,
+          workDays: row.workDays ?? null,
+          wbsLevel: level,
+          calendarCode: create.calendarCode as ProjectCalendarCode,
+          progress: row.progress ?? 0,
+          priority: row.priority?.trim() || null,
+          comment: row.comment?.trim() || null,
+          closedAt: row.status === 'DONE' ? new Date() : null,
+          ...Object.fromEntries(PREDECESSOR_FIELDS.map((field, index) => [field, row.predecessors?.[index] ?? null])),
+          sortOrder: 0,
+        },
+        select: { id: true },
+      });
+      idByCode.set(create.code, created.id);
+      levelByCode.set(create.code, level);
+      createdIds.push(created.id);
+    }
+
+    // The new rows sit under their parents; only rows whose place changes are written.
+    for (const [index, entry] of plan.order.entries()) {
+      const id = 'id' in entry ? entry.id : idByCode.get(entry.code)!;
+      const sortOrder = (index + 1) * 10;
+      if (byId.get(id)?.sortOrder !== sortOrder) await tx.wbsItem.update({ where: { id }, data: { sortOrder } });
+    }
+
+    await tx.wbsImport.create({
+      data: {
+        projectId: projectId,
+        importKey,
+        userId,
+        summary: plan.summary as unknown as Prisma.InputJsonValue,
+        createdIds,
+      },
+    });
+    return { summary: plan.summary, createdIds, replayed: false, changedItems };
+}
+
+/**
  * Brings a table (Excel, Google Sheets, CSV) into a project's Structure. A dry
  * run answers what would change and writes nothing; the import itself plans
  * again under the project's lock, writes everything in one transaction or
@@ -46,6 +160,16 @@ async function loadImportBase(client: Prisma.TransactionClient | typeof prisma, 
  */
 export function createWbsImportRouter() {
   const router = Router();
+
+  // What a table would become as the Structure of a project not created yet: planned against nothing, written nowhere.
+  router.post('/wbs-import/preview', async (req, res) => {
+    const body = z.object({ rows: z.array(wbsImportRowSchema).min(1).max(WBS_IMPORT_LIMITS.rows) }).safeParse(req.body ?? {});
+    if (!body.success) {
+      res.status(400).json({ error: 'Некорректные строки импорта', issues: body.error.issues.slice(0, 20) });
+      return;
+    }
+    res.json(planWbsImport([], body.data.rows, new Set()).summary);
+  });
 
   router.post('/projects/:projectId/wbs-import', async (req, res) => {
     const writer = await projectWriter(req, res, String(req.params.projectId));
@@ -67,108 +191,7 @@ export function createWbsImportRouter() {
     const outcome = await runWithWbsWriteQueue(project.id, () =>
       trackScheduleShifts(project.id, { trigger: 'IMPORT', actor: shiftActor(demo ? null : user) }, async () => {
         const written = await prisma.$transaction(
-          async (tx) => {
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${project.id}`}))`;
-            const done = await tx.wbsImport.findUnique({ where: { projectId_importKey: { projectId: project.id, importKey } } });
-            if (done) return { summary: done.summary as unknown as WbsImportPlanSummary, createdIds: done.createdIds, replayed: true, changedItems: [] };
-            const { items, managedIds } = await loadImportBase(tx, project.id);
-            const plan = planWbsImport(items as ImportExistingRow[], rows, managedIds);
-            if (plan.summary.errors.length > 0) throw new ImportRejected(plan.summary);
-            const byId = new Map(items.map((item) => [item.id, item]));
-
-            const changedItems: Array<{ itemId: string; changedFields: string[] }> = [];
-            for (const update of plan.updates) {
-              const current = byId.get(update.id)!;
-              const { values } = update;
-              const predecessors =
-                values.predecessors === undefined
-                  ? {}
-                  : Object.fromEntries(PREDECESSOR_FIELDS.map((field, index) => [field, values.predecessors![index] ?? null]));
-              const schedulePatch = { startDate: date(values.startDate), dueDate: date(values.dueDate), workDays: values.workDays, ...predecessors };
-              const resolved = resolveWbsSchedulePatch(schedulePatch, current);
-              const dates = resolveWbsScheduleDateWrites(schedulePatch, resolved);
-              await tx.wbsItem.update({
-                where: { id: current.id },
-                data: {
-                  title: values.title,
-                  owner: values.owner,
-                  status: values.status,
-                  closedAt: closedAtForWbsStatus(values.status, current),
-                  progress: values.progress,
-                  priority: values.priority,
-                  comment: values.comment,
-                  ...predecessors,
-                  startDate: dates.startDate,
-                  dueDate: dates.dueDate,
-                  forecastStartDate: dates.forecastStartDate,
-                  forecastDueDate: dates.forecastDueDate,
-                  workDays: resolved.writeWorkDays ? values.workDays : undefined,
-                },
-              });
-              if (resolved.changedFields.length > 0) changedItems.push({ itemId: current.id, changedFields: resolved.changedFields });
-            }
-
-            const idByCode = new Map(items.map((item) => [item.code, item.id]));
-            const levelByCode = new Map(items.map((item) => [item.code, levelFromWbsItem(item)]));
-            const createdIds: string[] = [];
-            for (const create of plan.creates) {
-              const { row } = create;
-              const parentId = create.parentId ?? (create.parentCode ? idByCode.get(create.parentCode) ?? null : null);
-              const level = create.parentCode ? (levelByCode.get(create.parentCode) ?? create.parentCode.split('.').length) + 1 : 1;
-              const startDate = date(row.startDate) ?? null;
-              const dueDate = date(row.dueDate) ?? null;
-              const created = await tx.wbsItem.create({
-                data: {
-                  projectId: project.id,
-                  parentId,
-                  code: create.code,
-                  title: row.title!,
-                  type: row.type ?? 'TASK',
-                  status: row.status ?? 'NOT_STARTED',
-                  owner: row.owner ?? '',
-                  startDate,
-                  dueDate,
-                  baselineStartDate: startDate,
-                  baselineDueDate: dueDate,
-                  forecastStartDate: startDate,
-                  forecastDueDate: dueDate,
-                  excelStartDate: startDate,
-                  excelEndDate: dueDate,
-                  workDays: row.workDays ?? null,
-                  wbsLevel: level,
-                  calendarCode: create.calendarCode as ProjectCalendarCode,
-                  progress: row.progress ?? 0,
-                  priority: row.priority?.trim() || null,
-                  comment: row.comment?.trim() || null,
-                  closedAt: row.status === 'DONE' ? new Date() : null,
-                  ...Object.fromEntries(PREDECESSOR_FIELDS.map((field, index) => [field, row.predecessors?.[index] ?? null])),
-                  sortOrder: 0,
-                },
-                select: { id: true },
-              });
-              idByCode.set(create.code, created.id);
-              levelByCode.set(create.code, level);
-              createdIds.push(created.id);
-            }
-
-            // The new rows sit under their parents; only rows whose place changes are written.
-            for (const [index, entry] of plan.order.entries()) {
-              const id = 'id' in entry ? entry.id : idByCode.get(entry.code)!;
-              const sortOrder = (index + 1) * 10;
-              if (byId.get(id)?.sortOrder !== sortOrder) await tx.wbsItem.update({ where: { id }, data: { sortOrder } });
-            }
-
-            await tx.wbsImport.create({
-              data: {
-                projectId: project.id,
-                importKey,
-                userId: demo ? null : user.id,
-                summary: plan.summary as unknown as Prisma.InputJsonValue,
-                createdIds,
-              },
-            });
-            return { summary: plan.summary, createdIds, replayed: false, changedItems };
-          },
+          (tx) => applyWbsImport(tx, { projectId: project.id, rows, importKey, userId: demo ? null : user.id }),
           { timeout: 60_000 },
         );
         await recalculateProjectWbsSchedule(project.id, { changedItems: written.changedItems });

@@ -434,6 +434,7 @@ function AppController() {
     toggleCalendarDay,
   } = useProjectLifecycleActions({
     activeView,
+    currentUser,
     authMode,
     calendarOverridesByKey,
     ganttPanelHeight,
@@ -546,7 +547,6 @@ function AppController() {
   } = useWbsColumnActions({
     draggedWbsColumn,
     isAuthenticated,
-    isClosedProject,
     project,
     saveProjectUiState,
     setDraggedWbsColumn,
@@ -612,8 +612,7 @@ function AppController() {
     setNotice,
   });
   const {
-    openProjectCreate,
-    createProject,
+    openProjectCreate, createProject, projectCreateOpen, closeProjectCreate,
     updateProjectRegistryDraft,
     savePortfolioProjectIdentity,
     saveProjectPortfolio,
@@ -903,7 +902,7 @@ function AppController() {
   const toggleSidebar = () => {
     const nextCollapsed = !sidebarCollapsed;
     setSidebarCollapsed(nextCollapsed);
-    if (project && isAuthenticated && !isClosedProject) {
+    if (project && isAuthenticated) {
       void saveProjectUiState(
         { sidebarCollapsed: nextCollapsed },
         { sidebarCollapsed: nextCollapsed },
@@ -934,7 +933,7 @@ function AppController() {
     ...{ addPassportRow, deletePassportRow, passportRows, savePassportRows, savingPassportRows, updatePassportRow },
     ...{ addRaidStatusUpdate, closeRaidItem, convertRiskToAssumption, convertRiskToProblem, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },
     ...{ newProjectForm, projectAccessDraft, projectAccesses, projectModuleDrafts, projectRegistryDrafts, projectTargetApprovedBy, projectTargetChangeReason, projectTargetDateDraft, moveProjectToBusinessUnit, savePortfolioProjectIdentity, saveProjectPortfolio, saveProjectRegistryItem, saveProjectTargetDate },
-    ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, addIssueThreadLink, closeProject, createProject, deleteProject, openProjectCreate, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
+    ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, addIssueThreadLink, closeProject, closeProjectCreate, createProject, deleteProject, openProjectCreate, projectCreateOpen, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
     ...{ createApiToken, createDictionaryItem, createUser, createWebhook, deactivateDictionaryItem, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, restoreWbsTombstone, saveDictionaryItem, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateDictionaryDraft, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },
     ...{ savingBaseline, savingCalendar, savingDictionaryItemId, savingIntegration, savingProjectAccess, savingProjectModules, savingProjectRegistryId, savingProjectTargetDate, savingRolePermissionId, savingSystemSettings, savingUserId },
     ...{ ganttRangeDays, setGanttRangeDays },

@@ -202,12 +202,40 @@ export const openApiCorePaths = {
       },
       post: {
         tags: ["Projects"],
-        summary: "Create project",
+        summary: "Create project: name, code, manager and dates are required; the team (sponsor is the business customer, product owner, HW and SW TPM) is optional; the first Structure is the standard one, copies of other projects, or imported table rows, all in one transaction",
         security: [{ sessionCookie: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            "application/json": {
+              schema: {
+                type: "object",
+                required: ["code", "name", "projectManager", "startDate", "targetDate", "budgetPlanned", "budgetForecast"],
+                properties: {
+                  code: { type: "string" },
+                  name: { type: "string" },
+                  projectManager: { type: "string" },
+                  sponsor: { type: "string", description: "The business customer" },
+                  productOwner: { type: "string" },
+                  hwTpm: { type: "string" },
+                  swTpm: { type: "string" },
+                  startDate: { type: "string", format: "date" },
+                  targetDate: { type: "string", format: "date" },
+                  structureSource: { type: "string", enum: ["standard", "copy", "table"] },
+                  copyCurrentStructureFrom: { type: "array", items: { type: "object" } },
+                  importRows: { type: "array", items: { type: "object" }, description: "Rows for structureSource=table, as for the WBS import" },
+                  importKey: { type: "string" },
+                },
+              },
+            },
+          },
+        },
         responses: {
           "201": { description: "Project created" },
           "401": { description: "Authentication required" },
           "403": { description: "Permission denied" },
+          "409": { description: "A project with this code (in any case) exists" },
+          "422": { description: "The table was refused; no project is created" },
         },
       },
     },
