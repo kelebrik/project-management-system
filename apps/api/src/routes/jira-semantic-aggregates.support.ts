@@ -52,7 +52,7 @@ export const querySchema = z.object({
   groupKey2: z.string().max(500).optional(),
   asOf: z.string().datetime({ offset: true }).nullable().optional(),
   /** How the widget shows the result: the contract checks it fits the groupings. */
-  visualization: z.enum(["number", "bar", "table", "line", "stacked", "pivot", "kpi"]).optional(),
+  visualization: z.enum(["number", "bar", "table", "line", "columns", "stacked", "pivot", "kpi"]).optional(),
   /** A KPI also counts the period before, ending where this one starts. */
   compare: z.enum(["previousPeriod"]).optional(),
 }).strict();
@@ -158,7 +158,7 @@ export function previousPeriodNow(query: z.infer<typeof querySchema>) {
 
 /** Why a visualization does not fit the widget's groupings, or null. */
 export function visualizationProblem(visualization: string, groupBy: string, groupBy2: string, dateField: string | null, periodDays: number | null) {
-  if (visualization === "line" && groupBy !== "week" && groupBy !== "month") return "Линия строится по неделям или месяцам";
+  if ((visualization === "line" || visualization === "columns") && groupBy !== "week" && groupBy !== "month") return "График по времени строится по неделям или месяцам";
   if ((visualization === "stacked" || visualization === "pivot") && (groupBy === "none" || groupBy2 === "none")) return "Нужны две группировки";
   if (visualization === "kpi" && (groupBy !== "none" || !dateField || !periodDays)) return "Показатель сравнивает период с предыдущим: без группировки и с полем периода";
   return null;
@@ -167,4 +167,10 @@ export function visualizationProblem(visualization: string, groupBy: string, gro
 /** Comparison belongs to the KPI view only; the KPI compares with or without the flag. */
 export function compareProblem(compare: string | undefined, visualization: string | undefined) {
   return compare && visualization !== "kpi" ? "Сравнение с прошлым периодом есть только у показателя" : null;
+}
+
+/** The field a grouping reads: weeks and months read the widget's period field when it has one. */
+export function groupingField(groupBy: string, dateField: string | null | undefined) {
+  if ((groupBy === "week" || groupBy === "month") && dateField) return dateField;
+  return groupField[groupBy] ?? null;
 }

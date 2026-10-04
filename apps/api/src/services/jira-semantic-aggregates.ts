@@ -29,6 +29,7 @@ import {
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5,
+  JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_7,
   JIRA_SEMANTIC_WIDGET_IDS_REPAIRED_IN_VERSION_6,
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
 } from "./jira-semantic-system-aggregates.js";
@@ -71,6 +72,24 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
     periodDays: 180,
     assignee: "",
     widgets: [
+      {
+        // Critical and Blocker issues of the project by the week they were created, over the dashboard period (six months by default).
+        id: "active-critical-blocker-created-weekly",
+        title: "Создано Critical/Blocker по неделям",
+        ...issues,
+        placement: "active",
+        selectedFields: ["issueKey", "summary", "priority", "status", "assignee", "issueCreatedAt"],
+        filterLogic: "and",
+        filters: [filter("critical-blocker-created-priority", "priority", "oneOf", "Critical,Blocker")],
+        dateField: "issueCreatedAt",
+        asOf: null,
+        metric: "count",
+        groupBy: "week",
+        sortBy: "default",
+        sortDirection: "desc",
+        visualization: "columns",
+        width: "full",
+      },
       {
         id: "active-gitlab-unlinked-branch-commits",
         title: "Коммиты ветки без упоминания Jira",
@@ -286,6 +305,7 @@ export function jiraDashboardWithDefaultWidgetsForSeedVersion(
   if (currentSeedVersion < 2) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2.forEach((id) => added.add(id));
   if (currentSeedVersion < 4) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4.forEach((id) => added.add(id));
   if (currentSeedVersion < 5) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5.forEach((id) => added.add(id));
+  if (currentSeedVersion < 7) JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_7.forEach((id) => added.add(id));
   const upgraded = jiraDashboardWithDefaultWidgets(current, {
     ...defaults,
     widgets: defaults.widgets.filter((widget) => added.has(widget.id)),

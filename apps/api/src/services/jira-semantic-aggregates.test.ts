@@ -207,8 +207,9 @@ test("default semantic dashboard contains the requested operational and retrospe
     publishedVersion: aggregate.key === "issues" ? 2 : 1,
   }));
   const dashboard = jiraDefaultSemanticDashboard(references);
-  assert.equal(dashboard.widgets.length, 10);
+  assert.equal(dashboard.widgets.length, 11);
   assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
+    ["active", "Создано Critical/Blocker по неделям"],
     ["active", "Коммиты ветки без упоминания Jira"],
     ["active", "Цель: Релиз заводской прошивки"],
     ["active", "Цель: Первая ОТА готова"],
@@ -260,9 +261,9 @@ test("default widgets augment an existing dashboard once without replacing its w
     widgets: [{ ...defaults.widgets[0]!, id: "custom-widget", title: "Пользовательский виджет" }],
   };
   const merged = jiraDashboardWithDefaultWidgets(existing, defaults);
-  assert.equal(merged.widgets.length, 11);
+  assert.equal(merged.widgets.length, 12);
   assert.equal(merged.widgets[0]?.id, "custom-widget");
-  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 11);
+  assert.equal(jiraDashboardWithDefaultWidgets(merged, defaults).widgets.length, 12);
 });
 
 test("widget seed v2 adds only new widgets and does not recreate deleted v1 defaults", () => {
@@ -280,6 +281,7 @@ test("widget seed v2 adds only new widgets and does not recreate deleted v1 defa
 
   assert.deepEqual(upgraded.widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-critical-blocker-created-weekly",
     "active-gitlab-unlinked-branch-commits",
     "active-goal-factory-firmware-release",
     "active-goal-first-ota-ready",
@@ -287,7 +289,7 @@ test("widget seed v2 adds only new widgets and does not recreate deleted v1 defa
     "retro-critical-blocker-task-sla-45-days",
     "retro-p85-in-progress-to-resolution-by-project",
   ]);
-  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 7);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 1).widgets.length, 8);
 });
 
 test("widget seed v4 adds only goal widgets without recreating deleted widgets", () => {
@@ -304,6 +306,7 @@ test("widget seed v4 adds only goal widgets without recreating deleted widgets",
 
   assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 3).widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-critical-blocker-created-weekly",
     "active-gitlab-unlinked-branch-commits",
     "active-goal-factory-firmware-release",
     "active-goal-first-ota-ready",
@@ -323,8 +326,20 @@ test("widget seed v5 adds only the GitLab branch widget", () => {
   };
   assert.deepEqual(jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 4).widgets.map((widget) => widget.id), [
     "custom-widget",
+    "active-critical-blocker-created-weekly",
     "active-gitlab-unlinked-branch-commits",
   ]);
+});
+
+test("widget seed v7 adds only the weekly chart of created Critical/Blocker issues", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({ id: `aggregate-${index + 1}`, aggregateKey: aggregate.key, publishedVersion: 1 }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const current = { ...defaults, widgets: [{ ...defaults.widgets[1]!, id: "custom-widget", title: "Пользовательский виджет" }] };
+  const upgraded = jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 6);
+  assert.deepEqual(upgraded.widgets.map((widget) => widget.id), ["custom-widget", "active-critical-blocker-created-weekly"]);
+  const chart = upgraded.widgets[1]!;
+  assert.deepEqual([chart.groupBy, chart.dateField, chart.visualization, chart.filters[0]?.value], ["week", "issueCreatedAt", "columns", "Critical,Blocker"]);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 7), upgraded, "nothing more once seeded");
 });
 
 test("widget seed v6 repairs goal filters without recreating deleted widgets or replacing presentation", () => {

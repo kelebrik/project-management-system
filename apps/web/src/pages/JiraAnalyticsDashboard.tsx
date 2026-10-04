@@ -190,6 +190,15 @@ function WidgetContent({ widget, result, error, drilldown, onDrill, onBack }: {
       <small>{previous === undefined || previous === 0 ? uiText("ui.jira.kpiNoPrevious") : uiText("ui.jira.kpiPrevious", { value: formatJiraAnalyticsMetric(widget.metric, previous) })}</small>
     </div>;
   }
+  if (widget.groupBy !== "none" && widget.visualization === "columns") {
+    // Columns along time: every week or month of the period, empty ones too, in order.
+    const steps = [...result.groups].sort((left, right) => left.key.localeCompare(right.key));
+    const maximum = Math.max(1, ...steps.map((step) => step.value));
+    return <div className="jira-analytics-columns" role="group" aria-label={widget.title}>
+      <div className="jira-analytics-columns-plot">{steps.map((step) => <button type="button" key={step.key} title={`${step.label}: ${formatJiraAnalyticsMetric(widget.metric, step.value)}`} aria-label={`${step.label}: ${formatJiraAnalyticsMetric(widget.metric, step.value)}`} disabled={step.value === 0} onClick={() => toGroup(step)}><span className="jira-analytics-column-value">{step.value > 0 ? formatJiraAnalyticsMetric(widget.metric, step.value) : ""}</span><span className="jira-analytics-column" style={{ height: `${(step.value / maximum) * 100}%` }} /></button>)}</div>
+      <div className="jira-analytics-columns-axis">{steps.map((step, index) => <span key={step.key}>{index % Math.max(1, Math.ceil(steps.length / 9)) === 0 ? step.label : ""}</span>)}</div>
+    </div>;
+  }
   if (widget.groupBy !== "none" && widget.visualization === "line") {
     // A line runs through time: weeks and months in their order, not by value.
     const points = [...result.groups].sort((left, right) => left.key.localeCompare(right.key));
@@ -245,14 +254,15 @@ function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
   const available = new Set(availableFields);
   const durationAvailable = available.has("durationHours");
   const metrics = jiraAnalyticsMetrics.filter((metric) => metric === "count" || (metric.endsWith("Duration") && durationAvailable) || (metric === "commits" && available.has("commitCount")) || (metric === "mergeRequests" && available.has("mergeRequestCount")) || (metric === "storyPoints" && available.has("storyPoints")));
-  const groups = jiraAnalyticsGroupings.filter((group) => group === "none" || available.has(FIELD_FOR_GROUP[group]!));
+  // Weeks and months run along the widget's period field when it has one.
+  const groups = jiraAnalyticsGroupings.filter((group) => group === "none" || ((group === "week" || group === "month") && widget.dateField) || available.has(FIELD_FOR_GROUP[group]!));
   const dateFields = published.outputFields.filter((field) => field.type === "date").map((field) => field.key);
   const listMode = widget.visualization === "table" && widget.metric === "count" && widget.groupBy === "none";
   // Which ways to show fit the groupings: a line needs weeks or months, stacked bars and a table two groupings, a comparison a period.
   const twoGroupings = widget.groupBy !== "none" && (widget.groupBy2 ?? "none") !== "none";
   const visualizations: Array<Exclude<JiraSemanticWidget["visualization"], "table">> = widget.groupBy === "none"
     ? ["number", ...(widget.dateField ? (["kpi"] as const) : [])]
-    : twoGroupings ? ["pivot", "stacked"] : ["bar", ...(widget.groupBy === "week" || widget.groupBy === "month" ? (["line"] as const) : [])];
+    : twoGroupings ? ["pivot", "stacked"] : widget.groupBy === "week" || widget.groupBy === "month" ? ["columns", "line", "bar"] : ["bar"];
   const setColumnWidthDraft = (field: JiraAnalyticsFilterField, value: string | undefined) => setColumnWidthDrafts((current) => {
     const next = { ...current };
     if (value === undefined) delete next[field];

@@ -33,7 +33,7 @@ import {
   type JiraAnalyticsResultRecord,
 } from "./jira-analytics-evaluation-types.js";
 import { jiraIssueMatchesSlice, jiraSliceIsEmpty } from "./jira-analytics-slice.js";
-import { jiraAttributeFieldValue, jiraGroupIdentities, jiraGroupingIsMultiValued, jiraIssueAgeDays, type JiraGroupIdentity } from "./jira-analytics-grouping.js";
+import { jiraAttributeFieldValue, jiraGroupIdentities, jiraGroupingIsMultiValued, jiraGroupingIsTime, jiraIssueAgeDays, jiraTimeSteps, type JiraGroupIdentity } from "./jira-analytics-grouping.js";
 
 function validDate(value: string | null | undefined) {
   if (!value) return null;
@@ -677,11 +677,14 @@ export function createJiraAnalyticsEvaluationAccumulator(
     ) {
       incompleteTransitionHistory += 1;
     }
+    // Issues without a creation date drop out of intervals that start there and of widgets counted by creation date.
     if (
-      definition.source === "statusIntervals" &&
-      definition.rowConfig?.kind === "statusInterval" &&
-      statusIntervalNeedsCreatedAt(definition.rowConfig) &&
-      validDate(issue.issueCreatedAt) === null
+      validDate(issue.issueCreatedAt) === null &&
+      (definition.dateField === "issueCreatedAt" || (
+        definition.source === "statusIntervals" &&
+        definition.rowConfig?.kind === "statusInterval" &&
+        statusIntervalNeedsCreatedAt(definition.rowConfig)
+      ))
     ) {
       missingIssueCreatedAt += 1;
     }
@@ -710,9 +713,10 @@ export function createJiraAnalyticsEvaluationAccumulator(
               ? [{ code: "MISSING_ISSUE_CREATED_AT" as const, count: missingIssueCreatedAt }]
               : []),
           ]
-        : incomplete > 0 && definition.source !== "issues"
-          ? [{ code: warningCode, count: incomplete }]
-          : [];
+        : [
+            ...(incomplete > 0 && definition.source !== "issues" ? [{ code: warningCode, count: incomplete }] : []),
+            ...(missingIssueCreatedAt > 0 ? [{ code: "MISSING_ISSUE_CREATED_AT" as const, count: missingIssueCreatedAt }] : []),
+          ];
     return {
       status: qualityPopulation === 0
         ? "NO_DATA"
@@ -778,10 +782,11 @@ export function createJiraAnalyticsEvaluationAccumulator(
           }
           addRecordToMetricState(allState, record);
 
+          const timeAt = String(recordValue(record, definition.dateField ?? "eventAt") ?? "") || null;
           const identities: JiraGroupIdentity[] = definition.groupBy !== "none" || options.groupKey
-            ? jiraGroupIdentities(record, definition.groupBy, definition.timeZone)
+            ? jiraGroupIdentities(record, definition.groupBy, definition.timeZone, timeAt)
             : [];
-          const secondIdentities = groupBy2 !== "none" ? jiraGroupIdentities(record, groupBy2, definition.timeZone) : [];
+          const secondIdentities = groupBy2 !== "none" ? jiraGroupIdentities(record, groupBy2, definition.timeZone, timeAt) : [];
           if (definition.groupBy !== "none") {
             for (const identity of identities) {
               let group = grouped.get(identity.key);
@@ -843,10 +848,22 @@ export function createJiraAnalyticsEvaluationAccumulator(
           value: metricValue(definition.metric, group.state),
           recordCount: group.state.recordCount,
           ...(groupBy2 !== "none"
-            ? { breakdown: [...group.breakdown.entries()].map(([cellKey, cell]) => ({ key: cellKey, label: cell.label, value: metricValue(definition.metric, cell.state), recordCount: cell.state.recordCount })) }
+            ? { breakdown: [...group.breakdown.entries()].map(([cellKey, cell]) => ({ key: cellKey, label: cell.label, value: metricValue(definition.metric, cell.state), recordCount: cell.state.recordCount })).sort((left, right) => (jiraGroupingIsTime(groupBy2) ? codePointCompare(left.key, right.key) : 0)) }
             : {}),
         }))
         .sort((left, right) => right.value - left.value || codePointCompare(left.key, right.key));
+      // Along time every step of the period shows, empty ones as zero, in time order.
+      if (jiraGroupingIsTime(definition.groupBy)) {
+        if (periodStart && !options.groupKey) {
+          const present = new Set(groups.map((group) => group.key));
+          for (const step of jiraTimeSteps(definition.groupBy as "week" | "month", periodStart, now, definition.timeZone)) {
+            if (present.has(step.key)) continue;
+            if (limits.maxGroups !== undefined && groups.length + pairCount >= limits.maxGroups) throw new JiraAnalyticsEvaluationLimitError("groups", limits.maxGroups);
+            groups.push({ key: step.key, label: step.label, value: 0, recordCount: 0, ...(groupBy2 !== "none" ? { breakdown: [] } : {}) });
+          }
+        }
+        groups.sort((left, right) => codePointCompare(left.key, right.key));
+      }
       return {
         evaluatedAt: now.toISOString(),
         effective: {

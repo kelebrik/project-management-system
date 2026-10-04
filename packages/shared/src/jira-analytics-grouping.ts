@@ -79,7 +79,7 @@ export function jiraAttributeFieldValue(record: JiraAnalyticsResultRecord, field
 }
 
 /** The groups a record belongs to under one grouping; an empty value has its own group. */
-export function jiraGroupIdentities(record: JiraAnalyticsResultRecord, groupBy: JiraAnalyticsGroupBy, timeZone: JiraAnalyticsTimeZone): JiraGroupIdentity[] {
+export function jiraGroupIdentities(record: JiraAnalyticsResultRecord, groupBy: JiraAnalyticsGroupBy, timeZone: JiraAnalyticsTimeZone, timeAt?: string | null): JiraGroupIdentity[] {
   const value = (raw: string | null | undefined, emptyLabel: string) => (raw ? { key: `value:${raw}`, label: raw } : { key: "__empty__", label: emptyLabel });
   const many = (list: string[] | undefined, emptyLabel: string) => {
     const unique = [...new Set((list ?? []).filter(Boolean))];
@@ -111,7 +111,8 @@ export function jiraGroupIdentities(record: JiraAnalyticsResultRecord, groupBy: 
       return [value(record.toStatus, "Без статуса")];
     case "week":
     case "month": {
-      const eventAt = validDate(record.eventAt);
+      // Weeks and months follow the widget's period field (creation, resolution...), else the event time.
+      const eventAt = validDate(timeAt === undefined ? record.eventAt : timeAt);
       if (!eventAt) return [{ key: "__empty__", label: "Без даты" }];
       return [groupBy === "week" ? isoWeek(eventAt, timeZone) : isoMonth(eventAt, timeZone)];
     }
@@ -139,4 +140,20 @@ export function jiraGroupIdentities(record: JiraAnalyticsResultRecord, groupBy: 
 /** Groupings under which one record may sit in several groups. */
 export function jiraGroupingIsMultiValued(groupBy: JiraAnalyticsGroupBy) {
   return groupBy === "component" || groupBy === "fixVersion";
+}
+
+/** Groupings along time: their groups are every step of the period, empty ones too, in time order. */
+export function jiraGroupingIsTime(groupBy: JiraAnalyticsGroupBy) {
+  return groupBy === "week" || groupBy === "month";
+}
+
+/** Every week or month from the start of the period to now, as groups. */
+export function jiraTimeSteps(groupBy: "week" | "month", from: Date, to: Date, timeZone: JiraAnalyticsTimeZone): JiraGroupIdentity[] {
+  const steps = new Map<string, JiraGroupIdentity>();
+  for (let at = from.getTime(); at <= to.getTime() + DAY_MS; at += DAY_MS) {
+    const day = new Date(Math.min(at, to.getTime()));
+    const step = groupBy === "week" ? isoWeek(day, timeZone) : isoMonth(day, timeZone);
+    if (!steps.has(step.key)) steps.set(step.key, step);
+  }
+  return [...steps.values()];
 }

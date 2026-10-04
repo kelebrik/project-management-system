@@ -16,3 +16,11 @@
 .jira-mine-mark { color: var(--text-muted); font-size: 13px; }
 .jira-mine-badge { background: var(--surface-muted, #eef2ff); border-radius: 8px; font-size: 11px; font-weight: 600; margin-left: 6px; padding: 1px 6px; }
 .jira-mine-hidden { align-items: center; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px; margin: 6px 0; }
+.jira-analytics-columns { display: grid; gap: 4px; }
+.jira-analytics-columns-plot { align-items: end; border-bottom: 1px solid var(--border); display: flex; gap: 2px; height: 160px; }
+.jira-analytics-columns-plot button { align-items: center; background: none; border: 0; cursor: pointer; display: flex; flex: 1 1 0; flex-direction: column; height: 100%; justify-content: flex-end; min-width: 0; padding: 0; }
+.jira-analytics-columns-plot button:disabled { cursor: default; }
+.jira-analytics-column { background: var(--accent, #3b82f6); border-radius: 2px 2px 0 0; display: block; min-height: 1px; width: 100%; }
+.jira-analytics-column-value { color: var(--text-muted); font-size: 10px; line-height: 12px; }
+.jira-analytics-columns-axis { display: flex; gap: 2px; }
+.jira-analytics-columns-axis span { color: var(--text-muted); flex: 1 1 0; font-size: 10px; min-width: 0; overflow: visible; white-space: nowrap; }

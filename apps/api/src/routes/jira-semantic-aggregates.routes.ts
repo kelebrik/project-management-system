@@ -51,7 +51,7 @@ import {
 import {
   batchQuerySchema,
   dashboardSaveSchema,
-  groupField,
+  groupingField,
   jiraQueryOptions,
   jiraSemanticEvaluationNow,
   compareProblem,
@@ -103,7 +103,7 @@ function widgetContractError(
   const filter = widget.filters.find((item) => !fields.has(item.field));
   if (filter) return `Поле условия ${filter.field} не опубликовано агрегатом`;
   if (widget.dateField && fields.get(widget.dateField)?.type !== "date") return "Поле периода должно иметь тип «дата»";
-  const groupBy2 = widget.groupBy2 ?? "none", grouping = groupField[widget.groupBy], grouping2 = groupField[groupBy2];
+  const groupBy2 = widget.groupBy2 ?? "none", grouping = groupingField(widget.groupBy, widget.dateField), grouping2 = groupingField(groupBy2, widget.dateField);
   if ((grouping && !fields.has(grouping as never)) || (grouping2 && !fields.has(grouping2 as never))) return "Поле группировки не опубликовано агрегатом";
   if (groupBy2 !== "none" && (widget.groupBy === "none" || groupBy2 === widget.groupBy)) return "Вторая группировка нужна поверх первой и отличается от неё";
   if (widget.metric === "storyPoints" && !fields.has("storyPoints")) return "Метрика story points требует поле storyPoints";

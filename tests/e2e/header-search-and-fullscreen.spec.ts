@@ -23,7 +23,8 @@ test("the header search folds to its magnifier and opens on hover or Ctrl K", as
   await page.goto("/operations/workload");
   const search = page.locator(".app-global-header .global-search");
   await expect(search).toHaveClass(/collapsed/);
-  expect((await search.boundingBox())!.width).toBeLessThan(40);
+  // Measured once laid out: right after loading the box may not be there yet.
+  await expect.poll(async () => (await search.boundingBox())?.width ?? Number.POSITIVE_INFINITY).toBeLessThan(40);
 
   await search.hover();
   await expect(search).toHaveClass(/expanded/);

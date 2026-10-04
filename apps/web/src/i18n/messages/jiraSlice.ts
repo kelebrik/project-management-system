@@ -84,6 +84,7 @@ export const jiraSliceMessages = {
   "ui.jira.visualization.kpi": { en: "Number against the previous period", ru: "Число к прошлому периоду" },
   "ui.jira.visualization.bar": { en: "Bars", ru: "Столбцы" },
   "ui.jira.visualization.line": { en: "Line", ru: "Линия" },
+  "ui.jira.visualization.columns": { en: "Columns over time", ru: "Столбцы по времени" },
   "ui.jira.visualization.stacked": { en: "Stacked bars", ru: "Составные столбцы" },
   "ui.jira.visualization.pivot": { en: "Table", ru: "Таблица" },
   "ui.jiraSlice.failed": { en: "Could not complete the action", ru: "Не удалось выполнить действие" },

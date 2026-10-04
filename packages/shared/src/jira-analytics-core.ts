@@ -241,7 +241,7 @@ export type JiraAnalyticsTimeZone = (typeof jiraAnalyticsTimeZones)[number];
 export type JiraAnalyticsPeriodDays = (typeof jiraAnalyticsPeriodDays)[number];
 export type JiraAnalyticsSortField = (typeof jiraAnalyticsSortFields)[number];
 export type JiraAnalyticsSortDirection = (typeof jiraAnalyticsSortDirections)[number];
-export type JiraAnalyticsVisualization = "number" | "bar" | "table" | "line" | "stacked" | "pivot" | "kpi";
+export type JiraAnalyticsVisualization = "number" | "bar" | "table" | "line" | "columns" | "stacked" | "pivot" | "kpi";
 
 export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
   JiraAnalyticsSource,
@@ -281,11 +281,11 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   JiraAnalyticsSource,
   readonly JiraAnalyticsGroupBy[]
 > = {
-  issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
-  goalIssues: ["none", "goal", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
+  issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "week", "month"],
+  goalIssues: ["none", "goal", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "week", "month"],
   transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
   development: ["none", "project", "status", "assignee", "reporter", "sprint", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
-  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
+  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "week", "month"],
   statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
   gitlabCommits: ["none"],
 };

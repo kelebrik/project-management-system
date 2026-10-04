@@ -77,3 +77,34 @@ test('views fit their groupings, and a comparison looks one period back', async 
   assert.match(compareProblem('previousPeriod', 'bar') ?? '', /только у показателя/);
   assert.equal(compareProblem(undefined, 'kpi'), null);
 });
+
+test('Critical and Blocker issues by the week they were created: every week of six months, empty ones as zero, in time order', () => {
+  const created = (id: string, priority: string, day: string) => issue(id, { priority, issueCreatedAt: `${day}T10:00:00.000Z`, updatedAt: '2026-10-03T10:00:00.000Z' });
+  const weekly = evaluateJiraAnalyticsAggregate(
+    definition({ groupBy: 'week', dateField: 'issueCreatedAt', periodMode: 'DASHBOARD', filters: [{ id: 'p', field: 'priority', operator: 'oneOf', value: 'Critical,Blocker' }] }),
+    [created('a', 'Critical', '2026-09-29'), created('b', 'Blocker', '2026-10-01'), created('c', 'Critical', '2026-07-14'), created('d', 'Major', '2026-09-30'), created('e', 'Critical', '2025-12-01')],
+    { ...options, periodDays: 180 },
+  );
+  assert.equal(weekly.value, 3, 'only Critical and Blocker created within the period');
+  assert.ok(weekly.groups.length >= 26 && weekly.groups.length <= 27, `${weekly.groups.length} weeks`);
+  assert.deepEqual(weekly.groups.map((group) => group.key), [...weekly.groups.map((group) => group.key)].sort());
+  const byKey = Object.fromEntries(weekly.groups.map((group) => [group.key, group.value]));
+  assert.equal(byKey['2026-W40'], 2, 'the week of 29 September');
+  assert.equal(byKey['2026-W29'], 1);
+  assert.equal(weekly.groups.filter((group) => group.value === 0).length, weekly.groups.length - 2);
+});
+
+test('issues without a creation date are reported when a widget counts by it, and a second grouping by month runs in time order', () => {
+  const noDate = issue('x', { priority: 'Critical', issueCreatedAt: null });
+  const result = evaluateJiraAnalyticsAggregate(definition({ groupBy: 'week', dateField: 'issueCreatedAt', periodMode: 'DASHBOARD' }), [noDate, issue('y', { issueCreatedAt: '2026-09-30T10:00:00.000Z' })], { ...options, periodDays: 30 });
+  assert.equal(result.quality.warnings.find((warning) => warning.code === 'MISSING_ISSUE_CREATED_AT')?.count, 1);
+  const byMonth = evaluateJiraAnalyticsAggregate(definition({ groupBy: 'epic', groupBy2: 'month', dateField: 'issueCreatedAt' }), [issue('m1', { issueCreatedAt: '2026-09-02T10:00:00.000Z' }, { epicKey: 'E1' }), issue('m2', { issueCreatedAt: '2026-07-02T10:00:00.000Z' }, { epicKey: 'E1' })], options);
+  assert.deepEqual(byMonth.groups[0]!.breakdown!.map((cell) => cell.key), ['2026-07', '2026-09']);
+});
+
+test('empty weeks added along time share the group limit with the pairs', async () => {
+  const { createJiraAnalyticsEvaluationAccumulator } = await import('@pms/shared');
+  const accumulator = createJiraAnalyticsEvaluationAccumulator(definition({ groupBy: 'week', groupBy2: 'statusCategory', dateField: 'issueCreatedAt', periodMode: 'DASHBOARD' }), { ...options, periodDays: 90 }, { maxGroups: 6 });
+  accumulator.addIssues([issue('w', { issueCreatedAt: '2026-10-01T10:00:00.000Z' })]);
+  assert.throws(() => accumulator.finish(), /GROUPS_LIMIT/);
+});

@@ -319,7 +319,7 @@ export const jiraSemanticWidgetSchema = z.object({
   groupBy2: z.enum(jiraAnalyticsGroupings).optional(),
   sortBy: z.enum(jiraAnalyticsSortFields),
   sortDirection: z.enum(jiraAnalyticsSortDirections),
-  visualization: z.enum(["number", "bar", "table", "line", "stacked", "pivot", "kpi"]),
+  visualization: z.enum(["number", "bar", "table", "line", "columns", "stacked", "pivot", "kpi"]),
   width: z.enum(["half", "full"]),
 }).strict().superRefine((widget, context) => {
   const selected = new Set(widget.selectedFields);

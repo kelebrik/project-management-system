@@ -81,3 +81,26 @@ test("anyone arranges their own view: hides a shared widget, adds their own, and
   expect((saved[1] as { jiraDashboard: unknown }).jiraDashboard).toEqual({ version: 1, hidden: [], order: [], widgets: [] });
   await expect(page.locator(".jira-analytics-widget", { hasText: "По месяцам" })).toHaveCount(1);
 });
+
+test("a columns chart shows every week of the period and drills into a week's issues", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  const analytics = await mockManagedJiraAnalytics(page, project);
+  analytics.getSemanticDashboard().widgets.push({ ...base, id: "weekly", title: "Создано Critical/Blocker по неделям", dateField: "issueCreatedAt", metric: "count", groupBy: "week", visualization: "columns", width: "full", filters: [{ id: "p", field: "priority", operator: "oneOf", value: "Critical,Blocker" }] });
+  await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates\/query-batch$/, async (route) => {
+    const body = route.request().postDataJSON() as { queries: Array<{ widgetId: string; aggregateId: string }> };
+    const weeks = [["2026-W38", "14 сент. 2026 г.", 0], ["2026-W39", "21 сент. 2026 г.", 3], ["2026-W40", "28 сент. 2026 г.", 1]] as const;
+    await route.fulfill({ json: { results: body.queries.map((item) => ({ widgetId: item.widgetId, aggregate: { id: item.aggregateId, name: "Тикеты", version: 1 }, result: result({ value: 4, groups: weeks.map(([key, label, value]) => ({ key, label, value, recordCount: value })) }) })) } });
+  });
+  const singles: Array<{ groupKey?: string }> = [];
+  await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates\/[^/]+\/query$/, async (route) => {
+    singles.push(route.request().postDataJSON());
+    await route.fulfill({ json: { aggregate: { id: "semantic-issues", name: "Тикеты", version: 1 }, result: result({ totalRecords: 3, records: [record("TV-1"), record("TV-2"), record("TV-3")] }) } });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  const chart = page.getByRole("group", { name: "Создано Critical/Blocker по неделям" });
+  await expect(chart.locator(".jira-analytics-columns-plot button")).toHaveCount(3);
+  await expect(chart.getByRole("button", { name: "14 сент. 2026 г.: 0" })).toBeDisabled();
+  await chart.getByRole("button", { name: "21 сент. 2026 г.: 3" }).click();
+  await expect.poll(() => singles.at(-1)?.groupKey).toBe("2026-W39");
+  await expect(page.getByRole("link", { name: "TV-2" })).toBeVisible();
+});

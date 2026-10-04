@@ -819,8 +819,10 @@ test('week grouping uses year-qualified ISO keys in the configured timezone', ()
     })],
     { ...options, now: '2026-01-10T00:00:00.000Z' },
   );
-  assert.equal(result.groups[0]?.key, '2026-W01');
-  assert.match(result.groups[0]?.label ?? '', /2025|2026/);
+  // Every week of the period shows; the one with the activity is 2026-W01.
+  const filled = result.groups.filter((group) => group.value > 0);
+  assert.equal(filled[0]?.key, '2026-W01');
+  assert.match(filled[0]?.label ?? '', /2025|2026/);
 });
 
 test('group drill-down scopes both records and aggregate value', () => {
