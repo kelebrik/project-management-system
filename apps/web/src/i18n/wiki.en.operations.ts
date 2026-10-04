@@ -126,6 +126,16 @@ export const englishOperationsWikiGroup: WikiGroup = {
           ],
         },
         {
+          heading: "Project shares and overload",
+          points: [
+            "A share is the part of a person's working days planned for a project over a period: for example 50 % from 1 October with no end. Capacity is how much of a full week the person has for projects, 100 % by default.",
+            "The sum of shares is compared with the capacity on each working day; weekends, holidays and leave are skipped. Days where the sum is above the capacity are hatched orange on the timeline, and a peak/capacity % chip is shown by the name; it turns orange on overload, and its tooltip gives the working days of overload in the visible part of the timeline.",
+            "Work rows do not affect shares: shares are a separate plan of participation. A person without shares is not marked at all.",
+            "Clicking the chip opens the person's shares. A share is added, changed and removed by whoever may change the project; one person's periods in one project may not overlap. Only an administrator changes capacity. Shares in projects you cannot see are shown as one Other projects line without names.",
+            "The Only overloaded checkbox keeps people with overload in the visible part of the timeline, including those with shares but no work. It is saved with the other filters and in planners.",
+          ],
+        },
+        {
           heading: "Planning by dragging",
           points: [
             "Work can be changed in projects with EDIT or ADMIN access; the system administrator can change all of them. In other projects the work is view-only.",

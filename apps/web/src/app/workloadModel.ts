@@ -1,6 +1,7 @@
 import { normalizePersonName, overlapRanges as sharedOverlapRanges } from "@pms/shared";
 import { projectCalendarTest, type ProjectCalendarCode, type ProjectCalendarOverrideDay, type WorkingDayTest } from "./projectCalendar";
 import type { ScheduleLink } from "./scheduleLinks";
+import type { WorkloadAllocation } from "./workloadAllocations";
 import {
   addDays,
   daysBetween,
@@ -35,7 +36,8 @@ export type WorkloadItem = {
   calendarCode?: ProjectCalendarCode;
 };
 
-export type WorkloadEmployee = { id: string; name: string; department: string };
+/** `capacityPercent`: the share of a full week the person has for projects, 100 when not given. */
+export type WorkloadEmployee = { id: string; name: string; department: string; capacityPercent?: number };
 export type WorkloadLeave = { id: string; employeeId: string; typeId: string; startDate: string; endDate: string };
 
 export type WorkloadData = {
@@ -44,6 +46,10 @@ export type WorkloadData = {
   employees: WorkloadEmployee[];
   leaves: WorkloadLeave[];
   calendarDays: LeaveCalendarDay[];
+  /** Shares of people's time planned for projects that touch the period. */
+  allocations?: WorkloadAllocation[];
+  /** Whether the user may set people's capacity (administrators). */
+  canEditCapacity?: boolean;
   /** Projects in which the user may change work. */
   editableProjectIds?: string[];
   /** Every open project the user may add work to, with or without work shown. */

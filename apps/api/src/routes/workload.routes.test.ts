@@ -60,6 +60,7 @@ const empty = {
   leaveEmployee: { findMany: async () => [] },
   leave: { findMany: async () => [] },
   leaveCalendarDay: { findMany: async () => [] },
+  projectAllocation: { findMany: async () => [] },
 };
 
 test('both routes need a signed-in user', () => {

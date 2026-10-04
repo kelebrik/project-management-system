@@ -78,7 +78,7 @@ async function scheduleLocks(projectIds: string[]) {
  */
 export async function loadWorkload(req: Request, range: { from: string; to: string }) {
   const projectScope = { status: { not: 'CLOSED' as const }, ...(await readableProjectWhere(req)) };
-  const [items, employees, leaves, calendarDays] = await Promise.all([
+  const [items, employees, leaves, calendarDays, allocations] = await Promise.all([
     prisma.wbsItem.findMany({
       where: {
         project: projectScope,
@@ -108,13 +108,18 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
     }),
     prisma.leaveEmployee.findMany({
       where: { isActive: true },
-      select: { id: true, name: true, department: true },
+      select: { id: true, name: true, department: true, capacityPercent: true },
     }),
     prisma.leave.findMany({
       where: { startDate: { lte: toDate(range.to) }, endDate: { gte: toDate(range.from) } },
       select: { id: true, employeeId: true, typeId: true, startDate: true, endDate: true },
     }),
     prisma.leaveCalendarDay.findMany({ orderBy: { date: 'asc' } }),
+    prisma.projectAllocation.findMany({
+      where: { employee: { isActive: true }, startsOn: { lte: toDate(range.to) }, OR: [{ endsOn: null }, { endsOn: { gte: toDate(range.from) } }] },
+      select: { id: true, employeeId: true, percent: true, startsOn: true, endsOn: true, project: { select: { id: true, code: true, name: true, status: true } } },
+      orderBy: [{ startsOn: 'asc' }],
+    }),
   ]);
   const projects = new Map<string, { id: string; code: string; name: string }>();
   // A blank owner names nobody.
@@ -170,6 +175,22 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
         calendarCode: item.calendarCode,
       };
     });
+  // Shares on projects the user may not read still count against the person's capacity, without naming the project.
+  const readableIds = new Set(openProjects.map((project) => project.id));
+  const shares = allocations
+    .filter((allocation) => allocation.project.status !== 'CLOSED')
+    .map((allocation) => {
+      const visible = readableIds.has(allocation.project.id);
+      return {
+        id: visible ? allocation.id : null,
+        employeeId: allocation.employeeId,
+        project: visible ? { id: allocation.project.id, code: allocation.project.code, name: allocation.project.name } : null,
+        percent: allocation.percent,
+        startsOn: dateText(allocation.startsOn),
+        endsOn: allocation.endsOn ? dateText(allocation.endsOn) : null,
+        editable: visible && editableOpen.has(allocation.project.id),
+      };
+    });
   return {
     projects: [...projects.values()].sort((left, right) => left.code.localeCompare(right.code, 'ru')),
     items: work,
@@ -177,6 +198,8 @@ export async function loadWorkload(req: Request, range: { from: string; to: stri
     editableProjects: openProjects.filter((project) => editableOpen.has(project.id)),
     projectCalendars,
     employees,
+    allocations: shares,
+    canEditCapacity: currentUser(req)?.role === 'ADMIN',
     leaves: leaves.map((leave) => ({
       ...leave,
       startDate: dateText(leave.startDate),

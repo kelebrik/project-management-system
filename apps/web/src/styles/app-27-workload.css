@@ -313,3 +313,35 @@
 .workload-planners label { display: grid; gap: 4px; }
 .workload-planner-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .workload-feedback a { color: inherit; font-weight: 600; }
+
+/* Project shares against a person's capacity. */
+.workload-overload {
+  background: repeating-linear-gradient(135deg, rgba(234, 88, 12, 0.12) 0 6px, transparent 6px 12px);
+  border-bottom: 3px solid #ea580c;
+  bottom: 0;
+  position: absolute;
+  top: 0;
+  z-index: 1;
+}
+.workload-share-chip {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 16px;
+  margin-left: 6px;
+  padding: 0 6px;
+}
+.workload-share-chip.overloaded { background: #fff7ed; border-color: #ea580c; color: #9a3412; font-weight: 600; }
+.workload-share-chip.empty { opacity: 0; }
+.workload-row:hover .workload-share-chip.empty, .workload-share-chip.empty:focus-visible { opacity: 1; }
+.side-drawer.workload-shares { align-content: start; display: grid; gap: 10px; max-width: 100vw; width: 560px; }
+.workload-capacity { align-items: end; display: flex; gap: 8px; }
+.workload-capacity label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; }
+.workload-capacity input { width: 90px; }
+.workload-shares-table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.workload-shares-table th { color: var(--text-muted); font-size: 12px; font-weight: 600; text-align: left; }
+.workload-shares-table th, .workload-shares-table td { padding: 4px; }
+.workload-shares-table input[type="number"] { width: 64px; }
+.workload-shares-table tr.read-only td { color: var(--text-muted); }
+.workload-shares-actions { display: flex; gap: 4px; white-space: nowrap; }

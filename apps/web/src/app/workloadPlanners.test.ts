@@ -6,7 +6,7 @@ test("saved filters are read whatever shape they arrive in, keeping only what st
   assert.deepEqual(readWorkloadFilters(null), DEFAULT_WORKLOAD_FILTERS);
   assert.deepEqual(readWorkloadFilters("garbage"), DEFAULT_WORKLOAD_FILTERS);
   const read = readWorkloadFilters(
-    { search: "Ив", projectIds: ["p1", "gone", "p1", 7], people: ["иванов", "петров"], overlapsOnly: true, grouped: "yes", showIdle: true, sort: { key: "overlap", direction: "desc" }, extra: 1 },
+    { search: "Ив", projectIds: ["p1", "gone", "p1", 7], people: ["иванов", "петров"], overlapsOnly: true, overloadedOnly: true, grouped: "yes", showIdle: true, sort: { key: "overlap", direction: "desc" }, extra: 1 },
     { projectIds: new Set(["p1"]), people: new Set(["иванов"]) },
   );
   assert.deepEqual(read, {
@@ -14,6 +14,7 @@ test("saved filters are read whatever shape they arrive in, keeping only what st
     projectIds: ["p1"],
     people: ["иванов"],
     overlapsOnly: true,
+    overloadedOnly: true,
     grouped: false,
     showIdle: true,
     sort: { key: "overlap", direction: "desc" },

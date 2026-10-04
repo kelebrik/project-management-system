@@ -291,6 +291,7 @@ model Project {
   planSnapshots            PlanSnapshot[]
   lessons                  Lesson[]
   userViewStates           UserProjectViewState[]
+  allocations              ProjectAllocation[]
   raciAssignments          RaciAssignment[]
   workCheckIns             WorkCheckIn[]
   wbsImports               WbsImport[]
@@ -1460,10 +1461,13 @@ model LeaveEmployee {
   userId     String?  @unique
   isActive   Boolean  @default(true)
   sortOrder  Int      @default(0)
+  /// The share of a full working week this person has for projects, 100 for full time.
+  capacityPercent Int  @default(100)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   leaves     Leave[]
+  allocations ProjectAllocation[]
 }
 
 model LeaveType {
@@ -1792,5 +1796,26 @@ model UserProjectViewState {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+/**
+ * The share of a person's time planned for a project over a period: 50 means
+ * half of their working days. Summed over projects and set against their
+ * capacity (less on leave), it shows who is planned beyond what they have.
+ */
+model ProjectAllocation {
+  id         String        @id @default(cuid())
+  employeeId String
+  projectId  String
+  percent    Int
+  startsOn   DateTime      @db.Date
+  endsOn     DateTime?     @db.Date
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  employee   LeaveEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
   @@index([projectId])
 }

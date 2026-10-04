@@ -90,6 +90,26 @@ export const openApiLeavePaths = {
       ],
     },
   },
+  "/api/workload/allocations": {
+    put: {
+      ...apiSecuredOperation(tags, "Create or change a person's share of a project (1-100 % of their working days over a period). Only from a session, by whoever may change the project (both projects when moving a share); periods of the same person and project may not overlap"),
+      requestBody: jsonBody(
+        { id: { type: "string" }, employeeId: { type: "string" }, projectId: { type: "string" }, percent: { type: "integer", minimum: 1, maximum: 100 }, startsOn: isoDate, endsOn: { ...isoDate, nullable: true } },
+        ["employeeId", "projectId", "percent", "startsOn"],
+      ),
+      responses: { "200": { description: "Saved share id" }, "400": { description: "Invalid share" }, "403": { description: "The project may not be changed" }, "404": { description: "Share, project or person not found" }, "409": { description: "Overlaps another share of the same person and project" } },
+    },
+  },
+  "/api/workload/allocations/{id}": {
+    delete: { ...apiSecuredOperation(tags, "Remove a share; by whoever may change its project", [pathParam("id")]), responses: { "204": { description: "Removed" }, "403": { description: "The project may not be changed" }, "404": { description: "Not found" } } },
+  },
+  "/api/workload/employees/{id}/capacity": {
+    patch: {
+      ...apiSecuredOperation(tags, "Set the share of a full week a person has for projects (0-100 %); administrators only", [pathParam("id")]),
+      requestBody: jsonBody({ capacityPercent: { type: "integer", minimum: 0, maximum: 100 } }, ["capacityPercent"]),
+      responses: { "200": { description: "Saved" }, "403": { description: "Not an administrator" }, "404": { description: "Person not found" } },
+    },
+  },
   "/api/projects/{projectId}/wbs-items/append": {
     post: (() => {
       const operation = createOperation(

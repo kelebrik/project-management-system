@@ -26,6 +26,7 @@ import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWbsImportRouter } from '../routes/wbs-import.routes.js';
 import { createAutomationRulesRouter, createNotificationsRouter } from '../routes/automation-rules.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
+import { createWorkloadAllocationsRouter } from '../routes/workload-allocations.routes.js';
 import { createMyJiraRouter } from '../routes/my-jira.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
@@ -189,6 +190,7 @@ export function createApp() {
 
   app.use('/api', createLeaveScheduleRouter({ requireAuth, currentUser }));
   app.use('/api', createWorkloadRouter({ requireAuth }));
+  app.use('/api', createWorkloadAllocationsRouter());
   app.use('/api', createAiRouter());
   app.use('/api', createWbsDraftRouter());
   app.use('/api', createScheduleShiftsRouter());

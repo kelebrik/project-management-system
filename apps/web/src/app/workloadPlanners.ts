@@ -9,6 +9,8 @@ export type WorkloadFilters = {
   /** Row keys (normalized names) of the people to show; empty shows everyone. */
   people: string[];
   overlapsOnly: boolean;
+  /** Only people whose project shares add up to more than their capacity. */
+  overloadedOnly: boolean;
   grouped: boolean;
   showIdle: boolean;
   sort: WorkloadSort;
@@ -21,6 +23,7 @@ export const DEFAULT_WORKLOAD_FILTERS: WorkloadFilters = {
   projectIds: [],
   people: [],
   overlapsOnly: false,
+  overloadedOnly: false,
   grouped: false,
   showIdle: false,
   sort: { key: "name", direction: "asc" },
@@ -47,6 +50,7 @@ export function readWorkloadFilters(raw: unknown, known?: { projectIds?: Readonl
     projectIds: known?.projectIds ? projectIds.filter((id) => known.projectIds!.has(id)) : projectIds,
     people: known?.people ? people.filter((key) => known.people!.has(key)) : people,
     overlapsOnly: value.overlapsOnly === true,
+    overloadedOnly: value.overloadedOnly === true,
     grouped: value.grouped === true,
     showIdle: value.showIdle === true,
     sort: {

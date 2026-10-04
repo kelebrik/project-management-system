@@ -9,6 +9,7 @@ import {
   type buildLeaveTimeline,
 } from "../../app/leaveScheduleModel";
 import type { WorkloadItem, WorkloadLeave, WorkloadProject, WorkloadRow } from "../../app/workloadModel";
+import type { RowShares } from "../../app/workloadAllocations";
 import { workloadEditRights } from "../../app/workloadPlanning";
 import { describeDateHold } from "../../app/scheduleLinks";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -53,6 +54,8 @@ export function WorkloadGrid({
   onExtend,
   onVisibleWindowChange,
   showDepartment,
+  shares,
+  onOpenShares,
 }: {
   range: LeaveRange;
   timeline: ReturnType<typeof buildLeaveTimeline>;
@@ -77,6 +80,10 @@ export function WorkloadGrid({
   onExtend: (side: "before" | "after") => void;
   onVisibleWindowChange: (window: LeaveRange) => void;
   showDepartment: boolean;
+  /** Each directory person's project shares against their capacity, by row key. */
+  shares?: Map<string, RowShares>;
+  /** Opens a person's shares; absent when there is nothing the user could see or change there. */
+  onOpenShares?: (row: WorkloadRow) => void;
 }) {
   const { t, locale, labels } = useI18n();
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
@@ -205,6 +212,26 @@ export function WorkloadGrid({
                         </AlertTriangle>
                       )}
                       {showDepartment && row.department && <small>{row.department}</small>}
+                      {(() => {
+                        const share = shares?.get(row.key);
+                        if (!row.employeeId || !share || (!share.hasShares && !onOpenShares)) return null;
+                        const overloaded = share.visible.overloadDays > 0;
+                        const title = share.hasShares
+                          ? t(overloaded ? "ui.workload.share.chipOverloaded" : "ui.workload.share.chipFits", { peak: share.visible.peak, capacity: share.capacity, days: share.visible.overloadDays })
+                          : t("ui.workload.share.chipAdd");
+                        return (
+                          <button
+                            aria-label={`${row.name}: ${title}`}
+                            className={`workload-share-chip${overloaded ? " overloaded" : ""}${share.hasShares ? "" : " empty"}`}
+                            disabled={!onOpenShares}
+                            onClick={() => onOpenShares?.(row)}
+                            title={title}
+                            type="button"
+                          >
+                            {share.hasShares ? `${share.visible.peak}/${share.capacity}%` : "+%"}
+                          </button>
+                        );
+                      })()}
                     </div>
                     <div className="leave-planned-cell workload-counts" style={{ minHeight: `${height}px` }}>
                       <span>{rowCounts.tasks}</span>
@@ -233,6 +260,17 @@ export function WorkloadGrid({
                             />
                           ) : null;
                         })}
+                      {(shares?.get(row.key)?.whole.overloads ?? []).map((overload) => {
+                        const position = span(overload.from, overload.to);
+                        return position ? (
+                          <div
+                            aria-hidden="true"
+                            className="workload-overload"
+                            key={`overload-${overload.from}`}
+                            style={{ left: px(position.start), width: px(position.length) }}
+                          />
+                        ) : null;
+                      })}
                       {row.overlaps.map((overlap) => {
                         const position = span(overlap.from, overlap.to);
                         return position ? (

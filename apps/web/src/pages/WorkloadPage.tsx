@@ -30,6 +30,8 @@ import { describeDateHold } from "../app/scheduleLinks";
 import { WorkloadGrid, type WorkloadSortKey } from "../components/workload/WorkloadGrid";
 import { WorkloadPlanners } from "../components/workload/WorkloadPlanners";
 import { NewWorkDialog } from "../components/workload/NewWorkDialog";
+import { AllocationsDialog } from "../components/workload/AllocationsDialog";
+import { allocationLoad, allocationsInWindow, type RowShares, type WorkloadAllocation } from "../app/workloadAllocations";
 import type { NewWorkRequest } from "../components/workload/useNewWorkSelection";
 import { appPathForView } from "../app/routes";
 import { DEFAULT_WORKLOAD_FILTERS, plannerConfig, plannerHorizon, readWorkloadFilters, type WorkloadFilters } from "../app/workloadPlanners";
@@ -94,13 +96,15 @@ export function WorkloadPage() {
       /* Persistence is optional. */
     }
   }, [filters]);
-  const { search, projectIds: projectFilter, people: peopleFilter, overlapsOnly, grouped, showIdle, sort } = filters;
+  const { search, projectIds: projectFilter, people: peopleFilter, overlapsOnly, overloadedOnly, grouped, showIdle, sort } = filters;
   const setFilter = <K extends keyof WorkloadFilters>(key: K, value: WorkloadFilters[K] | ((current: WorkloadFilters[K]) => WorkloadFilters[K])) =>
     setFilters((current) => ({ ...current, [key]: typeof value === "function" ? (value as (previous: WorkloadFilters[K]) => WorkloadFilters[K])(current[key]) : value }));
   const setSearch = (value: string) => setFilter("search", value);
   const setProjectFilter = (value: (current: string[]) => string[]) => setFilter("projectIds", value);
   const setPeopleFilter = (value: (current: string[]) => string[]) => setFilter("people", value);
   const setOverlapsOnly = (value: boolean) => setFilter("overlapsOnly", value);
+  const setOverloadedOnly = (value: boolean) => setFilter("overloadedOnly", value);
+  const [sharesOf, setSharesOf] = useState<string | null>(null);
   const setGrouped = (value: boolean) => setFilter("grouped", value);
   const setShowIdle = (value: boolean) => setFilter("showIdle", value);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
@@ -144,9 +148,35 @@ export function WorkloadPage() {
   const rows = useMemo(() => {
     const selected = new Set(projectFilter);
     const items = (data?.items ?? []).filter((item) => selected.size === 0 || selected.has(item.projectId));
-    return buildWorkloadRows(items, data?.employees ?? [], showIdle);
-  }, [data?.employees, data?.items, projectFilter, showIdle]);
+    // People with shares and no work are shown when looking for the overloaded.
+    return buildWorkloadRows(items, data?.employees ?? [], showIdle || overloadedOnly);
+  }, [data?.employees, data?.items, overloadedOnly, projectFilter, showIdle]);
+  const allocationsByEmployee = useMemo(() => {
+    const map = new Map<string, WorkloadAllocation[]>();
+    for (const allocation of data?.allocations ?? []) map.set(allocation.employeeId, [...(map.get(allocation.employeeId) ?? []), allocation]);
+    return map;
+  }, [data?.allocations]);
+  const canManageShares = Boolean(data?.canEditCapacity) || (data?.editableProjects?.length ?? 0) > 0;
+  const shares = useMemo(() => {
+    const capacities = new Map((data?.employees ?? []).map((employee) => [employee.id, employee.capacityPercent ?? 100]));
+    const map = new Map<string, RowShares>();
+    for (const row of rows) {
+      if (!row.employeeId) continue;
+      const own = allocationsByEmployee.get(row.employeeId) ?? [];
+      if (own.length === 0 && !canManageShares) continue;
+      const capacity = capacities.get(row.employeeId) ?? 100;
+      const leaves = leavesByEmployee.get(row.employeeId) ?? [];
+      map.set(row.key, {
+        capacity,
+        hasShares: own.length > 0,
+        whole: allocationLoad(own, leaves, capacity, range, overrides),
+        visible: allocationLoad(own, leaves, capacity, visibleWindow, overrides),
+      });
+    }
+    return map;
+  }, [allocationsByEmployee, canManageShares, data?.employees, leavesByEmployee, overrides, range, rows, visibleWindow]);
   const editableProjectIds = useMemo(() => new Set(data?.editableProjectIds ?? []), [data?.editableProjectIds]);
+  const sharesPerson = sharesOf ? (data?.employees ?? []).find((employee) => employee.id === sharesOf) : undefined;
   const employeeNames = useMemo(
     () => [...new Set((data?.employees ?? []).map((employee) => employee.name))].sort((left, right) => left.localeCompare(right, locale)),
     [data?.employees, locale],
@@ -173,13 +203,14 @@ export function WorkloadPage() {
       .filter((row) => people.size === 0 || people.has(row.key))
       .filter((row) => !query || row.name.toLocaleLowerCase(locale).includes(query))
       .filter((row) => !overlapsOnly || overlapsTouchWindow(row.overlaps, visibleWindow))
+      .filter((row) => !overloadedOnly || (shares.get(row.key)?.visible.overloadDays ?? 0) > 0)
       .sort((left, right) => {
         const a = counts.get(left.key)!;
         const b = counts.get(right.key)!;
         const primary = sort.key === "tasks" ? a.tasks - b.tasks : sort.key === "overlap" ? a.overlap - b.overlap : 0;
         return sign * (primary || collator.compare(left.name, right.name));
       });
-  }, [counts, locale, overlapsOnly, peopleFilter, rows, search, sort, visibleWindow]);
+  }, [counts, locale, overlapsOnly, overloadedOnly, peopleFilter, rows, search, shares, sort, visibleWindow]);
   const groups = useMemo(() => {
     if (!grouped) return [{ department: null, rows: visibleRows }];
     const byDepartment = new Map<string, WorkloadRow[]>();
@@ -410,6 +441,10 @@ export function WorkloadPage() {
             {t("ui.workload.overlapsOnly")}
           </label>
           <label className="leave-check">
+            <input checked={overloadedOnly} type="checkbox" onChange={(event) => setOverloadedOnly(event.target.checked)} />
+            {t("ui.workload.share.overloadedOnly")}
+          </label>
+          <label className="leave-check">
             <input checked={grouped} type="checkbox" onChange={(event) => setGrouped(event.target.checked)} />
             {t("ui.workload.groupByDepartment")}
           </label>
@@ -482,6 +517,8 @@ export function WorkloadPage() {
               projectsById={projectsById}
               range={range}
               showDepartment={!grouped}
+              shares={shares}
+              onOpenShares={(row) => setSharesOf(row.employeeId)}
               sort={sort}
               timeline={timeline}
               today={today}
@@ -521,6 +558,20 @@ export function WorkloadPage() {
           people={employeeNames}
           projects={data?.editableProjects ?? []}
           request={newWork}
+        />
+      )}
+      {sharesPerson && (
+        <AllocationsDialog
+          allocations={allocationsInWindow(allocationsByEmployee.get(sharesPerson.id) ?? [], range)}
+          canEditCapacity={Boolean(data?.canEditCapacity)}
+          capacityPercent={sharesPerson.capacityPercent ?? 100}
+          key={JSON.stringify([allocationsByEmployee.get(sharesPerson.id) ?? [], sharesPerson.capacityPercent])}
+          load={allocationLoad(allocationsByEmployee.get(sharesPerson.id) ?? [], leavesByEmployee.get(sharesPerson.id) ?? [], sharesPerson.capacityPercent ?? 100, visibleWindow, overrides)}
+          onChanged={() => setReloadToken((value) => value + 1)}
+          onClose={() => setSharesOf(null)}
+          person={sharesPerson}
+          projects={data?.editableProjects ?? []}
+          today={today}
         />
       )}
       {fullscreen.hint}

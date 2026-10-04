@@ -31,6 +31,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
               "The Development section holds the Archive, Jira and WBS reconciliation, Decision queue, Project lessons, RACI, My work and Rules tabs. Old addresses of removed tabs lead to the nearest page that still exists: resources to Workload, the PM workspace to My work, Portfolio v2 to Portfolio.",
               "Changes is not shown in the row of project sections; the page opens only at the direct address /<project code>/changes. The old address /<project code>/budget opens the project Overview.",
+              "On My work, the Jira tasks tab lists open Jira issues assigned to you and labelled for a project you can read, by project, at most the 100 most recently updated. Your Jira login is the part of your e-mail before @ by default; you can change it on the same tab and reset it. Jira is only read here and the answer is kept for 5 minutes; the public demo never asks Jira.",
+              "Rule templates on the Rules page: besides milestone shifts, shift reasons, check-ins, float and work done in Jira there are A decision waits for an answer (longer than N days), A risk without an owner or a date, An issue is overdue (with grace days), Work due soon is not started (work not started within the next days: to the owner for each, to the recipients as one list), A milestone is at risk (a milestone or goal is near while work before it is not started or below the progress threshold) and A change request is left lying. They look at the project every morning, tell about each case once, and the first morning also tell about what is already so - the preview shows it.",
               "The bell in the header, next to the language switch, shows notifications from project rules (the Rules page in the Development section) and the unread count. The list refreshes every minute while the tab is open; clicking a notification marks it read and opens the milestone, the Structure row, the proposals or My work. Mark all as read clears them all. Everyone sees only their own notifications."
             ]
           },
@@ -288,7 +290,8 @@ export const englishWikiGroups: WikiGroup[] = [
               "Not started work is shown if its due date falls between the next upcoming Monday and the date 10 working days after it.",
               "Work with the statuses Done and Cancelled does not appear in Current Work.",
               "Above the table there is a switch: All, Active, Blocked and Overdue. Active is work In progress, In review, At risk and not-started work in the window of the coming days, without Failed. Blocked is Failed only. Overdue is work due before today.",
-              "The search above the table filters by number, name, owner and work package."
+              "The search above the table filters by number, name, owner and work package.",
+              "The Due soon mode keeps unfinished work due from today up to 7 or 14 days ahead. The All owners list picks people: Me - the directory person linked to your account (absent without a link), any owner in the table and No owner. The mode, the number of days and the chosen people are remembered in the browser per project."
             ]
           },
           {
