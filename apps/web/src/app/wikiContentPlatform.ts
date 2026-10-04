@@ -7,10 +7,10 @@ export const platformWikiGroup: WikiGroup = {
   articles: [
     {
       id: "wiki-admin",
-      title: "Back Office: пользователи, роли, справочники и модули",
+      title: "Back Office: пользователи, роли и модули",
       summary:
         "Какие административные настройки есть и какие guard-правила защищают систему.",
-      keywords: ["админка", "пользователи", "роли", "справочники", "модули", "project access"],
+      keywords: ["админка", "пользователи", "роли", "модули", "project access"],
       sections: [
         {
           heading: "Пользователи",
@@ -26,7 +26,7 @@ export const platformWikiGroup: WikiGroup = {
             "Управляемые системные роли: ADMIN и EXECUTIVE_VIEWER, которые в интерфейсе называются «Администратор системы» и «Пользователь».",
             "ADMIN получает все permissions и его права нельзя отключить.",
             "Пользователь видит проекты всех бизнес-юнитов и может создавать проекты. Права изменения определяются доступом к конкретному проекту.",
-            "Администратор выбранного БЮ видит раздел Администрирование, но только вкладки Реестр проектов и Доступы. Системные настройки, пользователи, роли, справочники и реестр БЮ ему недоступны.",
+            "Администратор выбранного БЮ видит раздел Администрирование, но только вкладки Реестр проектов и Доступы. Системные настройки, пользователи, роли и реестр БЮ ему недоступны.",
             "Администратор БЮ может выдавать и снимать только EDIT-доступ обычным пользователям и только для проектов выбранного БЮ. Он не может выдавать, менять или удалять уровень ADMIN.",
             "Есть legacy fallback permissions: например wbs.update может пройти по старому wbs.write.",
           ],
@@ -64,14 +64,6 @@ export const platformWikiGroup: WikiGroup = {
           ],
         },
         {
-          heading: "Справочники и шаблоны",
-          points: [
-            "Справочники seed-ятся дефолтными project_status, project_type, risk_type, wbs_type, wbs_status, issue_severity, raid_type и raid_status.",
-            "Удаление справочника в UI фактически деактивирует запись isActive=false, а не удаляет ее физически.",
-            "WBS templates лежат в system setting wbs.templates JSON и описывают стартовые наборы фаз/работ.",
-          ],
-        },
-        {
           heading: "Управление модулями",
           points: [
             "Список проектных модулей хранится в system setting project.modules.",
@@ -87,12 +79,12 @@ export const platformWikiGroup: WikiGroup = {
       title: "Интеграции, API tokens, webhooks и OpenAPI",
       summary:
         "Как устроены внешние интеграции, токены, доставка webhook и документирование API.",
-      keywords: ["интеграции", "API token", "webhook", "OpenAPI", "GitLab", "GitHub", "BI"],
+      keywords: ["интеграции", "API token", "webhook", "OpenAPI", "GitLab"],
       sections: [
         {
           heading: "Интеграционные настройки",
           points: [
-            "В админке хранятся настройки GitLab, GitHub, Azure DevOps и BI export URL.",
+            "В админке хранятся настройки GitLab: включение, адрес и токен.",
             "Secret-настройки в API возвращаются с пустым value и флагом hasValue, чтобы не раскрывать сохраненный токен.",
             "При обновлении secret-setting пустое value сохраняет старое значение, если оно уже было.",
             "Jira credentials намеренно не входят в эти настройки и читаются только из env backend-контейнера.",
@@ -168,7 +160,7 @@ export const platformWikiGroup: WikiGroup = {
           points: [
             "AuditEvent пишет actorId/email/name, action, objectType, objectId, projectId, ipAddress, userAgent, beforeValue, afterValue и metadata.",
             "Ошибки записи audit не валят основной запрос, но логируются в console.error.",
-            "Audit покрывает project create/update/delete/close, target date, ui state, business requirements, users, roles, dictionaries, config import, project access, saved views, api tokens и webhooks.",
+            "Audit покрывает project create/update/delete/close, target date, ui state, business requirements, users, roles, config import, project access, saved views, api tokens и webhooks.",
             "Журнал аудита показывает последние 100 событий (API отдает до 200) с изменениями полей «было -> стало»; удаленные строки Структуры можно восстановить из журнала в течение 30 дней.",
             "Журнал также фиксирует входы (auth.login_failed, auth.keycloak_login), перевод вопроса в проблему и все изменения Графика отпусков (leave_schedule.*).",
           ],
@@ -179,7 +171,7 @@ export const platformWikiGroup: WikiGroup = {
             "System health выполняет SELECT 1, показывает database status, databaseLatencyMs, uptimeSeconds, startedAt и NODE_ENV.",
             "Backup status читает BACKUP_DIR или ./backups, ищет .dump файлы, сортирует по updatedAt и пытается прочитать .sha256 рядом с последним backup.",
             "Retention берется из BACKUP_RETENTION_DAYS, по умолчанию 14.",
-            "Admin config export/import переносит rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings и projectModules, но secret settings экспортируются без value.",
+            "Admin config export/import переносит rolePermissions, businessUnitRolePermissions, systemSettings и projectModules, но secret settings экспортируются без value. Массив dictionaryItems из старых файлов при импорте игнорируется, как и удаленные настройки и права.",
           ],
         },
         {

@@ -79,20 +79,6 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
     enabled: false,
   },
   {
-    key: 'resources',
-    label: 'Управление ресурсами',
-    description: 'Загрузка команды, исполнители и распределение работ',
-    route: 'resources',
-    enabled: true,
-  },
-  {
-    key: 'budget',
-    label: 'Управление бюджетом',
-    description: 'Контур план-факт-прогноз бюджета проекта',
-    route: 'budget',
-    enabled: false,
-  },
-  {
     key: 'calendars',
     label: 'Календари',
     description: 'RU и CN производственные календари проекта',
@@ -108,6 +94,7 @@ export const projectModuleDefaults: ProjectModuleConfig[] = [
   },
 ];
 
+/** Keys that are not among the defaults (such as the retired budget and resources modules) are dropped. */
 export function normalizeProjectModules(input?: unknown): ProjectModuleConfig[] {
   const enabledByKey = new Map<string, boolean>();
   const inputModules =

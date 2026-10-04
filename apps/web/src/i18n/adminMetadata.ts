@@ -109,71 +109,13 @@ const permissions = {
     "ru": "Роли и права",
     "en": "Roles and permissions"
   },
-  "admin.dictionaries": {
-    "ru": "Справочники",
-    "en": "Dictionaries"
-  },
-  "admin.templates": {
-    "ru": "Шаблоны Структуры",
-    "en": "WBS templates"
-  },
-  "admin.health": {
-    "ru": "System health",
-    "en": "System health"
-  },
-  "admin.backup": {
-    "ru": "Backup/restore status",
-    "en": "Backup/restore status"
-  },
   "admin.config": {
     "ru": "Import/export конфигурации",
     "en": "Configuration import/export"
   },
-  "admin.project_access": {
-    "ru": "Доступ к проектам",
-    "en": "Project access"
-  },
-  "admin.audit": {
-    "ru": "Журнал аудита",
-    "en": "Audit log"
-  },
   "admin.integrations": {
     "ru": "Интеграции и API",
     "en": "Integrations and API"
-  }
-} as const;
-const dictionaries = {
-  "project_status": {
-    "ru": "Статусы проектов",
-    "en": "Project statuses"
-  },
-  "project_type": {
-    "ru": "Типы проектов",
-    "en": "Project types"
-  },
-  "risk_type": {
-    "ru": "Типы рисков",
-    "en": "Risk types"
-  },
-  "wbs_type": {
-    "ru": "Типы Структуры",
-    "en": "WBS types"
-  },
-  "wbs_status": {
-    "ru": "Статусы Структуры",
-    "en": "WBS statuses"
-  },
-  "issue_severity": {
-    "ru": "Критичность открытых вопросов",
-    "en": "Open issue severity"
-  },
-  "raid_type": {
-    "ru": "Типы рисков и проблем",
-    "en": "Risk and problem types"
-  },
-  "raid_status": {
-    "ru": "Статусы рисков и проблем",
-    "en": "Risk and problem statuses"
   }
 } as const;
 const modules = {
@@ -267,16 +209,6 @@ const modules = {
       "en": "Requests to change scope, dates and management decisions"
     }
   },
-  "budget": {
-    "label": {
-      "ru": "Управление бюджетом",
-      "en": "Budget management"
-    },
-    "description": {
-      "ru": "Контур план-факт-прогноз бюджета проекта",
-      "en": "Planned, actual and forecast project budget"
-    }
-  },
   "calendars": {
     "label": {
       "ru": "Календари",
@@ -302,8 +234,6 @@ export function createAdminLabels(locale: Locale) {
   const pick = (messages: Record<string, { en: string; ru: string }>, key: string) => Object.hasOwn(messages, key) ? messages[key][locale] : key;
   return {
     adminPermissionLabel: (key: string) => pick(permissions, key),
-    dictionaryLabel: (key: string) => pick(dictionaries, key),
-    adminDictionaryLabels: Object.fromEntries(Object.entries(dictionaries).map(([key, value]) => [key, value[locale]])),
     moduleLabel: (key: ProjectModuleKey) => modules[key].label[locale],
     moduleDescription: (key: ProjectModuleKey) => modules[key].description[locale],
   };

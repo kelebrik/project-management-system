@@ -2,7 +2,7 @@ import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
 import { NotificationsBell } from "./notifications/NotificationsBell";
 import { CloudHeaderSlot } from "./CloudSlot";
-import { Archive, BarChart3, Workflow, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardCheck, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, Grid3x3, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, Settings2, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
+import { Archive, BarChart3, Workflow, BookOpen, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardCheck, ClipboardList, Code2, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, Grid3x3, HardDriveDownload, HeartPulse, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, Plus, Settings, ShieldAlert, ShieldCheck, SlidersHorizontal, Users } from "lucide-react";
 
 import type { Toast } from "../hooks/useAppFeedbackState";
 import type { CurrentUser } from "../app/adminTypes";
@@ -219,16 +219,6 @@ const adminNavItems: AdminNavItem[] = [
     icon: <KeyRound size={17} />,
   },
   {
-    view: "admin-dictionaries",
-    label: "view.admin-dictionaries",
-    icon: <ListChecks size={17} />,
-  },
-  {
-    view: "admin-templates",
-    label: "view.admin-templates",
-    icon: <GanttChartSquare size={17} />,
-  },
-  {
     view: "admin-integrations",
     label: "view.admin-integrations",
     icon: <GitBranch size={17} />,
@@ -262,13 +252,7 @@ const adminNavItems: AdminNavItem[] = [
 
 const developmentNavItems: AdminNavItem[] = [
   { view: "closed-projects", label: "nav.archive", icon: <Archive size={15} /> },
-  { view: "portfolio-v2", label: "view.portfolio-v2", icon: <BriefcaseBusiness size={15} /> },
   { view: "jira-reconciliation", label: "view.jira-reconciliation", icon: <CircleHelp size={15} /> },
-  {
-    view: "project-pm-workspace",
-    label: "view.project-pm-workspace",
-    icon: <LayoutDashboard size={15} />,
-  },
   {
     view: "decision-queue",
     label: "view.decision-queue",
@@ -294,16 +278,6 @@ const developmentNavItems: AdminNavItem[] = [
     label: "view.automation-rules",
     icon: <Workflow size={15} />,
   },
-  {
-    view: "resources",
-    label: "view.resources",
-    icon: <Users size={15} />,
-  },
-  {
-    view: "resources-capacity",
-    label: "view.resources-capacity",
-    icon: <Settings2 size={15} />,
-  },
 ];
 
 const operationsNavItems: AdminNavItem[] = [
@@ -324,7 +298,6 @@ const projectNavShortLabels: Partial<Record<ProjectSectionView, TranslationKey>>
   "project-decisions": "tab.project-decisions",
   "project-raid": "tab.project-raid",
   "project-changes": "tab.project-changes",
-  "project-budget": "tab.project-budget",
   "project-calendars": "tab.project-calendars",
   "project-artifacts": "tab.project-artifacts",
 };
@@ -462,7 +435,7 @@ export function AppShell({
             <button
               type="button"
               className={isDevelopmentSectionView ? "active" : ""}
-              onClick={() => openView("resources")}
+              onClick={() => openView("decision-queue")}
             >
               <Code2 size={15} /> {t("nav.development")}
             </button>
@@ -540,9 +513,9 @@ export function AppShell({
 
       {shouldShowDevelopmentMenu && (
         <div className="section-navigation development-section-navigation">
-          {(activeView === "project-pm-workspace" || activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules") && (
+          {(activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules") && (
             <div className="section-project-picker">
-              {projectPicker(activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules" ? activeView : "project-pm-workspace")}
+              {projectPicker(activeView)}
             </div>
           )}
           <nav className="section-tabs" aria-label={t("nav.development")}>

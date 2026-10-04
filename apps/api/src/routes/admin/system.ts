@@ -3,13 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { prisma } from '../../db.js';
 import { ensureBusinessUnitPermissionDefaults } from '../../server/business-unit-permissions.js';
-import {
-  defaultDictionaryItems,
-  defaultSystemSettings,
-  integrationSettings,
-  managedPermissions,
-  managedRoles,
-} from './defaults.js';
+import { integrationSettings, managedPermissions, managedRoles } from './defaults.js';
 import {
   normalizeProjectModules,
   projectModulesSettingKey,
@@ -74,21 +68,8 @@ export async function ensureAdminConfigDefaults() {
     skipDuplicates: true,
   });
 
-  await prisma.dictionaryItem.createMany({
-    data: defaultDictionaryItems.map(([dictionary, code, label, description, sortOrder]) => ({
-      dictionary,
-      code,
-      label,
-      description,
-      sortOrder,
-      isActive: true,
-    })),
-    skipDuplicates: true,
-  });
-
   await Promise.all(
     [
-      ...defaultSystemSettings,
       ...integrationSettings,
       [projectModulesSettingKey, projectModulesSettingValue(normalizeProjectModules()), false] as const,
     ].map(([key, value, isSecret]) =>

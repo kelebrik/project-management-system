@@ -1,9 +1,5 @@
 import { isOverviewDecisionIssue } from "@pms/shared";
 import { useI18n } from "../i18n/I18nProvider";
-import {
-  BriefcaseBusiness,
-} from "lucide-react";
-
 import { usePageContext } from "./PageContext";
 import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
@@ -69,31 +65,6 @@ export function ProjectChangesPage() {
                     {changes.length === 0 && (
                       <div className="empty-state"><strong>{normalizedQuery ? t("changes.noResults") : t("changes.empty")}</strong><span>{normalizedQuery ? t("fields.searchHelp") : t("changes.emptyHelp")}</span>{normalizedQuery && <button type="button" onClick={() => setQuery("")}>{t("fields.clearSearch")}</button>}</div>
                     )}
-                  </div>
-                </article>
-              );
-}
-
-export function ProjectBudgetPage() {
-  const { t } = useI18n();
-  return (
-                <article className="panel project-card project-module-page">
-                  <div className="panel-title">
-                    <div>
-                      <h2>{t("budget.title")}</h2>
-                      <p>
-                        {t("budget.description")}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="budget-placeholder">
-                    <BriefcaseBusiness size={34} />
-                    <div>
-                      <b>{t("budget.ready")}</b>
-                      <span>
-                        {t("budget.details")}
-                      </span>
-                    </div>
                   </div>
                 </article>
               );

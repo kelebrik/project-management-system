@@ -12,10 +12,6 @@ export const navigation = {
     "en": "Leave schedule",
     "ru": "График отпусков"
   },
-  "view.portfolio-v2": {
-    "en": "Portfolio v2",
-    "ru": "Портфель v2"
-  },
   "view.projects": {
     "en": "Projects",
     "ru": "Проекты"
@@ -88,10 +84,6 @@ export const navigation = {
     "en": "Change management",
     "ru": "Управление изменениями"
   },
-  "view.project-budget": {
-    "en": "Budget management",
-    "ru": "Управление бюджетом"
-  },
   "view.project-calendars": {
     "en": "Calendars",
     "ru": "Календари"
@@ -124,14 +116,6 @@ export const navigation = {
     "en": "Roles and permissions",
     "ru": "Роли и права"
   },
-  "view.admin-dictionaries": {
-    "en": "Dictionaries",
-    "ru": "Справочники"
-  },
-  "view.admin-templates": {
-    "en": "WBS templates",
-    "ru": "Шаблоны Структуры"
-  },
   "view.admin-integrations": {
     "en": "Integrations and API",
     "ru": "Интеграции и API"
@@ -160,10 +144,6 @@ export const navigation = {
     "en": "Jira / WBS reconciliation",
     "ru": "Сверка Jira и WBS"
   },
-  "view.project-pm-workspace": {
-    "en": "PM workspace",
-    "ru": "Рабочий стол PM"
-  },
   "view.my-work": {
     "en": "My work",
     "ru": "Мои задачи"
@@ -183,14 +163,6 @@ export const navigation = {
   "view.decision-queue": {
     "en": "Decision queue",
     "ru": "Очередь решений"
-  },
-  "view.resources": {
-    "en": "Resource management",
-    "ru": "Управление ресурсами"
-  },
-  "view.resources-capacity": {
-    "en": "Resource settings",
-    "ru": "Параметры ресурсов"
   },
   "tab.project-overview": {
     "en": "Overview",
@@ -239,10 +211,6 @@ export const navigation = {
   "tab.project-changes": {
     "en": "Changes",
     "ru": "Изменения"
-  },
-  "tab.project-budget": {
-    "en": "Budget",
-    "ru": "Бюджет"
   },
   "tab.project-calendars": {
     "en": "Calendars",

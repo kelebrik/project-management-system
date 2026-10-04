@@ -6,18 +6,15 @@ import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminAnalyticsPageContent } from "./AdminAnalyticsPageContent";
 import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
-import { AdminDictionariesPageContent } from "./AdminDictionariesPageContent";
 import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
 import { AdminModulesPageContent } from "./AdminModulesPageContent";
 import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
 import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
-import { AdminTemplatesPageContent } from "./AdminSettingsPages";
 import { AdminRolesPageContent } from "./AdminRolesPageContent";
 import { AdminUsersPageContent } from "./AdminUsersPageContent";
 import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
 import { ClosedProjectsPage } from "./ClosedProjectsPage";
 import { PortfolioPage } from "./PortfolioPage";
-import { PortfolioRoadmapV2 } from "./PortfolioV2Page";
 import { ProjectsPage } from "./ProjectsPage";
 import { ReportsPage } from "./ReportsPage";
 import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
@@ -30,21 +27,12 @@ import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
 import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
 import { ProjectPassportPage } from "./ProjectPassportPage";
 import { ProjectRaidPage } from "./ProjectRaidPage";
-import { ProjectBudgetPage, ProjectChangesPage } from "./ProjectSupportPages";
+import { ProjectChangesPage } from "./ProjectSupportPages";
 import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
-import {
-  ResourceOverviewPage,
-  ResourceCapacityPage,
-} from "./ResourcePages";
 import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
 import { canViewAppView, isDevelopmentSectionViewName, isOperationsSectionViewName } from "../app/routes";
 
-const ProjectPmWorkspacePage = lazy(() =>
-  import("./ProjectPmWorkspacePage").then((module) => ({
-    default: module.ProjectPmWorkspacePage,
-  })),
-);
 const LeaveSchedulePage = lazy(() =>
   import("./LeaveSchedulePage").then((module) => ({
     default: module.LeaveSchedulePage,
@@ -105,7 +93,6 @@ export function AppPages() {
   return (
     <>
       {activeView === "portfolio" && <PortfolioPage />}
-      {activeView === "portfolio-v2" && <PortfolioRoadmapV2 />}
       {activeView === "workload" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <WorkloadPage />
@@ -154,8 +141,6 @@ export function AppPages() {
         {activeView === "admin-users" && <AdminUsersPageContent />}
         {activeView === "admin-modules" && <AdminModulesPageContent />}
         {activeView === "admin-roles" && <AdminRolesPageContent />}
-        {activeView === "admin-dictionaries" && <AdminDictionariesPageContent />}
-        {activeView === "admin-templates" && <AdminTemplatesPageContent />}
         {activeView === "admin-integrations" && <AdminIntegrationsPageContent />}
         {activeView === "admin-health" && <AdminHealthPageContent />}
         {activeView === "admin-backups" && <AdminBackupsPageContent />}
@@ -165,19 +150,11 @@ export function AppPages() {
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {activeView === "admin-analytics" && <AdminAnalyticsPageContent />}
-        {activeView === "resources" && <ResourceOverviewPage />}
-        {activeView === "resources-capacity" && <ResourceCapacityPage />}
         {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-current-work" && <ProjectCurrentWorkPage key={project.id} />}
         {project && activeView === "project-changes" && <ProjectChangesPage />}
-        {project && activeView === "project-budget" && <ProjectBudgetPage />}
-        {project && activeView === "project-pm-workspace" && (
-          <Suspense fallback={<DevelopmentPageFallback />}>
-            <ProjectPmWorkspacePage />
-          </Suspense>
-        )}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage key={project.id} />}

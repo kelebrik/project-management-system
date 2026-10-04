@@ -41,20 +41,10 @@ Webhook endpoint создается в Admin Back Office. Система отп�
 
 Для подписки на все события можно указать `*`.
 
-## GitLab / GitHub / Azure DevOps
+## GitLab
 
-В Admin Back Office хранится конфигурация:
+В Admin Back Office хранится конфигурация GitLab: enabled, base URL, token.
 
-- GitLab: enabled, base URL, token;
-- GitHub: enabled, API base URL, token;
-- Azure DevOps: enabled, organization URL, token.
+На текущем этапе это системные настройки и безопасное хранение secret-поля. Следующий слой интеграций должен подключить конкретные adapters: import merge requests, releases, commits, pipeline status.
 
-На текущем этапе это системные настройки и безопасное хранение secret-полей. Следующий слой интеграций должен подключить конкретные adapters: import merge requests, releases, commits, pipeline status.
-
-## BI export
-
-BI integration содержит URL публикации/экспорта. Рекомендуемый режим:
-
-- выгрузка обезличенных витрин через API token;
-- webhook `overview.published` для инкрементального обновления;
-- отдельные read-only credentials для BI.
+Настройки GitHub, Azure DevOps и BI export удалены: приложение их не читало.

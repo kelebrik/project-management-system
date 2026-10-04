@@ -3,10 +3,6 @@ export const admin = {
     "en": "Refresh",
     "ru": "Обновить"
   },
-  "admin.add": {
-    "en": "Add",
-    "ru": "Добавить"
-  },
   "admin.active": {
     "en": "Active",
     "ru": "Активен"
@@ -14,10 +10,6 @@ export const admin = {
   "admin.disabled": {
     "en": "Disabled",
     "ru": "Отключен"
-  },
-  "admin.disable": {
-    "en": "Disable",
-    "ru": "Отключить"
   },
   "admin.name": {
     "en": "Name",
@@ -46,10 +38,6 @@ export const admin = {
   "admin.projects": {
     "en": "Projects",
     "ru": "Проекты"
-  },
-  "admin.dictionary": {
-    "en": "Dictionary",
-    "ru": "Справочник"
   },
   "admin.users.description": {
     "en": "User accounts, roles and application access",
@@ -127,26 +115,6 @@ export const admin = {
     "en": "Saving settings...",
     "ru": "Сохраняю настройки..."
   },
-  "admin.dictionaries.description": {
-    "en": "Shared values for types, statuses and severity",
-    "ru": "Единые значения для типов, статусов и критичности"
-  },
-  "admin.dictionaries.empty": {
-    "en": "No entries in the selected dictionary yet.",
-    "ru": "В выбранном справочнике пока нет записей."
-  },
-  "admin.templates.description": {
-    "en": "Standard work packages for new projects",
-    "ru": "Базовые наборы работ для создания новых проектов"
-  },
-  "admin.templates.json": {
-    "en": "Template JSON",
-    "ru": "JSON шаблонов"
-  },
-  "admin.templates.save": {
-    "en": "Save templates",
-    "ru": "Сохранить шаблоны"
-  },
   "admin.health.description": {
     "en": "Application and connection health",
     "ru": "Техническое состояние приложения и подключений"
@@ -204,8 +172,8 @@ export const admin = {
     "ru": "Restore выполняется ops-скриптом с RESTORE_CONFIRM=yes"
   },
   "admin.config.description": {
-    "en": "Transfer roles, dictionaries and system settings between environments",
-    "ru": "Перенос ролей, справочников и системных настроек между средами"
+    "en": "Transfer roles and system settings between environments",
+    "ru": "Перенос ролей и системных настроек между средами"
   },
   "admin.config.export": {
     "en": "Export",

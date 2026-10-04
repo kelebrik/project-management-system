@@ -12,7 +12,6 @@ import type {
 } from "./app/domainTypes";
 import {
   isProjectSectionViewName,
-  isResourceSectionViewName,
   projectPathViews,
   type AppView,
   type SectionAccess,
@@ -44,7 +43,6 @@ import { useProjectRegistryController } from "./hooks/useProjectRegistryControll
 import { useBusinessUnitAdminStatus } from "./hooks/useBusinessUnitAdminStatus";
 import { useRaidController } from "./hooks/useRaidController";
 import { useRaidState } from "./hooks/useRaidState";
-import { useSavedViewsState } from "./hooks/useSavedViewsState";
 import { useWbsStructureTableController } from "./hooks/useWbsStructureTableController";
 import { useWbsColumnActions } from "./hooks/useWbsColumnActions";
 import { useWbsRowActions } from "./hooks/useWbsRowActions";
@@ -124,8 +122,6 @@ function AppController() {
     setShowProjectPicker,
     recentProjectIds,
     setRecentProjectIds,
-    resourceProfileOverrides,
-    setResourceProfileOverrides,
   } = useProjectCoreState();
   const {
     users,
@@ -148,18 +144,6 @@ function AppController() {
     setProjectAccessDraft,
     savingProjectAccess,
     setSavingProjectAccess,
-    dictionaryItems,
-    setDictionaryItems,
-    dictionaryDrafts,
-    setDictionaryDrafts,
-    selectedDictionary,
-    setSelectedDictionary,
-    newDictionaryDraft,
-    setNewDictionaryDraft,
-    savingDictionaryItemId,
-    setSavingDictionaryItemId,
-    creatingDictionaryItem,
-    setCreatingDictionaryItem,
     systemSettings,
     setSystemSettings,
     systemSettingsDraft,
@@ -304,8 +288,6 @@ function AppController() {
     issueDrawerMode,
     setIssueDrawerMode,
   } = useIssueState();
-  const { savedViews, setSavedViews, savedViewName, setSavedViewName, savingSavedView, setSavingSavedView } =
-    useSavedViewsState();
   const isAuthenticated = Boolean(currentUser);
   const isAdminUser = currentUser?.role === "ADMIN";
   const { isBusinessUnitAdmin, isBusinessUnitAdminResolved } = useBusinessUnitAdminStatus(
@@ -339,8 +321,6 @@ function AppController() {
     setAuditEvents,
     setRolePermissions,
     setProjectAccesses,
-    setDictionaryItems,
-    setDictionaryDrafts,
     setSystemSettings,
     setSystemSettingsDraft,
     setProjectModules,
@@ -370,8 +350,8 @@ function AppController() {
     setWbsRedoStack(nextStack);
   }, [setWbsRedoStack, wbsRedoStackRef]);
 
-  const derived = useAppDerivedData({ activeView, activeWbsItemId, authMode, collapsedWbsIds, currentUser, dictionaryItems, ganttPanelHeight, ganttPanelWidth, ganttRangeDays, ganttScale, ganttWbsWidth, hoveredGanttItemId, isAdminUser, isAuthenticated, isClosedProject, project, projectModules, projectRef, projectSearch, projects, raidDecisionOnly, raidHighOnly, raidOverdueOnly, raidTypeFilter, recentProjectIds, resourceProfileOverrides, savedViewName, selectedCalendarYear, selectedDictionary, selectedProjectId, setCollapsedWbsIds, setError, setGanttPanelHeight, setGanttPanelWidth, setGanttRangeDays, setGanttScale, setGanttWbsWidth, setNotice, setProject, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setResourceProfileOverrides, setSavedViewName, setSavedViews, setSavingSavedView, setShowGanttBaseline, setShowGanttCriticalPath, setShowGanttDependencies, setShowGanttForecast, setShowStructureCriticalPath, setWbsColumnOrder, setWbsColumnWidths, setWbsHiddenColumns, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, wbsColumnOrder, wbsColumnWidths, wbsDrafts, wbsHiddenColumns, wbsSort });
-  const { applySavedView, calendarOverridesByKey, dirtyWbsItemIds, draftWbsCodes, filteredProjectOptions, firstEnabledProjectView, isProjectModuleEnabled, isReadOnly, normalizedProjectModules, orderedWbsColumns, projectTargetSummary, recentProjects, saveCurrentSavedView, savedViewType, selectedProjectListItem, topbarScheduleHealth, visibleStructureWbsTree, visibleWbsTree, wbsTree } = derived;
+  const derived = useAppDerivedData({ activeView, activeWbsItemId, authMode, collapsedWbsIds, currentUser, ganttPanelHeight, ganttPanelWidth, ganttRangeDays, ganttScale, ganttWbsWidth, hoveredGanttItemId, isAdminUser, isAuthenticated, isClosedProject, project, projectModules, projectRef, projectSearch, projects, raidDecisionOnly, raidHighOnly, raidOverdueOnly, raidTypeFilter, recentProjectIds, selectedCalendarYear, selectedProjectId, setCollapsedWbsIds, setError, setGanttPanelHeight, setGanttPanelWidth, setGanttRangeDays, setGanttScale, setGanttWbsWidth, setNotice, setProject, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setShowGanttBaseline, setShowGanttCriticalPath, setShowGanttDependencies, setShowGanttForecast, setShowStructureCriticalPath, setWbsColumnOrder, setWbsColumnWidths, setWbsHiddenColumns, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, wbsColumnOrder, wbsColumnWidths, wbsDrafts, wbsHiddenColumns, wbsSort });
+  const { calendarOverridesByKey, dirtyWbsItemIds, draftWbsCodes, filteredProjectOptions, firstEnabledProjectView, isProjectModuleEnabled, isReadOnly, normalizedProjectModules, orderedWbsColumns, projectTargetSummary, recentProjects, selectedProjectListItem, topbarScheduleHealth, visibleStructureWbsTree, visibleWbsTree, wbsTree } = derived;
   const { openView } = useAppRouting({
     activeView,
     authMode,
@@ -648,7 +628,6 @@ function AppController() {
     toggleWebhook,
     testWebhook,
     updateUserDraft,
-    updateDictionaryDraft,
     updateProjectAccessDraft,
     grantProjectAccess,
     updateProjectAccessLevel,
@@ -656,9 +635,6 @@ function AppController() {
     updateProjectModuleDraft,
     saveProjectModules,
     toggleRolePermission,
-    createDictionaryItem,
-    saveDictionaryItem,
-    deactivateDictionaryItem,
     saveSystemSettings,
     exportAdminConfig,
     importAdminConfig,
@@ -680,13 +656,6 @@ function AppController() {
     setProjectAccessDraft,
     setProjectAccesses,
     setSavingProjectAccess,
-    dictionaryItems,
-    dictionaryDrafts,
-    setDictionaryDrafts,
-    newDictionaryDraft,
-    setNewDictionaryDraft,
-    setSavingDictionaryItemId,
-    setCreatingDictionaryItem,
     systemSettingsDraft,
     setSystemSettings,
     setSystemSettingsDraft,
@@ -887,8 +856,7 @@ function AppController() {
     const requestedView =
       nextView === "portfolio" ||
       nextView === "projects" ||
-      nextView === "project-create" ||
-      isResourceSectionViewName(nextView)
+      nextView === "project-create"
         ? firstEnabledProjectView
         : nextView;
     const safeView =
@@ -926,7 +894,7 @@ function AppController() {
 
   const presentationContext = buildAppPresentationContext(derived, {
     activeView, activeWbsItemId, collapsedWbsIds, currentUser, firstEnabledProjectView, isAuthenticated, isClosedProject, isReadOnly, openView, project, projects, saveProjectUiState, selectedProjectId, setError, setNotice,
-    ...{ adminHealth, adminIntegrations, apiTokenDraft, auditEvents, backupStatus, configTransferText, createdApiToken, creatingDictionaryItem, creatingUser, currentUser, dictionaryDrafts, importingConfig, newDictionaryDraft, newUserForm, setNewUserForm, rolePermissions, systemSettings, systemSettingsDraft, userDrafts, users, webhookDraft },
+    ...{ adminHealth, adminIntegrations, apiTokenDraft, auditEvents, backupStatus, configTransferText, createdApiToken, creatingUser, currentUser, importingConfig, newUserForm, setNewUserForm, rolePermissions, systemSettings, systemSettingsDraft, userDrafts, users, webhookDraft },
     ...{ artifactDrafts, expandedArtifactId, createArtifactRow, deleteArtifact, moveArtifact, saveArtifact, updateArtifactDraft, setExpandedArtifactId },
     ...{ closeOpenIssue, convertIssueToProblem, createOpenIssue, creatingIssue, expandedIssueId, issueDrawerMode, issueEditDrafts, issueForm, issueFormErrors, issueLinkDrafts, issueStatusDrafts, removeIssueFormLink, removeIssueJiraLink, removeIssueThreadLink, saveOpenIssue, saveOpenIssueWithPayload, saveTaskJiraLink, taskDrafts, updateIssueDraft, updateIssueFormLink, updateIssueJiraLink, updateIssueThreadLink, updateIssueStatusDraft },
     ...{ jiraForm, jiraWorkSectionDrafts, refreshProject, saveJiraIntegration, saveJiraWorkSections, savingJira, savingJiraWorkSections, setJiraForm, setJiraWorkSectionDrafts, syncJira },
@@ -934,11 +902,11 @@ function AppController() {
     ...{ addRaidStatusUpdate, closeRaidItem, convertRiskToAssumption, convertRiskToProblem, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },
     ...{ newProjectForm, projectAccessDraft, projectAccesses, projectModuleDrafts, projectRegistryDrafts, projectTargetApprovedBy, projectTargetChangeReason, projectTargetDateDraft, moveProjectToBusinessUnit, savePortfolioProjectIdentity, saveProjectPortfolio, saveProjectRegistryItem, saveProjectTargetDate },
     ...{ addIssueFormLink, addIssueJiraLink, addIssueStatusUpdate, addIssueThreadLink, closeProject, closeProjectCreate, createProject, deleteProject, openProjectCreate, projectCreateOpen, reloadAuditEvents, saveProjectModules, setNewProjectForm, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, updateProjectModuleDraft, updateProjectRegistryDraft },
-    ...{ createApiToken, createDictionaryItem, createUser, createWebhook, deactivateDictionaryItem, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, restoreWbsTombstone, saveDictionaryItem, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateDictionaryDraft, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },
-    ...{ savingBaseline, savingCalendar, savingDictionaryItemId, savingIntegration, savingProjectAccess, savingProjectModules, savingProjectRegistryId, savingProjectTargetDate, savingRolePermissionId, savingSystemSettings, savingUserId },
+    ...{ createApiToken, createUser, createWebhook, deleteProjectAccess, exportAdminConfig, grantProjectAccess, importAdminConfig, reloadAdminConfig, reloadAdminHealth, reloadAdminIntegrations, restoreWbsTombstone, saveSystemSettings, saveUser, testWebhook, toggleApiToken, toggleRolePermission, toggleWebhook, updateProjectAccessDraft, updateProjectAccessLevel, updateUserDraft },
+    ...{ savingBaseline, savingCalendar, savingIntegration, savingProjectAccess, savingProjectModules, savingProjectRegistryId, savingProjectTargetDate, savingRolePermissionId, savingSystemSettings, savingUserId },
     ...{ ganttRangeDays, setGanttRangeDays },
     ...{ completeGanttLinkDrag, deleteSelectedWbsItems, draggedWbsColumn, draggedWbsItemId, dropWbsColumn, ganttLinkDraft, ganttPanelHeight, ganttPanelWidth, ganttScale, ganttTimelineRef, ganttWbsWidth, handleWbsPaste, hoveredGanttItemId, isWbsCellDirty, redoWbsChange, renderWbsCell, reorderWbsRows, resetGanttPanelSize, restoringWbsSnapshot, saveDirtyWbsItems, saveWbsBaseline, saveWbsDraftPatch, saveWbsTypePatch, saveWbsItem, savingWbsBulk, selectedWbsIds, setActiveWbsItemId, setCollapsedWbsIds, setDraggedWbsColumn, setGanttScale, setHoveredGanttItemId, setSelectedWbsIds, setShowGanttBaseline, setShowGanttForecast, setShowStructureCriticalPath, setShowWbsColumnMenu, setWbsDropTargetId, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, showWbsColumnMenu, startGanttLinkDrag, startGanttPanelResize, startGanttResize, startWbsColumnDrag, startWbsColumnResize, toggleGanttCriticalPath, toggleGanttDependencies, toggleWbsCollapse, toggleWbsColumn, toggleWbsSort, undoWbsChange, updateSelectedWbsDrafts, updateWbsDraft, wbsDrafts, wbsDropTargetId, wbsHiddenColumns, wbsRedoStack, wbsSort, wbsUndoStack },
-    ...{ deleteRaidItem, deleteProject, deleteProjectAccess, saveArtifact, setApiTokenDraft, setConfigTransferText, setExpandedIssueId, setExpandedRaidId, setIssueDrawerMode, setIssueForm, setIssueFormErrors, setIssueLinkDrafts, setNewDictionaryDraft, setProjectAccessDraft, setRaidDecisionOnly, setRaidForm, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setSelectedCalendarYear, setSelectedDictionary, setSystemSettingsDraft, setTaskDrafts, setWebhookDraft, syncing, toggleCalendarDay },
+    ...{ deleteRaidItem, deleteProject, deleteProjectAccess, saveArtifact, setApiTokenDraft, setConfigTransferText, setExpandedIssueId, setExpandedRaidId, setIssueDrawerMode, setIssueForm, setIssueFormErrors, setIssueLinkDrafts, setProjectAccessDraft, setRaidDecisionOnly, setRaidForm, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setSelectedCalendarYear, setSystemSettingsDraft, setTaskDrafts, setWebhookDraft, syncing, toggleCalendarDay },
     openRaidItemFromOverview, selectProject, updatePassportRow,
   });
 
@@ -975,17 +943,10 @@ function AppController() {
       projectSearch={projectSearch}
       projectTargetSummary={projectTargetSummary}
       recentProjects={recentProjects}
-      savedViewType={savedViewType}
-      saveCurrentSavedView={saveCurrentSavedView}
-      applySavedView={applySavedView}
-      savedViewName={savedViewName}
-      savedViews={savedViews}
-      savingSavedView={savingSavedView}
       selectProject={selectProject}
       selectedProjectId={selectedProjectId}
       selectedProjectListItem={selectedProjectListItem}
       setProjectSearch={setProjectSearch}
-      setSavedViewName={setSavedViewName}
       setShowProjectPicker={setShowProjectPicker}
       showProjectPicker={showProjectPicker}
       sidebarCollapsed={sidebarCollapsed}

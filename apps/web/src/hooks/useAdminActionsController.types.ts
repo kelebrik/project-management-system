@@ -2,8 +2,6 @@ import type { Dispatch, SetStateAction } from "react";
 
 import type {
   ApiTokenDraft,
-  DictionaryItem,
-  DictionaryItemDraft,
   ProjectAccessDraft,
   ProjectAccessRecord,
   RolePermission,
@@ -31,13 +29,6 @@ export type UseAdminActionsControllerOptions = {
   setProjectAccessDraft: Dispatch<SetStateAction<ProjectAccessDraft>>;
   setProjectAccesses: Dispatch<SetStateAction<ProjectAccessRecord[]>>;
   setSavingProjectAccess: Dispatch<SetStateAction<boolean>>;
-  dictionaryItems: DictionaryItem[];
-  dictionaryDrafts: Record<string, DictionaryItemDraft>;
-  setDictionaryDrafts: Dispatch<SetStateAction<Record<string, DictionaryItemDraft>>>;
-  newDictionaryDraft: DictionaryItemDraft;
-  setNewDictionaryDraft: Dispatch<SetStateAction<DictionaryItemDraft>>;
-  setSavingDictionaryItemId: Dispatch<SetStateAction<string | null>>;
-  setCreatingDictionaryItem: Dispatch<SetStateAction<boolean>>;
   systemSettingsDraft: SystemSettingsDraft;
   setSystemSettings: Dispatch<SetStateAction<SystemSetting[]>>;
   setSystemSettingsDraft: Dispatch<SetStateAction<SystemSettingsDraft>>;

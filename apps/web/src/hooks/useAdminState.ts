@@ -5,8 +5,6 @@ import type {
   ApiTokenDraft,
   AuditEvent,
   BackupStatus,
-  DictionaryItem,
-  DictionaryItemDraft,
   ProjectAccessDraft,
   ProjectAccessRecord,
   RolePermission,
@@ -24,7 +22,6 @@ import {
   type ProjectModuleKey,
 } from "../app/projectModules";
 import {
-  emptyDictionaryDraft,
   emptySystemSettingsDraft,
   emptyUserForm,
 } from "../app/formState";
@@ -44,16 +41,6 @@ export function useAdminState() {
     level: "EDIT",
   });
   const [savingProjectAccess, setSavingProjectAccess] = useState(false);
-  const [dictionaryItems, setDictionaryItems] = useState<DictionaryItem[]>([]);
-  const [dictionaryDrafts, setDictionaryDrafts] = useState<
-    Record<string, DictionaryItemDraft>
-  >({});
-  const [selectedDictionary, setSelectedDictionary] = useState("wbs_type");
-  const [newDictionaryDraft, setNewDictionaryDraft] =
-    useState<DictionaryItemDraft>(emptyDictionaryDraft);
-  const [savingDictionaryItemId, setSavingDictionaryItemId] =
-    useState<string | null>(null);
-  const [creatingDictionaryItem, setCreatingDictionaryItem] = useState(false);
   const [systemSettings, setSystemSettings] = useState<SystemSetting[]>([]);
   const [systemSettingsDraft, setSystemSettingsDraft] =
     useState<SystemSettingsDraft>(emptySystemSettingsDraft);
@@ -99,8 +86,6 @@ export function useAdminState() {
       level: "EDIT",
     });
     setSavingProjectAccess(false);
-    setDictionaryItems([]);
-    setDictionaryDrafts({});
     setSystemSettings([]);
     setSystemSettingsDraft(emptySystemSettingsDraft);
     setAdminHealth(null);
@@ -131,18 +116,6 @@ export function useAdminState() {
     setProjectAccessDraft,
     savingProjectAccess,
     setSavingProjectAccess,
-    dictionaryItems,
-    setDictionaryItems,
-    dictionaryDrafts,
-    setDictionaryDrafts,
-    selectedDictionary,
-    setSelectedDictionary,
-    newDictionaryDraft,
-    setNewDictionaryDraft,
-    savingDictionaryItemId,
-    setSavingDictionaryItemId,
-    creatingDictionaryItem,
-    setCreatingDictionaryItem,
     systemSettings,
     setSystemSettings,
     systemSettingsDraft,

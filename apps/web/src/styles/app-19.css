@@ -423,8 +423,7 @@
   width: 44px;
 }
 
-.wbs-readonly-value,
-.work-summary-readonly {
+.wbs-readonly-value {
   color: var(--text);
   display: block;
   font-size: 13px;
@@ -435,15 +434,12 @@
   white-space: nowrap;
 }
 
-.wbs-readonly-value,
-.work-summary-readonly {
+.wbs-readonly-value {
   padding: 7px 8px;
 }
 
 .read-only-mode .wbs-table-row input,
-.read-only-mode .wbs-table-row select,
-.read-only-mode .work-summary-row input,
-.read-only-mode .work-summary-row select {
+.read-only-mode .wbs-table-row select {
   display: none;
 }
 

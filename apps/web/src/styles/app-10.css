@@ -84,37 +84,6 @@
   color: var(--brand);
 }
 
-.saved-view-controls {
-  align-items: end;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(220px, 0.9fr) minmax(220px, 1fr) auto;
-}
-
-.saved-view-controls label {
-  color: var(--text-muted);
-  display: grid;
-  font-size: 12px;
-  font-weight: 900;
-  gap: 5px;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.saved-view-controls input,
-.saved-view-controls select {
-  font-size: 13px;
-  font-weight: 800;
-  min-height: 36px;
-  padding-bottom: 7px;
-  padding-top: 7px;
-  text-transform: none;
-}
-
-.saved-view-controls button {
-  min-height: 36px;
-}
-
 .workspace-fullscreen-button {
   align-items: center;
   display: inline-flex;

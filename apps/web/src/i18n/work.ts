@@ -204,18 +204,6 @@ export const work = {
     "en": "Sections: {sections}, articles: {articles}",
     "ru": "Разделов: {sections}, статей: {articles}"
   },
-  "workspace.filterLabel": {
-    "en": "Workspace task filter",
-    "ru": "Фильтр задач рабочего стола"
-  },
-  "workspace.week": {
-    "en": "Week",
-    "ru": "Неделя"
-  },
-  "workspace.critical": {
-    "en": "Critical",
-    "ru": "Критический"
-  },
 
   "meeting.shortTitle": {
     "en": "Title must contain at least 3 characters",

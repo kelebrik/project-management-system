@@ -16,7 +16,6 @@ export type ProjectSectionView = Extract<
   | "project-decisions"
   | "project-raid"
   | "project-changes"
-  | "project-budget"
   | "project-calendars"
   | "project-artifacts"
 >;
@@ -26,8 +25,6 @@ export type AdminSectionView = Extract<
   | "admin"
   | "admin-users"
   | "admin-roles"
-  | "admin-dictionaries"
-  | "admin-templates"
   | "admin-integrations"
   | "admin-health"
   | "admin-backups"
@@ -40,15 +37,8 @@ export type AdminSectionView = Extract<
   | "admin-analytics"
 >;
 
-export type ResourceSectionView = Extract<
-  AppView,
-  | "resources"
-  | "resources-capacity"
->;
-
 export type DevelopmentSectionView = Extract<
   AppView,
-  | "portfolio-v2"
   | "closed-projects"
   | "jira-reconciliation"
   | "decision-queue"
@@ -56,8 +46,6 @@ export type DevelopmentSectionView = Extract<
   | "raci-matrix"
   | "my-work"
   | "automation-rules"
-  | "project-pm-workspace"
-  | ResourceSectionView
 >;
 
 /** Day-to-day operational tools, open to every signed-in user. */
@@ -65,15 +53,13 @@ export type OperationsSectionView = Extract<AppView, "leave-schedule" | "workloa
 
 export type FullscreenWorkspaceView = Extract<
   AppView,
-  "portfolio-v2" | "project-structure" | "project-gantt" | "leave-schedule" | "workload"
+  "project-structure" | "project-gantt" | "leave-schedule" | "workload"
 > | "overview-milestones-by-phase" | "overview-milestones-all";
 
 export const adminSectionViews: AdminSectionView[] = [
   "admin",
   "admin-users",
   "admin-roles",
-  "admin-dictionaries",
-  "admin-templates",
   "admin-integrations",
   "admin-health",
   "admin-backups",
@@ -107,10 +93,6 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "raci-matrix",
   "my-work",
   "automation-rules",
-  "project-pm-workspace",
-  "resources",
-  "resources-capacity",
-  "portfolio-v2",
 ];
 
 export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule", "workload"];
@@ -187,14 +169,12 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-decisions": "decisions",
   "project-raid": "risks",
   "project-changes": "changes",
-  "project-budget": "budget",
   "project-calendars": "calendars",
   "project-artifacts": "artifacts",
 };
 
 export const appViewPaths: Record<AppView, string> = {
   portfolio: "/portfolio",
-  "portfolio-v2": "/development/portfolio-v2",
   "leave-schedule": "/operations/leave-schedule",
   workload: "/operations/workload",
   "decision-queue": "/development/decision-queue",
@@ -206,15 +186,12 @@ export const appViewPaths: Record<AppView, string> = {
   projects: "/projects",
   reports: "/reports",
   wiki: "/faq",
-  resources: "/development/resources",
-  "resources-capacity": "/development/resources/capacity",
   "project-create": "/new-project",
   "project-overview": "/overview",
   "project-schedule": "/schedule",
   "project-passport": "/passport",
   "project-business-requirements": "/business-requirements",
   "project-current-work": "/current-work",
-  "project-pm-workspace": "/development/pm-workspace",
   "project-structure": "/wbs",
   "project-gantt": "/gantt",
   "project-jira-work": "/jira-work",
@@ -222,15 +199,12 @@ export const appViewPaths: Record<AppView, string> = {
   "project-decisions": "/decisions",
   "project-raid": "/risks",
   "project-changes": "/changes",
-  "project-budget": "/budget",
   "project-calendars": "/calendars",
   "project-artifacts": "/artifacts",
   "closed-projects": "/development/archive",
   admin: "/admin",
   "admin-users": "/admin/users",
   "admin-roles": "/admin/roles",
-  "admin-dictionaries": "/admin/dictionaries",
-  "admin-templates": "/admin/templates",
   "admin-integrations": "/admin/integrations",
   "admin-health": "/admin/health",
   "admin-backups": "/admin/backups",
@@ -243,7 +217,7 @@ export const appViewPaths: Record<AppView, string> = {
   "admin-analytics": "/admin/analytics",
 };
 
-export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSectionView> = {
+export const projectPathViews: Record<string, ProjectSectionView> = {
   overview: "project-overview",
   schedule: "project-schedule",
   milestones: "project-schedule",
@@ -251,8 +225,9 @@ export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSe
   "business-requirements": "project-business-requirements",
   requirements: "project-business-requirements",
   "current-work": "project-current-work",
-  "pm-workspace": "project-pm-workspace",
-  workspace: "project-pm-workspace",
+  // Retired sections open the project overview instead of a blank page.
+  "pm-workspace": "project-overview",
+  workspace: "project-overview",
   wbs: "project-structure",
   structure: "project-structure",
   gantt: "project-gantt",
@@ -264,7 +239,7 @@ export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSe
   risks: "project-raid",
   raid: "project-raid",
   changes: "project-changes",
-  budget: "project-budget",
+  budget: "project-overview",
   calendars: "project-calendars",
   calendar: "project-calendars",
   artifacts: "project-artifacts",
@@ -273,23 +248,11 @@ export const projectPathViews: Record<string, ProjectSectionView | DevelopmentSe
 export const appPathViews: Record<string, AppView> = {
   "/": "portfolio",
   "/portfolio": "portfolio",
-  "/portfolio-v2": "portfolio-v2",
   "/projects": "projects",
   "/reports": "reports",
   "/faq": "wiki",
   "/wiki": "wiki",
-  "/resources": "resources",
-  "/resources/overview": "resources",
-  "/resources/workload": "resources",
-  "/resources/schedule": "resources",
-  "/resources/allocations": "resources",
-  "/resources/directory": "resources",
-  "/resources/resources": "resources",
-  "/resources/requests": "resources",
-  "/resources/capacity": "resources-capacity",
-  "/resources/settings": "resources-capacity",
-  "/development": "resources",
-  "/development/portfolio-v2": "portfolio-v2",
+  "/development": "decision-queue",
   // Earlier addresses keep working after the sections moved.
   "/development/leave-schedule": "leave-schedule",
   "/operations": "leave-schedule",
@@ -303,18 +266,33 @@ export const appPathViews: Record<string, AppView> = {
   "/development/my-work": "my-work",
   "/development/rules": "automation-rules",
   "/development/jira-reconciliation": "jira-reconciliation",
-  "/development/pm-workspace": "project-pm-workspace",
-  "/development/workspace": "project-pm-workspace",
-  "/development/resources": "resources",
-  "/development/resources/overview": "resources",
-  "/development/resources/workload": "resources",
-  "/development/resources/schedule": "resources",
-  "/development/resources/allocations": "resources",
-  "/development/resources/directory": "resources",
-  "/development/resources/resources": "resources",
-  "/development/resources/requests": "resources",
-  "/development/resources/capacity": "resources-capacity",
-  "/development/resources/settings": "resources-capacity",
+  // Addresses of retired pages lead to the nearest page that still exists.
+  "/portfolio-v2": "portfolio",
+  "/development/portfolio-v2": "portfolio",
+  "/development/pm-workspace": "my-work",
+  "/development/workspace": "my-work",
+  "/pm-workspace": "my-work",
+  "/workspace": "my-work",
+  "/resources": "workload",
+  "/resources/overview": "workload",
+  "/resources/workload": "workload",
+  "/resources/schedule": "workload",
+  "/resources/allocations": "workload",
+  "/resources/directory": "workload",
+  "/resources/resources": "workload",
+  "/resources/requests": "workload",
+  "/resources/capacity": "workload",
+  "/resources/settings": "workload",
+  "/development/resources": "workload",
+  "/development/resources/overview": "workload",
+  "/development/resources/workload": "workload",
+  "/development/resources/schedule": "workload",
+  "/development/resources/allocations": "workload",
+  "/development/resources/directory": "workload",
+  "/development/resources/resources": "workload",
+  "/development/resources/requests": "workload",
+  "/development/resources/capacity": "workload",
+  "/development/resources/settings": "workload",
   "/new-project": "project-create",
   "/create-project": "project-create",
   "/overview": "project-overview",
@@ -324,8 +302,6 @@ export const appPathViews: Record<string, AppView> = {
   "/business-requirements": "project-business-requirements",
   "/requirements": "project-business-requirements",
   "/current-work": "project-current-work",
-  "/pm-workspace": "project-pm-workspace",
-  "/workspace": "project-pm-workspace",
   "/wbs": "project-structure",
   "/structure": "project-structure",
   "/gantt": "project-gantt",
@@ -337,7 +313,7 @@ export const appPathViews: Record<string, AppView> = {
   "/risks": "project-raid",
   "/raid": "project-raid",
   "/changes": "project-changes",
-  "/budget": "project-budget",
+  "/budget": "project-overview",
   "/calendars": "project-calendars",
   "/calendar": "project-calendars",
   "/artifacts": "project-artifacts",
@@ -346,8 +322,8 @@ export const appPathViews: Record<string, AppView> = {
   "/admin": "admin-projects",
   "/admin/users": "admin-users",
   "/admin/roles": "admin-roles",
-  "/admin/dictionaries": "admin-dictionaries",
-  "/admin/templates": "admin-templates",
+  "/admin/dictionaries": "admin-projects",
+  "/admin/templates": "admin-projects",
   "/admin/integrations": "admin-integrations",
   "/admin/health": "admin-health",
   "/admin/backups": "admin-backups",
@@ -405,15 +381,6 @@ export function isProjectSectionViewName(
 
 export function isAdminSectionViewName(view: AppView): view is AdminSectionView {
   return adminSectionViews.includes(view as AdminSectionView);
-}
-
-export function isResourceSectionViewName(
-  view: AppView,
-): view is ResourceSectionView {
-  return (
-    view === "resources" ||
-    view === "resources-capacity"
-  );
 }
 
 export function isDevelopmentSectionViewName(

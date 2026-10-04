@@ -7,9 +7,9 @@ export const englishPlatformWikiGroup: WikiGroup = {
   "articles": [
     {
       "id": "wiki-admin",
-      "title": "Back office: users, roles, dictionaries and modules",
+      "title": "Back office: users, roles and modules",
       "summary": "Which administrative settings exist and which guard rules protect the system.",
-      "keywords": ["admin panel", "users", "roles", "dictionaries", "modules", "project access"],
+      "keywords": ["admin panel", "users", "roles", "modules", "project access"],
       "sections": [
         {
           "heading": "Users",
@@ -25,7 +25,7 @@ export const englishPlatformWikiGroup: WikiGroup = {
             "The managed system roles are ADMIN and EXECUTIVE_VIEWER, which in the interface are called \"System administrator\" and \"User\".",
             "ADMIN receives all permissions and its rights cannot be disabled.",
             "A User sees the projects of all business units and can create projects. Edit rights are determined by access to the specific project.",
-            "The administrator of the selected BU sees the Administration section, but only the Project registry and Access tabs. System settings, users, roles, dictionaries and the BU registry are not available to them.",
+            "The administrator of the selected BU sees the Administration section, but only the Project registry and Access tabs. System settings, users, roles and the BU registry are not available to them.",
             "A BU administrator can grant and revoke only EDIT access for regular users and only for projects of the selected BU. They cannot grant, change or remove the ADMIN level.",
             "There are legacy fallback permissions: for example, wbs.update can be satisfied by the old wbs.write."
           ]
@@ -63,14 +63,6 @@ export const englishPlatformWikiGroup: WikiGroup = {
           ]
         },
         {
-          "heading": "Dictionaries and templates",
-          "points": [
-            "Dictionaries are seeded with the default project_status, project_type, risk_type, wbs_type, wbs_status, issue_severity, raid_type and raid_status.",
-            "Deleting a dictionary in the UI actually deactivates the record with isActive=false rather than deleting it physically.",
-            "The WBS templates live in the system setting wbs.templates as JSON and describe the starting sets of phases/work."
-          ]
-        },
-        {
           "heading": "Module management",
           "points": [
             "The list of project modules is stored in the system setting project.modules.",
@@ -85,12 +77,12 @@ export const englishPlatformWikiGroup: WikiGroup = {
       "id": "wiki-integrations-api",
       "title": "Integrations, API tokens, webhooks and OpenAPI",
       "summary": "How external integrations, tokens, webhook delivery and API documentation are arranged.",
-      "keywords": ["integrations", "API token", "webhook", "OpenAPI", "GitLab", "GitHub", "BI"],
+      "keywords": ["integrations", "API token", "webhook", "OpenAPI", "GitLab"],
       "sections": [
         {
           "heading": "Integration settings",
           "points": [
-            "The admin panel stores the settings for GitLab, GitHub, Azure DevOps and the BI export URL.",
+            "The admin panel stores the GitLab settings: whether it is enabled, its address and its token.",
             "Secret settings are returned from the API with an empty value and a hasValue flag, so that the stored token is not disclosed.",
             "When a secret setting is updated, an empty value keeps the old value if one was already there.",
             "Jira credentials are intentionally not part of these settings and are read only from the env of the backend container."
@@ -165,7 +157,7 @@ export const englishPlatformWikiGroup: WikiGroup = {
           "points": [
             "AuditEvent records actorId/email/name, action, objectType, objectId, projectId, ipAddress, userAgent, beforeValue, afterValue and metadata.",
             "Failures to write the audit record do not break the main request, but are logged to console.error.",
-            "The audit covers project create/update/delete/close, target date, ui state, business requirements, users, roles, dictionaries, config import, project access, saved views, api tokens and webhooks.",
+            "The audit covers project create/update/delete/close, target date, ui state, business requirements, users, roles, config import, project access, saved views, api tokens and webhooks.",
             "The audit log shows the latest 100 events (the API returns up to 200) with field changes \"before -> after\"; deleted WBS rows can be restored from the log within 30 days.",
             "The log also records sign-ins (auth.login_failed, auth.keycloak_login), turning an issue into a problem, and every Leave schedule change (leave_schedule.*)."
           ]
@@ -176,7 +168,7 @@ export const englishPlatformWikiGroup: WikiGroup = {
             "System health runs SELECT 1 and shows the database status, databaseLatencyMs, uptimeSeconds, startedAt and NODE_ENV.",
             "Backup status reads BACKUP_DIR or ./backups, looks for .dump files, sorts them by updatedAt and tries to read the .sha256 file next to the latest backup.",
             "Retention is taken from BACKUP_RETENTION_DAYS, by default 14.",
-            "The admin config export/import transfers rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings and projectModules, but secret settings are exported without their value."
+            "The admin config export/import transfers rolePermissions, businessUnitRolePermissions, systemSettings and projectModules, but secret settings are exported without their value. A dictionaryItems array in an older file is ignored on import, as are removed settings and permissions."
           ]
         },
         {

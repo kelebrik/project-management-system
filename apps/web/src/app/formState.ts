@@ -1,5 +1,4 @@
 import type {
-  DictionaryItemDraft,
   SystemSettingsDraft,
   UserFormState,
 } from "./adminTypes";
@@ -210,28 +209,10 @@ export const emptyUserForm: UserFormState = {
   isActive: true,
 };
 
-export const emptyDictionaryDraft: DictionaryItemDraft = {
-  dictionary: "wbs_type",
-  code: "",
-  label: "",
-  description: "",
-  sortOrder: "0",
-  isActive: true,
-};
-
 export const emptySystemSettingsDraft: SystemSettingsDraft = {
   gitlabEnabled: false,
   gitlabBaseUrl: "",
   gitlabToken: "",
-  githubEnabled: false,
-  githubBaseUrl: "https://api.github.com",
-  githubToken: "",
-  azureDevOpsEnabled: false,
-  azureDevOpsOrganizationUrl: "",
-  azureDevOpsToken: "",
-  biEnabled: false,
-  biExportUrl: "",
-  wbsTemplates: "",
 };
 
 export const emptyIssueForm: IssueFormState = {

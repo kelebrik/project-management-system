@@ -1,7 +1,6 @@
 import type { AppStateBag } from "../app/appStateBag";
 import { useCallback, useMemo } from "react";
 import { useI18n } from "../i18n/I18nProvider";
-import type { DictionaryItem } from "../app/adminTypes";
 import type { ProjectCalendarOverride, ProjectListItem } from "../app/domainTypes";
 import { savedWbsForm } from "../app/formState";
 import { projectScheduleHealth } from "../app/labels";
@@ -34,11 +33,6 @@ import {
   filterRaidItems,
   groupRaidItems,
 } from "../app/raidModels";
-import {
-  createResourceDashboard,
-  createResourceSummaryRows,
-  type ResourceAllocationProfile,
-} from "../app/resourceModels";
 import { buildProjectTree } from "../app/projectTree";
 import { createProjectTargetSummary } from "../app/projectTargetModel";
 import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
@@ -72,25 +66,18 @@ import {
 import { createWbsGantt } from "../app/wbsGanttModel";
 import { isoDate } from "../app/dateUtils";
 import { useMilestoneLabelLayoutState } from "./useMilestoneLabelLayoutState";
-import { useSavedViewsController } from "./useSavedViewsController";
 import { useWorkspaceFullscreen } from "./useWorkspaceFullscreen";
 
 type AppDerivedDataDeps = AppStateBag;
 
 export function useAppDerivedData(deps: AppDerivedDataDeps) {
-  const { locale, t: uiText } = useI18n();
+  const { locale } = useI18n();
   const {
     activeView,
     activeWbsItemId,
-    authMode,
     collapsedWbsIds,
     currentUser,
-    dictionaryItems,
-    ganttPanelHeight,
-    ganttPanelWidth,
     ganttRangeDays,
-    ganttScale,
-    ganttWbsWidth,
     hoveredGanttItemId,
     isAdminUser,
     isAuthenticated,
@@ -105,41 +92,11 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     raidOverdueOnly,
     raidTypeFilter,
     recentProjectIds,
-    resourceProfileOverrides,
-    savedViewName,
     selectedCalendarYear,
-    selectedDictionary,
     selectedProjectId,
     setCollapsedWbsIds,
     setError,
-    setGanttPanelHeight,
-    setGanttPanelWidth,
-    setGanttRangeDays,
-    setGanttScale,
-    setGanttWbsWidth,
-    setNotice,
     setProject,
-    setRaidDecisionOnly,
-    setRaidHighOnly,
-    setRaidOverdueOnly,
-    setRaidTypeFilter,
-    setResourceProfileOverrides,
-    setSavedViewName,
-    setSavedViews,
-    setSavingSavedView,
-    setShowGanttBaseline,
-    setShowGanttCriticalPath,
-    setShowGanttDependencies,
-    setShowGanttForecast,
-    setShowStructureCriticalPath,
-    setWbsColumnOrder,
-    setWbsColumnWidths,
-    setWbsHiddenColumns,
-    setWbsSort,
-    showGanttBaseline,
-    showGanttCriticalPath,
-    showGanttDependencies,
-    showGanttForecast,
     showStructureCriticalPath,
     wbsColumnOrder,
     wbsColumnWidths,
@@ -181,11 +138,6 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     !isAuthenticated ||
     isDemoLookOnlySection ||
     Boolean(isSelectedProjectSection && (isClosedProject || !canWriteSelectedProject));
-  const filteredDictionaryItems = useMemo(
-    () =>
-      (dictionaryItems as DictionaryItem[]).filter((item) => item.dictionary === selectedDictionary),
-    [dictionaryItems, selectedDictionary],
-  );
   const normalizedProjectModules = useMemo(
     () => normalizeProjectModulesForUi(projectModules),
     [projectModules],
@@ -203,59 +155,6 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     const enabledModule = normalizedProjectModules.find((module) => module.enabled);
     return enabledModule ? projectModuleViewByKey[enabledModule.key] : "project-overview";
   }, [normalizedProjectModules]);
-  const activeResourceProjects = useMemo(
-    () => activeProjects.filter((item) => item.status !== "CLOSED"),
-    [activeProjects],
-  );
-  const resourceSource = useMemo(
-    () => (activeResourceProjects.length > 0 ? activeResourceProjects : project?.wbsItems ?? []),
-    [activeResourceProjects, project?.wbsItems],
-  );
-  const resourceSummaryRows = useMemo(
-    () =>
-      createResourceSummaryRows(
-        activeResourceProjects.length > 0
-          ? activeResourceProjects.flatMap((item) => item.wbsItems ?? [])
-          : project?.wbsItems ?? [],
-        new Date(),
-        uiText,
-      ),
-    [activeResourceProjects, project?.wbsItems, uiText],
-  );
-  const resourceDashboard = useMemo(
-    () =>
-      createResourceDashboard(
-        resourceSource,
-        new Date(),
-        project?.criticalPath?.criticalItemIds ?? [],
-        resourceProfileOverrides,
-        uiText,
-      ),
-    [
-      project?.criticalPath?.criticalItemIds,
-      resourceProfileOverrides,
-      resourceSource,
-      uiText,
-    ],
-  );
-  const updateResourceProfile = useCallback(
-    (owner: string, patch: Partial<ResourceAllocationProfile>) => {
-      const baseProfile =
-        resourceDashboard.profiles.find((profile) => profile.owner === owner) ??
-        resourceProfileOverrides.find(
-          (profile: ResourceAllocationProfile) => profile.owner === owner,
-        );
-      if (!baseProfile) return;
-      const nextProfile = { ...baseProfile, ...patch, owner };
-      setResourceProfileOverrides((current: ResourceAllocationProfile[]) => {
-        const exists = current.some((profile) => profile.owner === owner);
-        return exists
-          ? current.map((profile) => (profile.owner === owner ? nextProfile : profile))
-          : [...current, nextProfile];
-      });
-    },
-    [resourceDashboard.profiles, resourceProfileOverrides, setResourceProfileOverrides],
-  );
   const recentProjects = useMemo(
     () => getRecentProjects(projects, recentProjectIds),
     [projects, recentProjectIds],
@@ -342,57 +241,6 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     },
     [setCollapsedWbsIds, wbsTree],
   );
-  const { savedViewType, applySavedView, saveCurrentSavedView } =
-    useSavedViewsController({
-      activeView,
-      authReady: authMode === "ready",
-      selectedProjectId,
-      currentUserRole: currentUser?.role,
-      savedViewName,
-      setSavedViews,
-      setSavedViewName,
-      setSavingSavedView,
-      setError,
-      setNotice,
-      wbsColumnOrder,
-      setWbsColumnOrder,
-      wbsHiddenColumns,
-      setWbsHiddenColumns,
-      wbsColumnWidths,
-      setWbsColumnWidths,
-      wbsSort,
-      setWbsSort,
-      activeWbsHierarchyLevel,
-      setWbsHierarchyLevel,
-      showStructureCriticalPath,
-      setShowStructureCriticalPath,
-      ganttScale,
-      setGanttScale,
-      ganttRangeDays,
-      setGanttRangeDays,
-      showGanttDependencies,
-      setShowGanttDependencies,
-      showGanttCriticalPath,
-      setShowGanttCriticalPath,
-      showGanttBaseline,
-      setShowGanttBaseline,
-      showGanttForecast,
-      setShowGanttForecast,
-      ganttWbsWidth,
-      setGanttWbsWidth,
-      ganttPanelHeight,
-      setGanttPanelHeight,
-      ganttPanelWidth,
-      setGanttPanelWidth,
-      raidTypeFilter,
-      setRaidTypeFilter,
-      raidDecisionOnly,
-      setRaidDecisionOnly,
-      raidOverdueOnly,
-      setRaidOverdueOnly,
-      raidHighOnly,
-      setRaidHighOnly,
-    });
   const draftWbsCodes = useMemo(
     () => createDraftWbsCodes(wbsTree, wbsDrafts),
     [wbsDrafts, wbsTree],
@@ -580,7 +428,6 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     activeProjectTree,
     activeProjects,
     activeWbsHierarchyLevel,
-    applySavedView,
     calendarOverridesByKey,
     calendarYear,
     closedProjectTree,
@@ -588,7 +435,6 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     closedRaidItems,
     dirtyWbsItemIds,
     draftWbsCodes,
-    filteredDictionaryItems,
     filteredProjectOptions,
     firstEnabledProjectView,
     fullscreenWorkspaceView,
@@ -608,13 +454,8 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     projectCalendarYears,
     projectTargetSummary,
     recentProjects,
-    resourceDashboard,
-    updateResourceProfile,
-    resourceSummaryRows,
     riskMatrix,
     raidSummary,
-    saveCurrentSavedView,
-    savedViewType,
     selectedProjectListItem,
     setWbsHierarchyLevel,
     startMilestoneLabelDrag,

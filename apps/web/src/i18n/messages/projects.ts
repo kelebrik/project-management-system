@@ -102,34 +102,6 @@ export const projectsCoreMessages = {
     "en": "Jira key",
     "ru": "Ключ Jira"
   },
-  "ui.projects.delayColumnLabel": {
-    "en": "Delay",
-    "ru": "Отставание"
-  },
-  "ui.projects.noneValue": {
-    "en": "none",
-    "ru": "нет"
-  },
-  "ui.projects.delayAtClosureLabel": {
-    "en": "Delay at closure:",
-    "ru": "Отставание на момент закрытия:"
-  },
-  "ui.projects.sourceLabel": {
-    "en": "Source:",
-    "ru": "Источник:"
-  },
-  "ui.projects.sourceInternalValue": {
-    "en": "Internal",
-    "ru": "Внутренний"
-  },
-  "ui.projects.notFilledInValue": {
-    "en": "not filled in",
-    "ru": "не заполнено"
-  },
-  "ui.projects.noJiraIssuesLinked": {
-    "en": "No Jira issues linked",
-    "ru": "Задачи Jira не связаны"
-  },
   "ui.projects.noClosedQuestionsYet": {
     "en": "No closed issues yet.",
     "ru": "Закрытых вопросов пока нет."
@@ -518,50 +490,6 @@ export const projectsCoreMessages = {
     "en": "No deviations from the baseline.",
     "ru": "Отклонений от базового плана нет."
   },
-  "ui.projects.pmWorkspaceTitle": {
-    "en": "PM workspace",
-    "ru": "Рабочий стол PM"
-  },
-  "ui.projects.pmWorkspaceOpenTopRisk": {
-    "en": "Open the top risk",
-    "ru": "Открыть главный риск"
-  },
-  "ui.projects.metricProgressLowercase": {
-    "en": "progress",
-    "ru": "прогресс"
-  },
-  "ui.projects.metricScheduleLowercase": {
-    "en": "schedule",
-    "ru": "сроки"
-  },
-  "ui.projects.metricDecisionsLowercase": {
-    "en": "decisions",
-    "ru": "решений"
-  },
-  "ui.projects.pmWorkspaceRedZoneRaidTitle": {
-    "en": "Red-zone RAID",
-    "ru": "RAID красной зоны"
-  },
-  "ui.projects.pmWorkspaceDecisionNeededTitle": {
-    "en": "Decision needed",
-    "ru": "Нужно решение"
-  },
-  "ui.projects.pmWorkspaceNoActiveTasks": {
-    "en": "No active tasks for the workspace.",
-    "ru": "Активных задач для рабочего стола нет."
-  },
-  "ui.projects.monthJulyLowercase": {
-    "en": "July",
-    "ru": "июль"
-  },
-  "ui.projects.monthAugustLowercase": {
-    "en": "August",
-    "ru": "август"
-  },
-  "ui.projects.monthSeptemberLowercase": {
-    "en": "September",
-    "ru": "сентябрь"
-  },
   "ui.projects.riskMatrixTitle": {
     "en": "Risk and problem matrix",
     "ru": "Матрица рисков и проблем"
@@ -705,54 +633,6 @@ export const projectsCoreMessages = {
   "ui.projects.structureNoCriticalPathTasksForFilter": {
     "en": "No critical path tasks for the current filter.",
     "ru": "Нет задач критического пути для текущего фильтра."
-  },
-  "ui.projects.startColumnLabel": {
-    "en": "Start",
-    "ru": "Старт"
-  },
-  "ui.projects.workSummaryHighlightTaskInStructure": {
-    "en": "Highlight the task in WBS",
-    "ru": "Выделить задачу в Структуре"
-  },
-  "ui.projects.workSummaryTitle": {
-    "en": "Work summary",
-    "ru": "Сводка по работам"
-  },
-  "ui.projects.workSummarySubtitle": {
-    "en": "Current tasks and tasks starting next week",
-    "ru": "Текущие задачи и задачи со стартом на следующей неделе"
-  },
-  "ui.projects.workSummaryExpandCurrentTasks": {
-    "en": "Expand current tasks",
-    "ru": "Развернуть текущие задачи"
-  },
-  "ui.projects.workSummaryCollapseCurrentTasks": {
-    "en": "Collapse current tasks",
-    "ru": "Свернуть текущие задачи"
-  },
-  "ui.projects.workSummaryCurrentTasksTitle": {
-    "en": "Current tasks",
-    "ru": "Текущие задачи"
-  },
-  "ui.projects.workSummaryPhaseFilterLabel": {
-    "en": "Filter current tasks by phase",
-    "ru": "Фильтр текущих задач по фазе"
-  },
-  "ui.projects.workSummaryAllPhasesOption": {
-    "en": "All phases",
-    "ru": "Все фазы"
-  },
-  "ui.projects.workSummaryExpandNextWeekTasks": {
-    "en": "Expand tasks starting next week",
-    "ru": "Развернуть задачи на следующей неделе"
-  },
-  "ui.projects.workSummaryCollapseNextWeekTasks": {
-    "en": "Collapse tasks starting next week",
-    "ru": "Свернуть задачи на следующей неделе"
-  },
-  "ui.projects.workSummaryNextWeekStartTitle": {
-    "en": "Starting next week",
-    "ru": "Старт на следующей неделе"
   },
   "ui.projects.ganttTabLabel": {
     "en": "Gantt",

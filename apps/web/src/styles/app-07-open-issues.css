@@ -72,10 +72,6 @@
   min-width: 0;
 }
 
-.issue-thread-link.is-empty {
-  color: var(--text-muted);
-}
-
 .issue-thread-edit {
   height: 32px;
   min-height: 32px;

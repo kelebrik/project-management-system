@@ -19,11 +19,6 @@
   width: calc(100% - 12px);
 }
 
-.sidebar button.sidebar-grandchild {
-  margin-left: 24px;
-  width: calc(100% - 24px);
-}
-
 .sidebar button.child::after {
   background: var(--border-strong);
   content: "";
@@ -222,11 +217,6 @@
 }
 
 .sidebar-collapsed .sidebar button.child {
-  margin-left: 0;
-  width: 42px;
-}
-
-.sidebar-collapsed .sidebar button.sidebar-grandchild {
   margin-left: 0;
   width: 42px;
 }

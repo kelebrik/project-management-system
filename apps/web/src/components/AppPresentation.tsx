@@ -3,7 +3,7 @@ import { useI18n } from "../i18n/I18nProvider";
 import type { Translator } from "../i18n/types";
 import type { ComponentProps, FocusEventHandler, KeyboardEventHandler } from "react";
 import type { CurrentUser } from "../app/adminTypes";
-import type { ProjectDetails, ProjectListItem, SavedView, SearchResult } from "../app/domainTypes";
+import type { ProjectDetails, ProjectListItem, SearchResult } from "../app/domainTypes";
 import type { ProjectModuleKey } from "../app/projectModules";
 import type { ProjectSectionView } from "../app/routes";
 import type { useGlobalSearch } from "../app/useGlobalSearch";
@@ -13,11 +13,8 @@ import type { AuthMode } from "../app/adminTypes";
 import type { Toast } from "../hooks/useAppFeedbackState";
 import { PageSkeleton } from "./Skeleton";
 import {
-  adminDictionaryLabels,
   adminPermissionLabel,
   adminPermissionOrder,
-  dictionaryItemToDraft,
-  dictionaryLabel,
   systemSettingHasValue,
   userRoleLabel,
   userToDraft,
@@ -62,7 +59,6 @@ import {
   operationsSectionViews,
   isAdminSectionViewName,
   isProjectSectionViewName,
-  isResourceSectionViewName,
 } from "../app/routes";
 import {
   PROJECT_CALENDAR_LABELS,
@@ -85,7 +81,6 @@ import {
 import { AppShell } from "./AppShell";
 import { AuthPage } from "./AuthPage";
 import { GlobalSearch } from "./GlobalSearch";
-import { SavedViewControls } from "./SavedViewControls";
 
 type AppPresentationProps = {
   authMode: AuthMode;
@@ -119,17 +114,10 @@ type AppPresentationProps = {
   projectSearch: string;
   projectTargetSummary: ComponentProps<typeof AppShell>["projectTargetSummary"];
   recentProjects: ProjectListItem[];
-  savedViewType: string | null;
-  saveCurrentSavedView: () => Promise<void> | void;
-  applySavedView: (view: SavedView) => void;
-  savedViewName: string;
-  savedViews: SavedView[];
-  savingSavedView: boolean;
   selectProject: (projectId: string, nextView?: AppView) => void;
   selectedProjectId: string | null;
   selectedProjectListItem: ProjectListItem | null;
   setProjectSearch: (value: string) => void;
-  setSavedViewName: (value: string) => void;
   setShowProjectPicker: (value: boolean) => void;
   showProjectPicker: boolean;
   sidebarCollapsed: boolean;
@@ -140,7 +128,6 @@ type AppPresentationProps = {
 function createViewTitle(project: ProjectDetails | null, t: Translator): Record<AppView, string> {
   return {
     portfolio: t("view.portfolio"),
-    "portfolio-v2": t("view.portfolio-v2"),
     "leave-schedule": t("view.leave-schedule"),
     workload: t("view.workload"),
     "decision-queue": t("view.decision-queue"),
@@ -152,15 +139,12 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     projects: t("view.projects"),
     reports: t("view.reports"),
     wiki: t("view.wiki"),
-    resources: t("view.resources"),
-    "resources-capacity": t("view.resources-capacity"),
     "project-create": t("view.project-create"),
     "project-overview": project?.name ?? t("view.project-overview"),
     "project-schedule": project?.name ?? t("view.project-schedule"),
     "project-passport": project?.name ?? t("view.project-passport"),
     "project-business-requirements": project?.name ?? t("view.project-business-requirements"),
     "project-current-work": project?.name ?? t("view.project-current-work"),
-    "project-pm-workspace": project?.name ?? t("view.project-pm-workspace"),
     "project-structure": project?.name ?? t("view.project-structure"),
     "project-gantt": project?.name ?? t("view.project-gantt"),
     "project-jira-work": project?.name ?? t("view.project-jira-work"),
@@ -168,15 +152,12 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     "project-decisions": project?.name ?? t("view.project-decisions"),
     "project-raid": project?.name ?? t("view.project-raid"),
     "project-changes": project?.name ?? t("view.project-changes"),
-    "project-budget": project?.name ?? t("view.project-budget"),
     "project-calendars": project?.name ?? t("view.project-calendars"),
     "project-artifacts": project?.name ?? t("view.project-artifacts"),
     "closed-projects": t("view.closed-projects"),
     admin: t("view.admin"),
     "admin-users": t("view.admin-users"),
     "admin-roles": t("view.admin-roles"),
-    "admin-dictionaries": t("view.admin-dictionaries"),
-    "admin-templates": t("view.admin-templates"),
     "admin-integrations": t("view.admin-integrations"),
     "admin-health": t("view.admin-health"),
     "admin-backups": t("view.admin-backups"),
@@ -222,33 +203,19 @@ export function AppPresentation({
   projectSearch,
   projectTargetSummary,
   recentProjects,
-  savedViewType,
-  saveCurrentSavedView,
-  applySavedView,
-  savedViewName,
-  savedViews,
-  savingSavedView,
   selectProject,
   selectedProjectId,
   selectedProjectListItem,
   setProjectSearch,
-  setSavedViewName,
   setShowProjectPicker,
   showProjectPicker,
 }: AppPresentationProps) {
   const activeView = context.activeView as AppView;
   const isProjectSectionView = isProjectSectionViewName(activeView);
-  const isResourceSectionView = isResourceSectionViewName(activeView);
   const isDevelopmentSectionView = isDevelopmentSectionViewName(activeView);
   const isOperationsSectionView = isOperationsSectionViewName(activeView);
-  const isProjectView =
-    activeView === "project-create" ||
-    activeView === "project-pm-workspace" ||
-    isProjectSectionView;
-  const shouldShowClosedProjectBanner = Boolean(
-    (isProjectSectionView || activeView === "project-pm-workspace") &&
-      isClosedProject,
-  );
+  const isProjectView = activeView === "project-create" || isProjectSectionView;
+  const shouldShowClosedProjectBanner = Boolean(isProjectSectionView && isClosedProject);
   const isAdminSectionView = isAdminSectionViewName(activeView);
   const shouldShowProjectMenu = Boolean(
     activeView === "projects" ||
@@ -284,21 +251,6 @@ export function AppPresentation({
       results={globalSearch.results}
     />
   );
-  const renderSavedViewControls = () => {
-    if (!savedViewType) return null;
-    return (
-      <SavedViewControls
-        disabled={!selectedProjectId}
-        isAuthenticated={isAuthenticated}
-        onNameChange={setSavedViewName}
-        onSave={() => void saveCurrentSavedView()}
-        onSelect={applySavedView}
-        saving={savingSavedView}
-        savedViewName={savedViewName}
-        savedViews={savedViews}
-      />
-    );
-  };
 
   if (loading) {
     return (
@@ -322,7 +274,6 @@ export function AppPresentation({
   const pageContext = {
     ...context,
     isProjectModuleEnabled,
-    adminDictionaryLabels,
     adminPermissionLabel,
     adminPermissionOrder,
     artifactStatusLabel,
@@ -331,8 +282,6 @@ export function AppPresentation({
     clampNumber,
     date,
     dateTime,
-    dictionaryItemToDraft,
-    dictionaryLabel,
     fileSize,
     GANTT_HIERARCHY_LEVELS,
     GANTT_LINK_ENDPOINT_GAP_PERCENT,
@@ -347,7 +296,6 @@ export function AppPresentation({
     isDevelopmentSectionView,
     sectionAccess,
     isDefaultWorkingDay,
-    isResourceSectionView,
     issuePrimaryJiraLink,
     issueSeverityLabel,
     issueStatusLabel,
@@ -362,7 +310,6 @@ export function AppPresentation({
     ragOptionLabel,
     raidStatusLabel,
     raidTypeLabel,
-    renderSavedViewControls,
     riskTone,
     signedDateDeltaDays,
     signedDaysLabel,

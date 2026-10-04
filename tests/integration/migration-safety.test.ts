@@ -20,6 +20,8 @@ const allowedDataRewriteMigrations = new Set([
   // Removes only the RAG formula and approval workflow settings and their two
   // admin permissions, which nothing read.
   "20261003120000_drop_rag_workflow_settings",
+  // Removes only unread settings (WBS templates, GitHub, Azure DevOps, BI) and unchecked admin permissions.
+  "20261004090000_drop_dead_settings",
 ]);
 
 const protectedProjectTables = [

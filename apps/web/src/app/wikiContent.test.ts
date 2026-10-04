@@ -141,17 +141,20 @@ test("FAQ separates the synthetic cloud demo from the read-only corporate Jira",
   assert.match(english, /PUT, PATCH or DELETE, is blocked/);
 });
 
-test("FAQ does not claim that the placeholder budget screen is implemented", () => {
-  const russian = articleTextById(wikiGroups, "wiki-changes-budget-artifacts");
-  const english = articleTextById(
-    englishWikiGroups,
-    "wiki-changes-budget-artifacts",
-  );
+test("FAQ does not describe the removed pages and settings", () => {
+  const allText = (groups: WikiGroup[]) =>
+    articlesOf(groups)
+      .flatMap((article) => [article.title, ...article.sections.flatMap((section) => [section.heading, ...section.points])])
+      .join(" ");
+  const russian = allText(wikiGroups);
+  const english = allText(englishWikiGroups);
 
-  assert.match(russian, /заглушка/);
-  assert.doesNotMatch(russian, /для будущего план-факт-прогноза/);
-  assert.match(english, /placeholder/);
-  assert.doesNotMatch(english, /for a future plan-fact-forecast/);
+  for (const removed of [/Управление бюджетом/, /Дорожная карта v2/, /Управление ресурсами/, /Параметры ресурсов/, /Справочники и шаблоны/, /Azure DevOps/]) {
+    assert.doesNotMatch(russian, removed);
+  }
+  for (const removed of [/Budget management/, /Roadmap v2/, /Resource management/, /Resource settings/, /Dictionaries and templates/, /Azure DevOps/]) {
+    assert.doesNotMatch(english, removed);
+  }
 });
 
 test("FAQ documents the Operations section in both languages", () => {

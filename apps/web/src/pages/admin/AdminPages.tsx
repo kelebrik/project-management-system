@@ -29,14 +29,6 @@ export function AdminRolesPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }
 
-export function AdminDictionariesPage({ children }: AdminPageProps) {
-  return <PageShell>{children}</PageShell>;
-}
-
-export function AdminTemplatesPage({ children }: AdminPageProps) {
-  return <PageShell>{children}</PageShell>;
-}
-
 export function AdminHealthPage({ children }: AdminPageProps) {
   return <PageShell>{children}</PageShell>;
 }

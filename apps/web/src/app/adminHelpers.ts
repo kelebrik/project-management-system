@@ -24,27 +24,6 @@ type UserDraftState = {
   isActive: boolean;
 };
 
-type DictionaryItem = {
-  id: string;
-  dictionary: string;
-  code: string;
-  label: string;
-  description: string | null;
-  sortOrder: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type DictionaryItemDraft = {
-  dictionary: string;
-  code: string;
-  label: string;
-  description: string;
-  sortOrder: string;
-  isActive: boolean;
-};
-
 type SystemSetting = {
   key: string;
   value: string;
@@ -58,15 +37,6 @@ type SystemSettingsDraft = {
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
   gitlabToken: string;
-  githubEnabled: boolean;
-  githubBaseUrl: string;
-  githubToken: string;
-  azureDevOpsEnabled: boolean;
-  azureDevOpsOrganizationUrl: string;
-  azureDevOpsToken: string;
-  biEnabled: boolean;
-  biExportUrl: string;
-  wbsTemplates: string;
 };
 
 export const adminPermissionOrder = [
@@ -97,26 +67,9 @@ export const adminPermissionOrder = [
   "overview.export",
   "admin.users",
   "admin.roles",
-  "admin.dictionaries",
-  "admin.templates",
-  "admin.health",
-  "admin.backup",
   "admin.config",
-  "admin.project_access",
-  "admin.audit",
   "admin.integrations",
 ];
-
-export const adminDictionaryLabels: Record<string, string> = {
-  project_status: "Статусы проектов",
-  project_type: "Типы проектов",
-  risk_type: "Типы рисков",
-  wbs_type: "Типы Структуры",
-  wbs_status: "Статусы Структуры",
-  issue_severity: "Критичность открытых вопросов",
-  raid_type: "Типы рисков и проблем",
-  raid_status: "Статусы рисков и проблем",
-};
 
 export function userRoleLabel(role: UserRole) {
   return labels.userRole[role] ?? role;
@@ -151,20 +104,10 @@ export function adminPermissionLabel(permission: string) {
     "overview.export": "Экспорт обзора",
     "admin.users": "Пользователи",
     "admin.roles": "Роли и права",
-    "admin.dictionaries": "Справочники",
-    "admin.templates": "Шаблоны Структуры",
-    "admin.health": "System health",
-    "admin.backup": "Backup/restore status",
     "admin.config": "Import/export конфигурации",
-    "admin.project_access": "Доступ к проектам",
-    "admin.audit": "Журнал аудита",
     "admin.integrations": "Интеграции и API",
   };
   return labelsByPermission[permission] ?? permission;
-}
-
-export function dictionaryLabel(dictionary: string) {
-  return adminDictionaryLabels[dictionary] ?? dictionary;
 }
 
 export function userToDraft(user: SystemUser): UserDraftState {
@@ -180,39 +123,12 @@ export function usersToDrafts(users: SystemUser[]) {
   return Object.fromEntries(users.map((user) => [user.id, userToDraft(user)]));
 }
 
-export function dictionaryItemToDraft(item: DictionaryItem): DictionaryItemDraft {
-  return {
-    dictionary: item.dictionary,
-    code: item.code,
-    label: item.label,
-    description: item.description ?? "",
-    sortOrder: String(item.sortOrder),
-    isActive: item.isActive,
-  };
-}
-
-export function dictionaryItemsToDrafts(items: DictionaryItem[]) {
-  return Object.fromEntries(
-    items.map((item) => [item.id, dictionaryItemToDraft(item)]),
-  );
-}
-
 export function systemSettingsToDraft(settings: SystemSetting[]): SystemSettingsDraft {
   const byKey = new Map(settings.map((setting) => [setting.key, setting]));
   return {
     gitlabEnabled: byKey.get("gitlab.enabled")?.value === "true",
     gitlabBaseUrl: byKey.get("gitlab.baseUrl")?.value ?? "",
     gitlabToken: "",
-    githubEnabled: byKey.get("github.enabled")?.value === "true",
-    githubBaseUrl: byKey.get("github.baseUrl")?.value ?? "https://api.github.com",
-    githubToken: "",
-    azureDevOpsEnabled: byKey.get("azureDevOps.enabled")?.value === "true",
-    azureDevOpsOrganizationUrl:
-      byKey.get("azureDevOps.organizationUrl")?.value ?? "",
-    azureDevOpsToken: "",
-    biEnabled: byKey.get("bi.enabled")?.value === "true",
-    biExportUrl: byKey.get("bi.exportUrl")?.value ?? "",
-    wbsTemplates: byKey.get("wbs.templates")?.value ?? "",
   };
 }
 

@@ -5,15 +5,6 @@ export const rolePermissionSchema = z.object({
   enabled: z.boolean(),
 });
 
-export const dictionaryItemSchema = z.object({
-  dictionary: z.string().trim().min(1),
-  code: z.string().trim().min(1),
-  label: z.string().trim().min(1),
-  description: z.string().trim().optional().nullable(),
-  sortOrder: z.coerce.number().int().default(0),
-  isActive: z.boolean().default(true),
-});
-
 export const systemSettingsSchema = z.object({
   settings: z.record(
     z.string(),
@@ -82,7 +73,8 @@ export const adminConfigImportSchema = z.object({
       }),
     )
     .optional(),
-  dictionaryItems: z.array(dictionaryItemSchema).optional(),
+  // Accepted for older configuration exports and ignored on import.
+  dictionaryItems: z.array(z.unknown()).optional(),
   systemSettings: z
     .array(
       z.object({

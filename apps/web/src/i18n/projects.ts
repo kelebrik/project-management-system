@@ -51,10 +51,6 @@ export const projects = {
     "en": "Description",
     "ru": "Описание"
   },
-  "fields.order": {
-    "en": "Order",
-    "ru": "Порядок"
-  },
   "fields.date": {
     "en": "Date",
     "ru": "Дата"
@@ -556,22 +552,6 @@ export const projects = {
   "changes.emptyHelp": {
     "en": "Deviations appear when forecast dates differ from the baseline.",
     "ru": "Отклонения появятся, когда прогнозная дата отойдёт от базового плана."
-  },
-  "budget.title": {
-    "en": "Budget management",
-    "ru": "Управление бюджетом"
-  },
-  "budget.description": {
-    "en": "Budget planning has a dedicated page. It will be available once the financial data model is agreed.",
-    "ru": "Контур бюджетного планирования выделен в отдельную страницу и будет наполнен после согласования модели финансовых данных."
-  },
-  "budget.ready": {
-    "en": "Budget module prepared",
-    "ru": "Бюджетный модуль подготовлен"
-  },
-  "budget.details": {
-    "en": "This page currently performs no financial calculations and does not affect project metrics. Once the fields are agreed, it can show planned, actual and forecast figures, limits and variances.",
-    "ru": "Сейчас страница не считает финансы и не влияет на проектные показатели. После согласования состава полей сюда можно вынести план, факт, прогноз, лимиты и отклонения."
   },
   "changes.days": {
     "ru": "+{count} кал. дн.",

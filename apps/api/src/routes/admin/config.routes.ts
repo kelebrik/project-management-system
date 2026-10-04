@@ -4,7 +4,6 @@ import { recordAuditEvent } from '../../services/audit.js';
 import { integrationSettings, managedPermissions, managedRoles, retiredPermissions, retiredSystemSettings } from './defaults.js';
 import {
   adminConfigImportSchema,
-  dictionaryItemSchema,
   rolePermissionSchema,
   systemSettingsSchema,
 } from './schemas.js';
@@ -19,14 +18,13 @@ import {
   ensureAdminConfigDefaults,
 } from './system.js';
 import type { AdminRoutesContext } from './types.js';
-import { patchSchema } from '../patch-schema.js';
 
 export function registerAdminConfigRoutes(router: Router, context: AdminRoutesContext) {
   const { requireAdmin, currentUser, startedAt } = context;
 
   router.get('/admin/config', requireAdmin, async (_req, res) => {
     await ensureAdminConfigDefaults();
-    const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules, health, backupStatus] =
+    const [rolePermissions, businessUnitRolePermissions, systemSettings, projectModules, health, backupStatus] =
       await Promise.all([
         prisma.rolePermission.findMany({
           where: { role: { in: managedRoles } },
@@ -35,9 +33,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
         prisma.businessUnitRolePermission.findMany({
           where: { role: { in: ['ADMIN', 'VIEWER'] } },
           orderBy: [{ role: 'asc' }, { permission: 'asc' }],
-        }),
-        prisma.dictionaryItem.findMany({
-          orderBy: [{ dictionary: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }],
         }),
         prisma.systemSetting.findMany({
           orderBy: { key: 'asc' },
@@ -50,7 +45,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     res.json({
       rolePermissions,
       businessUnitRolePermissions,
-      dictionaryItems,
       systemSettings: systemSettings.map(adminSettingResponse),
       projectModules,
       managedPermissions,
@@ -61,7 +55,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
 
   router.get('/admin/config/export', requireAdmin, async (_req, res) => {
     await ensureAdminConfigDefaults();
-    const [rolePermissions, businessUnitRolePermissions, dictionaryItems, systemSettings, projectModules] = await Promise.all([
+    const [rolePermissions, businessUnitRolePermissions, systemSettings, projectModules] = await Promise.all([
       prisma.rolePermission.findMany({
         where: { role: { in: managedRoles } },
         orderBy: [{ role: 'asc' }, { permission: 'asc' }],
@@ -69,9 +63,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       prisma.businessUnitRolePermission.findMany({
         where: { role: { in: ['ADMIN', 'VIEWER'] } },
         orderBy: [{ role: 'asc' }, { permission: 'asc' }],
-      }),
-      prisma.dictionaryItem.findMany({
-        orderBy: [{ dictionary: 'asc' }, { sortOrder: 'asc' }, { code: 'asc' }],
       }),
       prisma.systemSetting.findMany({
         orderBy: { key: 'asc' },
@@ -91,16 +82,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
         permission,
         enabled,
       })),
-      dictionaryItems: dictionaryItems.map(
-        ({ dictionary, code, label, description, sortOrder, isActive }) => ({
-          dictionary,
-          code,
-          label,
-          description,
-          sortOrder,
-          isActive,
-        }),
-      ),
       systemSettings: systemSettings.map(({ key, value, isSecret }) => ({
         key,
         value: isSecret ? '' : value,
@@ -119,7 +100,7 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
     }
     const rolePermissions = (parsed.data.rolePermissions ?? []).filter((permission) => !retiredPermissions.includes(permission.permission));
     const businessUnitRolePermissions = parsed.data.businessUnitRolePermissions ?? [];
-    const dictionaryItems = parsed.data.dictionaryItems ?? [];
+    // Older exports carry a dictionaryItems array; dictionaries are no longer editable, so it is ignored.
     const systemSettings = (parsed.data.systemSettings ?? []).filter((setting) => !retiredSystemSettings.includes(setting.key));
     const projectModules = parsed.data.projectModules ?? [];
 
@@ -146,30 +127,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
           },
           update: { enabled: permission.enabled },
           create: permission,
-        }),
-      ),
-      ...dictionaryItems.map((item) =>
-        prisma.dictionaryItem.upsert({
-          where: {
-            dictionary_code: {
-              dictionary: item.dictionary,
-              code: item.code,
-            },
-          },
-          update: {
-            label: item.label,
-            description: item.description || null,
-            sortOrder: item.sortOrder,
-            isActive: item.isActive,
-          },
-          create: {
-            dictionary: item.dictionary,
-            code: item.code,
-            label: item.label,
-            description: item.description || null,
-            sortOrder: item.sortOrder,
-            isActive: item.isActive,
-          },
         }),
       ),
       ...systemSettings
@@ -200,7 +157,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       metadata: {
         rolePermissions: rolePermissions.length,
         businessUnitRolePermissions: businessUnitRolePermissions.length,
-        dictionaryItems: dictionaryItems.length,
         systemSettings: systemSettings.length,
         projectModules: projectModules.length,
       },
@@ -243,117 +199,6 @@ export function registerAdminConfigRoutes(router: Router, context: AdminRoutesCo
       objectId: updated.id,
       beforeValue: before,
       afterValue: updated,
-    });
-    res.json(updated);
-  });
-
-  router.post('/admin/dictionary-items', requireAdmin, async (req, res) => {
-    const parsed = dictionaryItemSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
-      return;
-    }
-
-    const item = await prisma.dictionaryItem.upsert({
-      where: {
-        dictionary_code: {
-          dictionary: parsed.data.dictionary,
-          code: parsed.data.code,
-        },
-      },
-      update: {
-        label: parsed.data.label,
-        description: parsed.data.description || null,
-        sortOrder: parsed.data.sortOrder,
-        isActive: parsed.data.isActive,
-      },
-      create: {
-        dictionary: parsed.data.dictionary,
-        code: parsed.data.code,
-        label: parsed.data.label,
-        description: parsed.data.description || null,
-        sortOrder: parsed.data.sortOrder,
-        isActive: parsed.data.isActive,
-      },
-    });
-    await recordAuditEvent({
-      req,
-      actor: currentUser(req),
-      action: 'admin.dictionary.upsert',
-      objectType: 'DictionaryItem',
-      objectId: item.id,
-      afterValue: item,
-      metadata: { dictionary: item.dictionary, code: item.code },
-    });
-    res.status(201).json(item);
-  });
-
-  router.patch('/admin/dictionary-items/:itemId', requireAdmin, async (req, res) => {
-    const parsed = patchSchema(dictionaryItemSchema).safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json({ error: parsed.error.flatten() });
-      return;
-    }
-    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
-    if (!itemId) {
-      res.status(400).json({ error: 'Элемент справочника не указан' });
-      return;
-    }
-
-    const before = await prisma.dictionaryItem.findUnique({ where: { id: itemId } });
-    if (!before) {
-      res.status(404).json({ error: 'Элемент справочника не найден' });
-      return;
-    }
-    const updated = await prisma.dictionaryItem.update({
-      where: { id: itemId },
-      data: {
-        dictionary: parsed.data.dictionary,
-        code: parsed.data.code,
-        label: parsed.data.label,
-        description:
-          parsed.data.description === undefined ? undefined : parsed.data.description || null,
-        sortOrder: parsed.data.sortOrder,
-        isActive: parsed.data.isActive,
-      },
-    });
-    await recordAuditEvent({
-      req,
-      actor: currentUser(req),
-      action: 'admin.dictionary.update',
-      objectType: 'DictionaryItem',
-      objectId: updated.id,
-      beforeValue: before,
-      afterValue: updated,
-      metadata: { dictionary: updated.dictionary, code: updated.code },
-    });
-    res.json(updated);
-  });
-
-  router.delete('/admin/dictionary-items/:itemId', requireAdmin, async (req, res) => {
-    const itemId = Array.isArray(req.params.itemId) ? req.params.itemId[0] : req.params.itemId;
-    if (!itemId) {
-      res.status(400).json({ error: 'Элемент справочника не указан' });
-      return;
-    }
-    const before = await prisma.dictionaryItem.findUnique({ where: { id: itemId } });
-    if (!before) {
-      res.status(404).json({ error: 'Элемент справочника не найден' });
-      return;
-    }
-    const updated = await prisma.dictionaryItem.update({
-      where: { id: itemId },
-      data: { isActive: false },
-    });
-    await recordAuditEvent({
-      req,
-      actor: currentUser(req),
-      action: 'admin.dictionary.deactivate',
-      objectType: 'DictionaryItem',
-      objectId: updated.id,
-      beforeValue: before,
-      afterValue: updated,
-      metadata: { dictionary: updated.dictionary, code: updated.code },
     });
     res.json(updated);
   });

@@ -217,31 +217,6 @@ code {
   gap: 12px;
 }
 
-.issue-list {
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  display: grid;
-  gap: 0;
-  overflow: hidden;
-}
-
-.issue-list-head,
-.issue-summary-row {
-  align-items: center;
-  display: grid;
-  gap: 10px;
-  grid-template-columns: minmax(220px, 1fr) 112px 104px 118px 150px 24px;
-}
-
-.issue-list-head {
-  background: var(--surface-3);
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 800;
-  padding: 9px 12px;
-  text-transform: uppercase;
-}
-
 .form-grid {
   display: grid;
   gap: 14px;

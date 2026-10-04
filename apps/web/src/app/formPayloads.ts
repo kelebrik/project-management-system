@@ -1,4 +1,3 @@
-import type { DictionaryItemDraft } from "./adminTypes";
 import type {
   ArtifactFormState,
   ProjectFormState,
@@ -15,17 +14,6 @@ export function projectPayload(form: ProjectFormState) {
     scheduleVariance: Number(form.scheduleVariance),
     progress: Number(form.progress),
     sortOrder: Number(form.sortOrder),
-  };
-}
-
-export function dictionaryPayload(draft: DictionaryItemDraft) {
-  return {
-    dictionary: draft.dictionary.trim(),
-    code: draft.code.trim(),
-    label: draft.label.trim(),
-    description: draft.description.trim() || null,
-    sortOrder: Number(draft.sortOrder) || 0,
-    isActive: draft.isActive,
   };
 }
 

@@ -7,14 +7,12 @@ import {
   AdminAuditPage,
   AdminBackupsPage,
   AdminConfigPage,
-  AdminDictionariesPage,
   AdminHealthPage,
   AdminModulesPage,
   AdminPage,
   AdminProjectAccessPage,
   AdminProjectsPage,
   AdminRolesPage,
-  AdminTemplatesPage,
   AdminUsersPage,
 } from "./admin/AdminPages";
 
@@ -55,12 +53,6 @@ export function PageBoundary({
   }
   if (view === "admin-roles") {
     return <AdminRolesPage>{children}</AdminRolesPage>;
-  }
-  if (view === "admin-dictionaries") {
-    return <AdminDictionariesPage>{children}</AdminDictionariesPage>;
-  }
-  if (view === "admin-templates") {
-    return <AdminTemplatesPage>{children}</AdminTemplatesPage>;
   }
   if (view === "admin-health") {
     return <AdminHealthPage>{children}</AdminHealthPage>;

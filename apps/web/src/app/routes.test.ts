@@ -37,13 +37,25 @@ test("system admin can open every administration section", () => {
   assert.equal(canAccessAdminView("admin-analytics", true, false), true);
 });
 
-test("roadmap v2 is a development section with its own route", () => {
-  assert.equal(isDevelopmentSectionViewName("portfolio-v2"), true);
-  assert.equal(writeProtectedViews.has("portfolio-v2"), true);
-  assert.equal(appPathForView("portfolio-v2"), "/development/portfolio-v2");
-  assert.equal(appViewFromPath("/development/portfolio-v2"), "portfolio-v2");
-  assert.equal(appViewFromPath("/portfolio-v2"), "portfolio-v2");
-  assert.equal(appViewFromPath("/portfolio"), "portfolio");
+test("addresses of removed pages lead to the nearest page that still exists", () => {
+  for (const [path, view] of [
+    ["/portfolio-v2", "portfolio"],
+    ["/development/portfolio-v2", "portfolio"],
+    ["/development", "decision-queue"],
+    ["/development/pm-workspace", "my-work"],
+    ["/development/workspace", "my-work"],
+    ["/development/resources", "workload"],
+    ["/development/resources/capacity", "workload"],
+    ["/resources/settings", "workload"],
+    ["/budget", "project-overview"],
+    ["/admin/templates", "admin-projects"],
+    ["/admin/dictionaries", "admin-projects"],
+  ] as const) {
+    assert.equal(appViewFromPath(path), view, path);
+  }
+  assert.equal(appViewFromPath("/TV/budget"), "project-overview");
+  assert.equal(appViewFromPath("/TV/pm-workspace"), "project-overview");
+  assert.equal(writeProtectedViews.has("decision-queue"), true);
 });
 
 test("the issues prototype left Development: issues live in the project", () => {
@@ -53,7 +65,7 @@ test("the issues prototype left Development: issues live in the project", () => 
 });
 
 test("public demo visitor only reads administration and development and edits everything else", () => {
-  for (const view of ["admin-users", "admin-config", "resources", "portfolio-v2", "closed-projects"] as const) {
+  for (const view of ["admin-users", "admin-config", "decision-queue", "closed-projects"] as const) {
     assert.equal(canViewAppView(view, demoVisitor), true, `view ${view}`);
     assert.equal(canEditAppView(view, demoVisitor), false, `edit ${view}`);
   }
@@ -95,16 +107,15 @@ test("Operations and Reports are open to any signed-in user, Development only to
 test("outside the demo the same sections stay behind their roles", () => {
   assert.equal(canViewAppView("admin-users", guest), false);
   assert.equal(canViewAppView("admin-users", projectManager), false);
-  assert.equal(canViewAppView("resources", projectManager), false);
-  assert.equal(canViewAppView("portfolio-v2", projectManager), false);
+  assert.equal(canViewAppView("decision-queue", projectManager), false);
 
   assert.equal(canViewAppView("admin-projects", unitAdmin), true);
   assert.equal(canEditAppView("admin-projects", unitAdmin), true);
   assert.equal(canViewAppView("admin-users", unitAdmin), false);
-  assert.equal(canViewAppView("resources", unitAdmin), false);
+  assert.equal(canViewAppView("decision-queue", unitAdmin), false);
 
-  assert.equal(canViewAppView("portfolio-v2", systemAdmin), true);
-  assert.equal(canEditAppView("portfolio-v2", systemAdmin), true);
+  assert.equal(canViewAppView("decision-queue", systemAdmin), true);
+  assert.equal(canEditAppView("decision-queue", systemAdmin), true);
   assert.equal(canViewAppView("admin-users", systemAdmin), true);
 });
 

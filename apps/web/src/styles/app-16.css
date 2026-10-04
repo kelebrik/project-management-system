@@ -348,9 +348,6 @@ html {
   .milestone-row,
   .wbs-kpis,
   .resource-command-grid,
-  .resource-profile-layout,
-  .resource-profile-grid,
-  .resource-profile-metrics,
   .resource-kpi-grid,
   .resource-lower-grid,
   .resource-schedule-grid,
@@ -375,8 +372,6 @@ html {
   .module-table-row,
   .permission-head,
   .permission-row,
-  .dictionary-head,
-  .dictionary-row,
   .audit-head,
   .audit-row,
   .artifact-head,
@@ -403,19 +398,9 @@ html {
     grid-row: auto;
   }
 
-  .resource-panel-head,
-  .resource-profile-title,
   .resource-schedule-owner {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .resource-profile-actions {
-    justify-content: flex-start;
-  }
-
-  .resource-assignment-table {
-    overflow-x: auto;
   }
 
   .resource-profile-table {
@@ -424,10 +409,6 @@ html {
 
   .resource-profile-row {
     min-width: 760px;
-  }
-
-  .resource-capacity-table {
-    overflow-x: auto;
   }
 
   .resource-request-card {
@@ -456,20 +437,6 @@ html {
     grid-column: span 1;
   }
 
-  .issue-list-head {
-    display: none;
-  }
-
-  .issue-summary-row {
-    grid-template-columns: minmax(0, 1fr) 28px;
-    padding: 10px 12px;
-  }
-
-  .issue-summary-cell {
-    grid-column: 1;
-    white-space: normal;
-  }
-
   .issue-chevron {
     align-self: center;
     grid-column: 2;
@@ -494,7 +461,6 @@ html {
   .project-admin-head,
   .project-access-head,
   .permission-head,
-  .dictionary-head,
   .audit-head,
   .artifact-head,
   .raid-head,
@@ -504,15 +470,13 @@ html {
 
   .project-admin-table,
   .project-access-table,
-  .permission-table,
-  .dictionary-table {
+  .permission-table {
     overflow-x: visible;
   }
 
   .project-admin-row,
   .project-access-row,
-  .permission-row,
-  .dictionary-row {
+  .permission-row {
     border: 1px solid var(--border-3);
     border-radius: 8px;
     margin-bottom: 10px;
@@ -524,8 +488,6 @@ html {
   .project-access-row > div,
   .project-access-row > span,
   .project-admin-readonly,
-  .dictionary-row label,
-  .dictionary-actions,
   .permission-row strong,
   .permission-toggle,
   .audit-row span,
@@ -536,13 +498,11 @@ html {
 
   .project-admin-row label > span,
   .project-access-row label > span,
-  .project-admin-readonly > span,
-  .dictionary-row label > span {
+  .project-admin-readonly > span {
     display: block;
   }
 
-  .project-admin-actions,
-  .dictionary-actions {
+  .project-admin-actions {
     justify-content: flex-end;
   }
 
@@ -608,14 +568,6 @@ html {
 
   .projects-overview-passport {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .work-summary-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .work-summary-section {
-    max-height: 520px;
   }
 
   .portfolio-raid-due,

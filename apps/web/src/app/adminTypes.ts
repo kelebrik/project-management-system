@@ -112,18 +112,6 @@ export type RolePermission = {
   updatedAt: string;
 };
 
-export type DictionaryItem = {
-  id: string;
-  dictionary: string;
-  code: string;
-  label: string;
-  description: string | null;
-  sortOrder: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-};
-
 export type SystemSetting = {
   key: string;
   value: string;
@@ -159,7 +147,6 @@ export type BackupStatus = {
 
 export type AdminConfig = {
   rolePermissions: RolePermission[];
-  dictionaryItems: DictionaryItem[];
   systemSettings: SystemSetting[];
   projectModules: ProjectModule[];
   managedPermissions: string[];
@@ -243,26 +230,8 @@ export type UserDraftState = {
   isActive: boolean;
 };
 
-export type DictionaryItemDraft = {
-  dictionary: string;
-  code: string;
-  label: string;
-  description: string;
-  sortOrder: string;
-  isActive: boolean;
-};
-
 export type SystemSettingsDraft = {
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
   gitlabToken: string;
-  githubEnabled: boolean;
-  githubBaseUrl: string;
-  githubToken: string;
-  azureDevOpsEnabled: boolean;
-  azureDevOpsOrganizationUrl: string;
-  azureDevOpsToken: string;
-  biEnabled: boolean;
-  biExportUrl: string;
-  wbsTemplates: string;
 };

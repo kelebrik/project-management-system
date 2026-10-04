@@ -79,12 +79,7 @@ const legacyPermissionFallbacks: Record<string, string[]> = {
   'overview.export': ['overview.publish'],
   'admin.users': ['admin.manage'],
   'admin.roles': ['admin.manage'],
-  'admin.dictionaries': ['admin.manage'],
-  'admin.templates': ['admin.manage'],
-  'admin.health': ['admin.manage'],
-  'admin.backup': ['admin.manage'],
   'admin.config': ['admin.manage'],
-  'admin.audit': ['admin.manage'],
   'admin.modules': ['admin.manage', 'admin.config'],
   'admin.integrations': ['admin.manage', 'admin.config'],
 };

@@ -174,13 +174,6 @@ export const openApiAdminPaths = {
         pathParam("permissionId"),
       ]),
     },
-    "/api/admin/dictionary-items": {
-      post: createOperation(["Admin"], "Create or upsert dictionary item"),
-    },
-    "/api/admin/dictionary-items/{itemId}": {
-      patch: securedOperation(["Admin"], "Update dictionary item", [pathParam("itemId")]),
-      delete: deleteOperation(["Admin"], "Deactivate dictionary item", [pathParam("itemId")]),
-    },
     "/api/admin/system-settings": {
       put: securedOperation(["Admin"], "Update system settings including Jira settings"),
     },
@@ -190,7 +183,7 @@ export const openApiAdminPaths = {
         summary: "Admin back office configuration",
         security: [{ sessionCookie: [] }],
         responses: {
-          "200": { description: "Roles, permissions, dictionaries, settings" },
+          "200": { description: "Roles, permissions, settings" },
         },
       },
     },

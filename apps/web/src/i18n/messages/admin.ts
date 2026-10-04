@@ -260,8 +260,8 @@ export const adminMessages = {
     "ru": "События аудита пока не записаны."
   },
   "ui.admin.integrationsDescription": {
-    "en": "API tokens, the webhook API, and external environment settings: GitLab, GitHub, Azure DevOps, and BI.",
-    "ru": "API-токены, webhook API и настройки внешних контуров: GitLab, GitHub, Azure DevOps и BI."
+    "en": "API tokens, the webhook API, and GitLab settings.",
+    "ru": "API-токены, webhook API и настройки GitLab."
   },
   "ui.admin.apiTokens": {
     "en": "API tokens",
@@ -362,18 +362,6 @@ export const adminMessages = {
   "ui.admin.notSetMasculine": {
     "en": "not set",
     "ru": "не задан"
-  },
-  "ui.admin.githubEnabled": {
-    "en": "GitHub enabled",
-    "ru": "GitHub включен"
-  },
-  "ui.admin.azureDevOpsEnabled": {
-    "en": "Azure DevOps enabled",
-    "ru": "Azure DevOps включен"
-  },
-  "ui.admin.biEnabled": {
-    "en": "BI enabled",
-    "ru": "BI включен"
   },
   "ui.admin.savingEllipsisDots": {
     "en": "Saving...",

@@ -39,7 +39,7 @@ Big work-management suites do a lot, and ask a lot in return: licences per seat,
 
 **Administration**
 - Business units, roles and permissions, per-project access
-- Dictionaries, WBS templates, audit log, API tokens and webhooks
+- Audit log, API tokens and webhooks
 - Read-only Jira and GitLab integrations
 
 ## Screenshots

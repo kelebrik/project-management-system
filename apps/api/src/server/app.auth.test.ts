@@ -26,8 +26,8 @@ test('the cloud profile keeps application data private while both login methods 
     const projects = await fetch(`${baseUrl}/api/projects`);
     assert.equal(projects.status, 401);
 
-    const portfolioRoadmap = await fetch(`${baseUrl}/api/projects/portfolio-roadmap`);
-    assert.equal(portfolioRoadmap.status, 401);
+    const copyOptions = await fetch(`${baseUrl}/api/projects/structure-copy-options`);
+    assert.equal(copyOptions.status, 401);
 
     // 400 rather than 401 proves the route is reachable without a session.
     const localLogin = await fetch(`${baseUrl}/api/auth/login`, { method: 'POST' });

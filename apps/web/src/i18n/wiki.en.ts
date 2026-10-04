@@ -6,13 +6,13 @@ export const englishWikiGroups: WikiGroup[] = [
   {
     "id": "wiki-general",
     "title": "General structure",
-    "description": "Navigation, access, search, saved views and the portfolio model.",
+    "description": "Navigation, access, search and the portfolio model.",
     "articles": [
       {
         "id": "wiki-navigation-access",
         "title": "Navigation, access and read-only modes",
         "summary": "How a user reaches each section, why some actions are blocked, and how global navigation differs from project navigation.",
-        "keywords": ["navigation", "access", "permissions", "read only", "header", "search", "saved views", "language", "title"],
+        "keywords": ["navigation", "access", "permissions", "read only", "header", "search", "language", "title"],
         "sections": [
           {
             "heading": "Top navigation",
@@ -22,15 +22,15 @@ export const englishWikiGroups: WikiGroup[] = [
               "Once a project is selected, a separate row appears below the header: the project picker on the left, then Registry, the sections of the enabled modules and the Create button.",
               "The order of the project sections is: Overview, Schedule, Gantt, Current Work, WBS, Jira Work, Charter, Requirements, Issues, Risks, Artifacts, Calendars. A disabled module removes its sections from the row: Schedule goes with the Project status module, Current Work with the WBS module.",
               "Administration is available to the system administrator and to the administrator of the selected BU. A BU administrator sees only the Project registry and Access tabs.",
-              "The Development section is available only to the system administrator. The Development button opens the Resource management tab.",
+              "The Development section is available only to the system administrator. The Development button opens the Decision queue tab.",
               "In the public demo (a cloud installation with PUBLIC_DEMO_MODE) a visitor can open Administration and Development read-only and can change every other section, Operations included; closed projects stay read-only for the visitor too.",
               "The interface language switch RU/EN sits on the right-hand side of the header. The choice is stored in the browser and takes precedence over the default language.",
               "The default language comes from the build-time variable VITE_DEFAULT_LOCALE. If it is not set, sberdevices.ru hosts default to Russian and every other host defaults to English.",
               "On the FAQ page there is a horizontal table of contents with anchors above the articles, and the search box filters articles by title, keywords and body text.",
               "The product icon on the left of the header opens the Gantry page on GitHub in a new window.",
               "The Operations section holds the Leave schedule and Workload tabs. It is open to every signed-in user; without signing in the app asks the user to sign in.",
-              "The Development section holds the Archive, Portfolio v2, Jira and WBS reconciliation, PM workspace, Decision queue, Project lessons, RACI, My work, Rules, Resource management and Resource settings tabs.",
-              "Changes and Budget are not shown in the row of project sections; those pages open only at the direct addresses /<project code>/changes and /<project code>/budget.",
+              "The Development section holds the Archive, Jira and WBS reconciliation, Decision queue, Project lessons, RACI, My work and Rules tabs. Old addresses of removed tabs lead to the nearest page that still exists: resources to Workload, the PM workspace to My work, Portfolio v2 to Portfolio.",
+              "Changes is not shown in the row of project sections; the page opens only at the direct address /<project code>/changes. The old address /<project code>/budget opens the project Overview.",
               "The bell in the header, next to the language switch, shows notifications from project rules (the Rules page in the Development section) and the unread count. The list refreshes every minute while the tab is open; clicking a notification marks it read and opens the milestone, the Structure row, the proposals or My work. Mark all as read clears them all. Everyone sees only their own notifications."
             ]
           },
@@ -38,7 +38,7 @@ export const englishWikiGroups: WikiGroup[] = [
             "heading": "Page title and section title",
             "points": [
               "The page header renders a single H1. On any project section except the Create project page, that H1 is the name of the selected project, not the name of the section.",
-              "The section name reaches the H1 only on non-project pages: Portfolio, Projects and FAQ; in Administration and Development it is the name of the open tab, such as Project registry or Closed projects. The PM workspace in Development shows the name of the selected project.",
+              "The section name reaches the H1 only on non-project pages: Portfolio, Projects and FAQ; in Administration and Development it is the name of the open tab, such as Project registry or Closed projects.",
               "Next to the project name a compact project strip is shown: status, project manager, target date, RAG or delay, and the forecast for the active goal. Non-project pages have no strip.",
               "On the Reports, Leave schedule and Workload pages the header with the title is not rendered: the section tab names them.",
               "The section name is additionally shown as an H2 inside the workspace: WBS and Gantt, for example, render their own heading and a short description above the toolbar."
@@ -65,16 +65,6 @@ export const englishWikiGroups: WikiGroup[] = [
               "It folds back by itself after 10 seconds without use unless the mouse pointer is over it, and at once when the user goes to another page.",
               "Results are shown only while the field has focus. The arrows pick a result, Enter opens it, Escape closes the list.",
               "The request goes 250 ms after typing stops; the answer is limited to 12 results and to the projects the user may read."
-            ]
-          },
-          {
-            "heading": "Saved views",
-            "points": [
-              "The buttons to pick and save views are currently hidden: the /api/saved-views API and the settings format remain, but neither WBS, Gantt nor RAID shows them. What a view stores is described below.",
-              "For WBS the saved settings are column order, widths and hiding, sorting, hierarchy level and the critical-path filter.",
-              "For Gantt the saved settings are the zoom level, the visible window in days, the hierarchy level, the visibility of dependencies, critical path, baseline and forecast, plus the width of the WBS column and the height and width of the panel.",
-              "For RAID the saved settings are the filters for type, decisions, overdue items and high risk.",
-              "ADMIN saves a shared view, other users save personal views. Applying a view updates lastUsedAt."
             ]
           }
         ]
@@ -104,14 +94,6 @@ export const englishWikiGroups: WikiGroup[] = [
               "The goal date is taken from dueDate, and if there is none, from forecastDueDate.",
               "Delay is calculated as the calendar difference between baselineDueDate and the current goal date.",
               "The Projects to show filter picks the projects on the Portfolio page; it applies to the goal timeline, blocking problems and key risks."
-            ]
-          },
-          {
-            "heading": "Roadmap v2",
-            "points": [
-              "Roadmap v2 opens on the Development -> Portfolio v2 tab and shows the HW, SW and G2M work packages of active projects on a shared calendar scale.",
-              "The map offers project search, a portfolio filter, horizons of 6, 12 and 24 months, a jump to the current date and a full-screen mode.",
-              "Old /portfolio-v2 links open the Portfolio v2 tab in the Development section. A user without access to Development sees a message that the section is for the administrator only."
             ]
           },
           {
@@ -366,7 +348,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "PHASE - the top or aggregating level of the plan. It is used as a phase in the Milestones by phase section and as a thin line with a label and a date range in the Gantt chart.",
               "WORK_PACKAGE - a work package. In status aggregation it behaves as a parent; in the Gantt chart it is shown as the same thin line with a label and a date range.",
               "TASK - regular work with a duration, owner, progress, calendar and dependencies.",
-              "DELIVERABLE - a deliverable. In the resource calculation it is counted as work together with TASK.",
+              "DELIVERABLE - a deliverable. Current Work and Workload count it as work together with TASK.",
               "MILESTONE - a checkpoint with zero duration. It is used in the project schedule.",
               "GOAL - a management goal of the project with zero duration. It participates in the portfolio goal scale and in the target summary calculation.",
               "The RACI matrix (Development section, project picker at the top) shows who is Responsible (R), Accountable (A), Consulted (C) and Informed (I) for each phase, work package and deliverable of the project. Columns are the owners on the Structure and people with roles; a person can be added from the people directory. Names are compared ignoring case, spaces and \"ё/е\".",
@@ -636,7 +618,7 @@ export const englishWikiGroups: WikiGroup[] = [
   {
     "id": "wiki-execution",
     "title": "Execution and control",
-    "description": "Jira, open issues, RAID, changes, budget, artifacts and resources.",
+    "description": "Jira, open issues, RAID, changes and artifacts.",
     "articles": [
       {
         "id": "wiki-jira-issues",
@@ -713,7 +695,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "An issue status update stores statusAt and text and is sorted by statusAt desc, then createdAt desc.",
               "On the first transition into a closed status the backend computes closedDelayDays as max(0, dueDate - initialDueDate) in calendar days.",
               "If there was no initialDueDate yet, it is captured on the first change of dueDate, from the old dueDate or from the new value.",
-              "Open decisions are open issues that need a decision by criticality and readiness; they are used in the project overview, the decision queue, the PM workspace, search and reports. Decisions taken are kept in the project's decision log.",
+              "Open decisions are open issues that need a decision by criticality and readiness; they are used in the project overview, the decision queue, search and reports. Decisions taken are kept in the project's decision log.",
               "The decision log is the project's Decisions page next to Issues. A decision keeps what it is about, what was decided, why (context and options) and a link to an issue, risk or problem, Structure row or change request of the same project.",
               "A new decision can be saved as a draft or recorded as taken right away, with who took it and when. A draft can be edited, deleted, recorded as taken or sent for approval to one person: any active user who can see the project, such as a sponsor with read-only access.",
               "Only the chosen approver can approve or reject, and a comment is required. Until the answer the decision can be withdrawn to draft. If two answers arrive at once, one is taken and the other is told the decision has already changed. A decision in force can be replaced by a new one; the old one is marked Replaced.",
@@ -764,22 +746,15 @@ export const englishWikiGroups: WikiGroup[] = [
       },
       {
         "id": "wiki-changes-budget-artifacts",
-        "title": "Changes, budget and artifacts",
-        "summary": "What is currently implemented in the change/budget area and how the artifact catalog works.",
-        "keywords": ["changes", "budget", "artifacts", "change requests", "documents"],
+        "title": "Changes and artifacts",
+        "summary": "What is currently implemented in the change area and how the artifact catalog works.",
+        "keywords": ["changes", "artifacts", "change requests", "documents"],
         "sections": [
           {
             "heading": "Change management",
             "points": [
               "For now the section only displays data: three counters (change requests, open decisions, rows with a baseline variance), a search box and a table of the shifted work items with the size of the shift and the owner.",
               "Change requests cannot be created, approved or driven through the interface. The ChangeRequest model with the types SCOPE, BUDGET, SCHEDULE, RESOURCE and the statuses DRAFT, SUBMITTED, IN_REVIEW, APPROVED, REJECTED, IMPLEMENTED exists in the database, but there is no screen for working with it."
-            ]
-          },
-          {
-            "heading": "Budget",
-            "points": [
-              "The Budget management section is a placeholder: the page renders a heading, a description and an informational block; it has no plan-fact-forecast calculations or tables.",
-              "The project budget values are stored in the budgetPlanned and budgetForecast fields and are entered when the project is created, not in this section."
             ]
           },
           {
@@ -791,56 +766,6 @@ export const englishWikiGroups: WikiGroup[] = [
               "HTTP and HTTPS URLs in cells appear as clickable links. Attach file uploads a file into a cell; click its filename to download it. Limits are 3 MB per file and 30 MB per project.",
               "Removing a saved attachment, row or column and saving removes its unreferenced files. Unsaved uploads expire after 24 hours and are cleaned up on subsequent uploads.",
               "If another user saves first, your edits remain on screen and a conflict message appears. Reload saved table asks before discarding your edits. Existing catalog entries remain visible until converted by saving the table."
-            ]
-          }
-        ]
-      },
-      {
-        "id": "wiki-resources",
-        "title": "Resource management",
-        "summary": "How load is calculated from the WBS, plus resource profiles, overloads, requests and recommendations.",
-        "keywords": ["resources", "capacity", "load", "assignees", "8 weeks"],
-        "sections": [
-          {
-            "heading": "Data source",
-            "points": [
-              "The resource model is built from the active projects of the portfolio. If there are no active projects, the WBS of the current project is used.",
-              "Only WBS rows of the types TASK and DELIVERABLE with a status other than CANCELLED enter the calculation.",
-              "An empty owner becomes Unassigned and goes into a separate unassigned row.",
-              "DONE rows yield remainingHours = 0 but remain in the done/total counters.",
-              "Resource management and Resource settings live in the Development section (/development/resources) and are available only to the system administrator."
-            ]
-          },
-          {
-            "heading": "Resource profiles",
-            "points": [
-              "A profile contains kind, role, baseHoursPerWeek, fte, projectAllocationPercent, currentProjectAllocationPercent, operationalAllocationPercent, executionFactorPercent and note.",
-              "CVTE is automatically treated as a contractor team with fte = 5 and 100% project allocation.",
-              "The surname Gladkov automatically receives the coordinator profile: 40% project allocation and 60% operational load.",
-              "For everyone else the role is derived from owner/title by the words DevOps, QA, analytics, design, PMO, dev/front/back/API/developer.",
-              "User overrides are normalized and take precedence over the automatic profile for that owner.",
-              "Changes in Resource settings live only in the open browser tab and are reset when the page reloads."
-            ]
-          },
-          {
-            "heading": "Hours and load",
-            "points": [
-              "plannedHours is computed only if effortPercent > 0.",
-              "The duration for plannedHours is taken from workDays, then planWorkDays, then from the working days between start/due, otherwise 1.",
-              "remainingHours = plannedHours * (100 - progress) / 100, except for overdue work, for which remainingHours becomes 0.",
-              "Demand is distributed across eight weekly buckets starting from the current week, proportionally to the overlap of the task's working days with the week.",
-              "capacityHoursPerWeek = baseHoursPerWeek * fte * projectAllocationPercent * currentProjectAllocationPercent.",
-              "Utilization > 100% is bad, 86..100% is warn, <= 50% is low, and everything else is ok."
-            ]
-          },
-          {
-            "heading": "Conflicts and recommendations",
-            "points": [
-              "A critical conflict is created when a resource is overloaded, especially if the resource has a task on the critical path.",
-              "A separate critical conflict is created for unassigned work with remainingHours > 0.",
-              "Overdue work for a resource produces a warning.",
-              "Resource requests are created for unassigned demand and for each overloaded person (with their role), sorted by hours and limited to five requests.",
-              "Recommendations first suggest resolving the critical conflict, then raising resource requests, or maintaining the plan if there are no conflicts."
             ]
           }
         ]

@@ -1,14 +1,11 @@
 import { useCallback, type FormEvent } from "react";
 import { apiClient } from "../api/client";
 import {
-  dictionaryItemToDraft,
   systemSettingsToDraft,
   userToDraft,
 } from "../app/adminHelpers";
 import type {
   ApiTokenInfo,
-  DictionaryItem,
-  DictionaryItemDraft,
   ProjectAccessDraft,
   ProjectAccessRecord,
   RolePermission,
@@ -17,8 +14,7 @@ import type {
   UserDraftState,
   WebhookEndpointInfo,
 } from "../app/adminTypes";
-import { dictionaryPayload } from "../app/formPayloads";
-import { emptyDictionaryDraft, emptyUserForm } from "../app/formState";
+import { emptyUserForm } from "../app/formState";
 import type { ProjectAccessLevel } from "../app/domainTypes";
 import {
   normalizeProjectModulesForUi,
@@ -44,13 +40,6 @@ export function useAdminActionsController({
   setProjectAccessDraft,
   setProjectAccesses,
   setSavingProjectAccess,
-  dictionaryItems,
-  dictionaryDrafts,
-  setDictionaryDrafts,
-  newDictionaryDraft,
-  setNewDictionaryDraft,
-  setSavingDictionaryItemId,
-  setCreatingDictionaryItem,
   systemSettingsDraft,
   setSystemSettings,
   setSystemSettingsDraft,
@@ -110,26 +99,6 @@ export function useAdminActionsController({
       });
     },
     [setUserDrafts, users],
-  );
-
-  const updateDictionaryDraft = useCallback(
-    (itemId: string, patch: Partial<DictionaryItemDraft>) => {
-      setDictionaryDrafts((current) => {
-        const sourceItem = dictionaryItems.find((item) => item.id === itemId);
-        const currentDraft =
-          current[itemId] ??
-          (sourceItem ? dictionaryItemToDraft(sourceItem) : null);
-        if (!currentDraft) return current;
-        return {
-          ...current,
-          [itemId]: {
-            ...currentDraft,
-            ...patch,
-          },
-        };
-      });
-    },
-    [dictionaryItems, setDictionaryDrafts],
   );
 
   const updateProjectAccessDraft = useCallback(
@@ -373,114 +342,6 @@ export function useAdminActionsController({
     ],
   );
 
-  const createDictionaryItem = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setCreatingDictionaryItem(true);
-      setError(null);
-      setNotice(null);
-      try {
-        await apiClient.post<DictionaryItem>(
-          "/api/admin/dictionary-items",
-          dictionaryPayload(newDictionaryDraft),
-          "Не удалось создать элемент справочника",
-        );
-        setNewDictionaryDraft({
-          ...emptyDictionaryDraft,
-          dictionary: newDictionaryDraft.dictionary,
-        });
-        await reloadAdminConfig();
-        await reloadAuditEvents();
-        setNotice("Элемент справочника сохранен");
-      } catch (createError) {
-        setError(
-          createError instanceof Error
-            ? createError.message
-            : "Не удалось создать элемент справочника",
-        );
-      } finally {
-        setCreatingDictionaryItem(false);
-      }
-    },
-    [
-      newDictionaryDraft,
-      reloadAdminConfig,
-      reloadAuditEvents,
-      setCreatingDictionaryItem,
-      setError,
-      setNewDictionaryDraft,
-      setNotice,
-    ],
-  );
-
-  const saveDictionaryItem = useCallback(
-    async (itemId: string) => {
-      const draft = dictionaryDrafts[itemId];
-      if (!draft) return;
-      setSavingDictionaryItemId(itemId);
-      setError(null);
-      setNotice(null);
-      try {
-        await apiClient.patch<DictionaryItem>(
-          `/api/admin/dictionary-items/${itemId}`,
-          dictionaryPayload(draft),
-          "Не удалось сохранить элемент справочника",
-        );
-        await reloadAdminConfig();
-        await reloadAuditEvents();
-        setNotice("Справочник обновлен");
-      } catch (saveError) {
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Не удалось сохранить элемент справочника",
-        );
-      } finally {
-        setSavingDictionaryItemId(null);
-      }
-    },
-    [
-      dictionaryDrafts,
-      reloadAdminConfig,
-      reloadAuditEvents,
-      setError,
-      setNotice,
-      setSavingDictionaryItemId,
-    ],
-  );
-
-  const deactivateDictionaryItem = useCallback(
-    async (itemId: string) => {
-      setSavingDictionaryItemId(itemId);
-      setError(null);
-      setNotice(null);
-      try {
-        await apiClient.delete(
-          `/api/admin/dictionary-items/${itemId}`,
-          "Не удалось отключить элемент справочника",
-        );
-        await reloadAdminConfig();
-        await reloadAuditEvents();
-        setNotice("Элемент справочника отключен");
-      } catch (saveError) {
-        setError(
-          saveError instanceof Error
-            ? saveError.message
-            : "Не удалось отключить элемент справочника",
-        );
-      } finally {
-        setSavingDictionaryItemId(null);
-      }
-    },
-    [
-      reloadAdminConfig,
-      reloadAuditEvents,
-      setError,
-      setNotice,
-      setSavingDictionaryItemId,
-    ],
-  );
-
   const saveSystemSettings = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
@@ -501,35 +362,6 @@ export function useAdminActionsController({
               "gitlab.token": {
                 value: systemSettingsDraft.gitlabToken.trim(),
                 isSecret: true,
-              },
-              "github.enabled": {
-                value: systemSettingsDraft.githubEnabled ? "true" : "false",
-              },
-              "github.baseUrl": {
-                value: systemSettingsDraft.githubBaseUrl.trim(),
-              },
-              "github.token": {
-                value: systemSettingsDraft.githubToken.trim(),
-                isSecret: true,
-              },
-              "azureDevOps.enabled": {
-                value: systemSettingsDraft.azureDevOpsEnabled ? "true" : "false",
-              },
-              "azureDevOps.organizationUrl": {
-                value: systemSettingsDraft.azureDevOpsOrganizationUrl.trim(),
-              },
-              "azureDevOps.token": {
-                value: systemSettingsDraft.azureDevOpsToken.trim(),
-                isSecret: true,
-              },
-              "bi.enabled": {
-                value: systemSettingsDraft.biEnabled ? "true" : "false",
-              },
-              "bi.exportUrl": {
-                value: systemSettingsDraft.biExportUrl.trim(),
-              },
-              "wbs.templates": {
-                value: systemSettingsDraft.wbsTemplates.trim(),
               },
             },
           },
@@ -917,7 +749,6 @@ export function useAdminActionsController({
     toggleWebhook,
     testWebhook,
     updateUserDraft,
-    updateDictionaryDraft,
     updateProjectAccessDraft,
     grantProjectAccess,
     updateProjectAccessLevel,
@@ -925,9 +756,6 @@ export function useAdminActionsController({
     updateProjectModuleDraft,
     saveProjectModules,
     toggleRolePermission,
-    createDictionaryItem,
-    saveDictionaryItem,
-    deactivateDictionaryItem,
     saveSystemSettings,
     exportAdminConfig,
     importAdminConfig,

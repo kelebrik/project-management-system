@@ -28,9 +28,6 @@ export function writePermissionForPath(pathname: string, method: string): Permis
   if (pathname.startsWith('/admin/role-permissions')) {
     return 'admin.roles';
   }
-  if (pathname.startsWith('/admin/dictionary-items')) {
-    return 'admin.dictionaries';
-  }
   if (pathname.startsWith('/admin/system-settings')) {
     return 'admin.config';
   }

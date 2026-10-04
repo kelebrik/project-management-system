@@ -387,8 +387,6 @@ body.milestone-label-dragging * {
 
   body[data-print-target="project-structure-print"] .content-grid > :not(.workspace-focus-structure),
   body[data-print-target="project-structure-print-en"] .content-grid > :not(.workspace-focus-structure),
-  body[data-print-target="project-structure-print"] .work-summary-section,
-  body[data-print-target="project-structure-print-en"] .work-summary-section,
   body[data-print-target="project-structure-print"] .gantt-controls,
   body[data-print-target="project-structure-print-en"] .gantt-controls,
   body[data-print-target="project-structure-print"] .status-legend,

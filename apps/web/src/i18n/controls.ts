@@ -43,50 +43,6 @@ export const controls = {
     "en": "Clear search",
     "ru": "Очистить поиск"
   },
-  "views.saved": {
-    "en": "Saved views",
-    "ru": "Сохраненные представления"
-  },
-  "views.view": {
-    "en": "View",
-    "ru": "Представление"
-  },
-  "views.select": {
-    "en": "Select a saved view",
-    "ru": "Выбрать сохраненное"
-  },
-  "views.empty": {
-    "en": "No saved views",
-    "ru": "Нет сохраненных"
-  },
-  "views.shared": {
-    "en": "shared",
-    "ru": "общее"
-  },
-  "views.new": {
-    "en": "New view",
-    "ru": "Новое представление"
-  },
-  "views.name": {
-    "en": "View name",
-    "ru": "Название вида"
-  },
-  "views.saveHint": {
-    "en": "Save current filters and column settings",
-    "ru": "Сохранить текущие фильтры и настройки колонок"
-  },
-  "views.loginRequired": {
-    "en": "Sign in to save",
-    "ru": "Для сохранения нужно войти"
-  },
-  "common.saving": {
-    "en": "Saving...",
-    "ru": "Сохраняю..."
-  },
-  "views.save": {
-    "en": "Save view",
-    "ru": "Сохранить вид"
-  },
   "identity.readonly": {
     "en": "Read only",
     "ru": "Только просмотр"

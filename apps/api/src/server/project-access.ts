@@ -190,10 +190,7 @@ async function projectIdForEntityPath(pathname: string) {
 
 export async function projectIdForWritePath(pathname: string) {
   const [path] = pathname.split('?');
-  if (
-    path === '/projects/structure-copy-options' ||
-    path === '/projects/portfolio-roadmap'
-  ) {
+  if (path === '/projects/structure-copy-options') {
     return null;
   }
   const projectMatch = path.match(/^\/projects\/([^/]+)/);

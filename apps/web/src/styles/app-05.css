@@ -566,8 +566,7 @@
   min-width: 1030px;
 }
 
-.permission-table,
-.dictionary-table {
+.permission-table {
   border: 1px solid var(--border-3);
   border-radius: 8px;
   overflow-x: auto;
@@ -582,8 +581,7 @@
   min-width: 920px;
 }
 
-.permission-head,
-.dictionary-head {
+.permission-head {
   background: var(--surface-tint);
   color: var(--text-muted);
   font-size: 12px;
@@ -621,114 +619,6 @@
   height: 18px;
   min-height: 18px;
   width: 18px;
-}
-
-.dictionary-create-form {
-  align-items: end;
-  display: grid;
-  gap: 10px;
-  grid-template-columns:
-    minmax(220px, 1fr) minmax(160px, 0.65fr) minmax(260px, 1.2fr)
-    116px auto;
-  margin-bottom: 14px;
-}
-
-.dictionary-filter {
-  align-items: end;
-  display: grid;
-  gap: 8px;
-  grid-template-columns: minmax(260px, 380px);
-  margin-bottom: 14px;
-}
-
-.dictionary-filter label {
-  color: var(--text-muted);
-  display: grid;
-  font-size: 13px;
-  font-weight: 800;
-  gap: 6px;
-}
-
-.dictionary-create-form label {
-  color: var(--text-muted);
-  display: grid;
-  font-size: 13px;
-  font-weight: 700;
-  gap: 6px;
-}
-
-.dictionary-create-form button {
-  min-height: 38px;
-}
-
-.dictionary-head,
-.dictionary-row {
-  align-items: center;
-  display: grid;
-  gap: 0;
-  grid-template-columns:
-    minmax(210px, 0.9fr) minmax(150px, 0.7fr) minmax(240px, 1fr)
-    minmax(260px, 1.2fr) 96px 104px 218px;
-  min-width: 1280px;
-}
-
-.dictionary-head span,
-.dictionary-row label,
-.dictionary-actions {
-  min-width: 0;
-  padding: 10px;
-}
-
-.dictionary-row {
-  background: var(--surface);
-  border-top: 1px solid var(--border-3);
-}
-
-.dictionary-row label {
-  border-right: 1px solid var(--border-6);
-  display: grid;
-  gap: 4px;
-}
-
-.dictionary-row label > span {
-  color: var(--text-muted);
-  display: none;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
-}
-
-.dictionary-row input,
-.dictionary-row select {
-  font-size: 13px;
-  min-height: 38px;
-  padding-bottom: 7px;
-  padding-top: 7px;
-}
-
-.dictionary-actions {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-}
-
-.dictionary-actions button {
-  min-height: 38px;
-  padding-left: 10px;
-  padding-right: 10px;
-}
-
-.admin-settings-form textarea {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 13px;
-  line-height: 1.45;
-  min-height: 132px;
-}
-
-.admin-settings-form .admin-config-textarea {
-  min-height: 360px;
 }
 
 .admin-status-grid {

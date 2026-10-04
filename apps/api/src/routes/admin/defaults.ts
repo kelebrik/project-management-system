@@ -33,19 +33,22 @@ export const managedPermissions = [
   'overview.export',
   'admin.users',
   'admin.roles',
-  'admin.dictionaries',
-  'admin.templates',
-  'admin.health',
-  'admin.backup',
   'admin.config',
   'admin.modules',
-  'admin.project_access',
-  'admin.audit',
   'admin.integrations',
 ];
 
 /** Settings and permissions that were removed; an older configuration export may still carry them. */
-export const retiredPermissions: readonly string[] = ['admin.rag', 'admin.workflow'];
+export const retiredPermissions: readonly string[] = [
+  'admin.rag',
+  'admin.workflow',
+  'admin.templates',
+  'admin.dictionaries',
+  'admin.health',
+  'admin.backup',
+  'admin.project_access',
+  'admin.audit',
+];
 export const retiredSystemSettings: readonly string[] = [
   'rag.formula.green',
   'rag.formula.amber',
@@ -53,89 +56,19 @@ export const retiredSystemSettings: readonly string[] = [
   'workflow.overview',
   'workflow.baseline',
   'workflow.projectClose',
+  'wbs.templates',
+  'github.enabled',
+  'github.baseUrl',
+  'github.token',
+  'azureDevOps.enabled',
+  'azureDevOps.organizationUrl',
+  'azureDevOps.token',
+  'bi.enabled',
+  'bi.exportUrl',
 ];
-
-export const defaultDictionaryItems = [
-  ['project_status', 'DRAFT', 'Draft', 'The project is being prepared for launch', 10],
-  ['project_status', 'ACTIVE', 'Active', 'The project is in progress', 20],
-  ['project_status', 'ON_HOLD', 'On hold', 'The project is temporarily paused', 30],
-  ['project_status', 'CLOSED', 'Closed', 'The project has been archived', 40],
-  ['project_type', 'PRODUCT', 'Product', 'Development of a product or a product version', 10],
-  ['project_type', 'IT', 'IT', 'Internal IT project', 20],
-  ['project_type', 'INTEGRATION', 'Integration', 'Integration of systems or suppliers', 30],
-  ['project_type', 'HARDWARE', 'Hardware', 'Development or delivery of hardware', 40],
-  ['project_type', 'SOFTWARE', 'Software', 'Software development', 50],
-  ['risk_type', 'RISK', 'Risk', 'A potential event that affects the project', 10],
-  ['risk_type', 'DEPENDENCY', 'Problem', 'An actual problem or dependency', 20],
-  ['risk_type', 'ASSUMPTION', 'Assumption', 'A management assumption of the project', 30],
-  ['wbs_type', 'PHASE', 'Phase', 'Top level of the project structure', 10],
-  ['wbs_type', 'WORK_PACKAGE', 'Work package', 'A group of related tasks', 20],
-  ['wbs_type', 'DELIVERABLE', 'Deliverable', 'A controlled result of the work', 30],
-  ['wbs_type', 'MILESTONE', 'Milestone', 'A checkpoint with zero duration', 40],
-  ['wbs_type', 'GOAL', 'Goal', 'A management goal of the project', 45],
-  ['wbs_type', 'TASK', 'Task', 'Work with a duration and an assignee', 50],
-  ['wbs_status', 'NOT_STARTED', 'Not started', 'The work has not started yet', 10],
-  ['wbs_status', 'IN_PROGRESS', 'In progress', 'The work is under way', 20],
-  ['wbs_status', 'IN_REVIEW', 'In review', 'The work is done and awaits review', 30],
-  ['wbs_status', 'AT_RISK', 'At risk', 'There is a risk of missing the due date', 40],
-  ['wbs_status', 'BLOCKED', 'Failed', 'The work is blocked or has failed', 50],
-  ['wbs_status', 'DONE', 'Done', 'The work is complete', 60],
-  ['wbs_status', 'CANCELLED', 'Cancelled', 'The work is excluded from the plan', 70],
-  ['issue_severity', 'LOW', 'Low', 'Low severity', 10],
-  ['issue_severity', 'MEDIUM', 'Medium', 'Medium severity', 20],
-  ['issue_severity', 'HIGH', 'High', 'High severity', 30],
-  ['issue_severity', 'CRITICAL', 'Critical', 'Critical problem', 40],
-  ['raid_type', 'RISK', 'Risk', 'A potential event that affects the project', 10],
-  ['raid_type', 'DEPENDENCY', 'Problem', 'An actual problem or dependency', 20],
-  ['raid_type', 'ASSUMPTION', 'Assumption', 'A management assumption of the project', 30],
-  ['raid_status', 'OPEN', 'Open', 'The record is open', 10],
-  ['raid_status', 'IN_PROGRESS', 'In progress', 'Handling is under way', 20],
-  ['raid_status', 'MITIGATED', 'Mitigated', 'Mitigation measures are complete', 30],
-  ['raid_status', 'VALIDATED', 'Validated', 'The status is confirmed', 40],
-  ['raid_status', 'BREACHED', 'Breached', 'The constraint or assumption is breached', 50],
-  ['raid_status', 'CLOSED', 'Closed', 'The record is closed', 60],
-] as const;
-
-const defaultWbsTemplates = JSON.stringify(
-  [
-    {
-      code: 'product-release',
-      name: 'Product version launch',
-      items: [
-        { code: '1', level: 1, type: 'PHASE', title: 'Project kickoff' },
-        { code: '1.1', level: 2, type: 'TASK', title: 'Approval of the project charter' },
-        { code: '2', level: 1, type: 'PHASE', title: 'Solution delivery' },
-        { code: '2.1', level: 2, type: 'MILESTONE', title: 'Pilot readiness' },
-      ],
-    },
-    {
-      code: 'integration',
-      name: 'Integration project',
-      items: [
-        { code: '1', level: 1, type: 'PHASE', title: 'Assessment' },
-        { code: '2', level: 1, type: 'PHASE', title: 'Integration' },
-        { code: '3', level: 1, type: 'PHASE', title: 'Acceptance' },
-      ],
-    },
-  ],
-  null,
-  2,
-);
-
-export const defaultSystemSettings = [
-  ['wbs.templates', defaultWbsTemplates, false],
-] as const;
 
 export const integrationSettings = [
   ['gitlab.enabled', 'false', false],
   ['gitlab.baseUrl', '', false],
   ['gitlab.token', '', true],
-  ['github.enabled', 'false', false],
-  ['github.baseUrl', 'https://api.github.com', false],
-  ['github.token', '', true],
-  ['azureDevOps.enabled', 'false', false],
-  ['azureDevOps.organizationUrl', '', false],
-  ['azureDevOps.token', '', true],
-  ['bi.enabled', 'false', false],
-  ['bi.exportUrl', '', false],
 ] as const;

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, type Dispatch, type SetStateAction } from "react";
 import { apiClient } from "../api/client";
 import {
-  dictionaryItemsToDrafts,
   systemSettingsToDraft,
   usersToDrafts,
 } from "../app/adminHelpers";
@@ -12,8 +11,6 @@ import type {
   AuditEvent,
   BackupStatus,
   CurrentUser,
-  DictionaryItem,
-  DictionaryItemDraft,
   ProjectAccessRecord,
   RolePermission,
   SystemSetting,
@@ -40,8 +37,6 @@ type UseAdminDataControllerOptions = {
   setAuditEvents: Dispatch<SetStateAction<AuditEvent[]>>;
   setRolePermissions: Dispatch<SetStateAction<RolePermission[]>>;
   setProjectAccesses: Dispatch<SetStateAction<ProjectAccessRecord[]>>;
-  setDictionaryItems: Dispatch<SetStateAction<DictionaryItem[]>>;
-  setDictionaryDrafts: Dispatch<SetStateAction<Record<string, DictionaryItemDraft>>>;
   setSystemSettings: Dispatch<SetStateAction<SystemSetting[]>>;
   setSystemSettingsDraft: Dispatch<SetStateAction<SystemSettingsDraft>>;
   setProjectModules: Dispatch<SetStateAction<ProjectModule[]>>;
@@ -62,8 +57,6 @@ export function useAdminDataController({
   setAuditEvents,
   setRolePermissions,
   setProjectAccesses,
-  setDictionaryItems,
-  setDictionaryDrafts,
   setSystemSettings,
   setSystemSettingsDraft,
   setProjectModules,
@@ -152,8 +145,6 @@ export function useAdminDataController({
         setUserDrafts(usersToDrafts(data));
         setAuditEvents(events);
         setRolePermissions(config.rolePermissions);
-        setDictionaryItems(config.dictionaryItems);
-        setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
         setSystemSettings(config.systemSettings);
         setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
         const normalizedModules = normalizeProjectModulesForUi(config.projectModules);
@@ -184,8 +175,6 @@ export function useAdminDataController({
     setAdminIntegrations,
     setAuditEvents,
     setBackupStatus,
-    setDictionaryDrafts,
-    setDictionaryItems,
     setError,
     setProjectModuleDrafts,
     setProjectModules,
@@ -223,8 +212,6 @@ export function useAdminDataController({
       "Не удалось загрузить настройки администрирования",
     );
     setRolePermissions(config.rolePermissions);
-    setDictionaryItems(config.dictionaryItems);
-    setDictionaryDrafts(dictionaryItemsToDrafts(config.dictionaryItems));
     setSystemSettings(config.systemSettings);
     setSystemSettingsDraft(systemSettingsToDraft(config.systemSettings));
     const normalizedModules = normalizeProjectModulesForUi(config.projectModules);
@@ -236,8 +223,6 @@ export function useAdminDataController({
     isAdmin,
     setAdminHealth,
     setBackupStatus,
-    setDictionaryDrafts,
-    setDictionaryItems,
     setProjectModuleDrafts,
     setProjectModules,
     setRolePermissions,
