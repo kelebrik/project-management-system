@@ -8,6 +8,7 @@ import { reportsMessages } from "./reports";
 import { wikiMessages } from "./wiki";
 import { leaveScheduleMessages } from "./leaveSchedule";
 import { workloadMessages } from "./workload";
+import { jiraSliceMessages } from "./jiraSlice";
 import { scheduleLinksMessages } from "./scheduleLinks";
 import { aiMessages } from "./ai";
 import { scheduleShiftsMessages } from "./scheduleShifts";
@@ -25,6 +26,7 @@ export const catalogue = {
   ...wikiMessages,
   ...leaveScheduleMessages,
   ...workloadMessages,
+  ...jiraSliceMessages,
   ...scheduleLinksMessages,
   ...aiMessages,
   ...scheduleShiftsMessages,

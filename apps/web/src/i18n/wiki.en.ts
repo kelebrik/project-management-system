@@ -675,6 +675,14 @@ export const englishWikiGroups: WikiGroup[] = [
             ]
           },
           {
+            heading: "Slices on the Jira work page",
+            points: [
+              "Above the widgets is the slice bar: assignee, status category, status, type, priority, sprint, epic, label, component and fix version. Within a field any chosen value matches, across fields all must; \"— not set —\" picks issues without a value. Each value shows how many issues have it.",
+              "A slice narrows every widget of the page on top of its own filters, as-of states included. Widgets on GitLab commits ignore it and say so: a commit has no Jira issue. The slice replaced the former Assignee box.",
+              "The last slice is remembered in the browser per project. Copy link gives an address that opens the same slice; Save slice keeps it under a name, personal or for everyone. A saved slice can be deleted by its author or an administrator."
+            ]
+          },
+          {
             "heading": "Open issues",
             "points": [
               "An issue stores a source of INTERNAL or JIRA, a section (category), title, criticality (severity), readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, dueDate, a reference link, a linked risk, a WBS phase and Jira links. An issue has no separate \"needs a decision\" flag: criticality and readiness decide whether a decision is needed.",

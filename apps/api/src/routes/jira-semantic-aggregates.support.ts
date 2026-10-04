@@ -1,4 +1,5 @@
 import {
+  jiraAnalyticsSliceSchema,
   JIRA_SEMANTIC_MAX_AS_OF_SLICES,
   JiraAnalyticsEvaluationLimitError,
   jiraAnalyticsFilterSchema,
@@ -39,6 +40,8 @@ export const querySchema = z.object({
   ]).nullable(),
   dateField: jiraSemanticWidgetSchema.shape.dateField,
   assignee: z.string().max(200),
+  /** The slice of the bar above the widgets; GitLab commit aggregates have no issues to slice and ignore it. */
+  slice: jiraAnalyticsSliceSchema.nullable().optional(),
   sortBy: z.enum(jiraAnalyticsSortFields),
   sortDirection: z.enum(jiraAnalyticsSortDirections),
   page: z.number().int().min(1).max(100_000).default(1),

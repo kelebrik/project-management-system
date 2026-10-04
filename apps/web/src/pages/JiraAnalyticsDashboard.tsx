@@ -2,7 +2,7 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { useI18n as useJiraTranslations } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
-import { JIRA_SEMANTIC_COLUMN_WIDTH_MAX, JIRA_SEMANTIC_COLUMN_WIDTH_MIN, JIRA_SEMANTIC_EMPTY_DASHBOARD, jiraAnalyticsGroupings, jiraAnalyticsMetrics, jiraCancelledStatuses, jiraSemanticDashboardSchema, type JiraAnalyticsEvaluationResult, type JiraAnalyticsFilter, type JiraAnalyticsFilterField, type JiraAnalyticsGroupBy, type JiraAnalyticsMetric, type JiraSemanticAggregatePublic, type JiraSemanticDashboard, type JiraSemanticWidget } from "@pms/shared";
+import { JIRA_SEMANTIC_COLUMN_WIDTH_MAX, JIRA_SEMANTIC_COLUMN_WIDTH_MIN, JIRA_SEMANTIC_EMPTY_DASHBOARD, jiraAnalyticsGroupings, jiraAnalyticsMetrics, jiraCancelledStatuses, jiraSemanticDashboardSchema, type JiraAnalyticsEvaluationResult, type JiraAnalyticsFilter, type JiraAnalyticsFilterField, type JiraAnalyticsGroupBy, type JiraAnalyticsMetric, type JiraSemanticAggregatePublic, type JiraSemanticDashboard, type JiraSemanticWidget, jiraSliceIsEmpty, type JiraAnalyticsSlice } from "@pms/shared";
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, Pencil, Plus, RefreshCw, RotateCcw, Save, Settings2, Trash2, X } from "lucide-react";
 import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 
@@ -19,6 +19,8 @@ import { JiraWidgetFilters } from "../components/JiraWidgetFilters";
 import { JiraCurrentFreshnessNotice } from "../components/JiraCurrentFreshnessNotice";
 import { useJiraCurrentFreshness } from "../hooks/useJiraCurrentFreshness";
 import { usePageContext } from "./PageContext";
+import { JiraSliceBar } from "../components/jira/JiraSliceBar";
+import { useJiraSlice } from "../hooks/useJiraSlice";
 
 type JiraAnalyticsSection = "active" | "retro";
 type Catalog = {
@@ -81,7 +83,7 @@ function defaultWidget(aggregate: JiraSemanticAggregatePublic, placement: JiraAn
   };
 }
 
-function widgetQuery(widget: JiraSemanticWidget, dashboard: JiraSemanticDashboard, groupKey?: string) {
+function widgetQuery(widget: JiraSemanticWidget, dashboard: JiraSemanticDashboard, groupKey?: string, slice?: JiraAnalyticsSlice) {
   return {
     aggregateVersion: widget.aggregateVersion,
     selectedFields: widget.selectedFields,
@@ -91,7 +93,9 @@ function widgetQuery(widget: JiraSemanticWidget, dashboard: JiraSemanticDashboar
     filterLogic: widget.filterLogic,
     periodDays: widget.dateField ? dashboard.periodDays : null,
     dateField: widget.dateField,
-    assignee: dashboard.assignee,
+    // The slice bar replaced the single assignee box; a slice narrows every widget.
+    assignee: "",
+    ...(slice && !jiraSliceIsEmpty(slice) ? { slice } : {}),
     sortBy: widget.sortBy,
     sortDirection: widget.sortDirection,
     page: 1,
@@ -241,6 +245,8 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   const { t: uiText } = useInterfaceTranslation();
   const { currentUser, isClosedProject, project, setError, setNotice } = usePageContext();
   const canEdit = currentUser?.role === "ADMIN" && !isClosedProject;
+  const sliceState = useJiraSlice(project.id);
+  const sliceKey = JSON.stringify(sliceState.slice);
   const [catalog, setCatalog] = useState<Catalog | null>(null);
   const [config, setConfig] = useState<JiraSemanticDashboard>(structuredClone(JIRA_SEMANTIC_EMPTY_DASHBOARD));
   const [baseline, setBaseline] = useState<JiraSemanticDashboard>(structuredClone(JIRA_SEMANTIC_EMPTY_DASHBOARD));
@@ -274,7 +280,8 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
 
   const refresh = async (source?: Catalog, dashboard?: JiraSemanticDashboard) => {
     const activeCatalog = source ?? catalog;
-    if (!activeCatalog) return;
+    // Nothing is counted before a linked saved slice is known.
+    if (!activeCatalog || !sliceState.ready) return;
     const activeDashboard = dashboard ?? config;
     const request = ++requestRef.current;
     const visible = activeDashboard.widgets.filter((widget) => widget.placement === section);
@@ -290,7 +297,7 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
         queries: visible.map((widget) => ({
           widgetId: widget.id,
           aggregateId: widget.aggregateId,
-          query: widgetQuery(widget, activeDashboard, drilldowns[widget.id]?.key),
+          query: widgetQuery(widget, activeDashboard, drilldowns[widget.id]?.key, sliceState.slice),
         })),
       }, "Не удалось рассчитать виджеты");
       if (request === requestRef.current) {
@@ -320,7 +327,9 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   const currentFreshness = useJiraCurrentFreshness(project.id, reloadAfterCurrentRefresh);
 
   useEffect(() => { queueMicrotask(() => { void loadInitial(); }); }, [project.id, dataRevision]);
-  useEffect(() => { queueMicrotask(() => { void refreshSection(); }); }, [section]);
+  // Counted once the catalog and a linked slice are both known, whichever comes last.
+  const catalogLoaded = catalog !== null;
+  useEffect(() => { queueMicrotask(() => { void refreshSection(); }); }, [section, sliceKey, sliceState.ready, catalogLoaded]);
 
   const aggregates = useMemo(() => catalog?.definitions.filter((definition) => definition.publishedVersion && definition.published) ?? [], [catalog]);
   const widgets = config.widgets.filter((widget) => widget.placement === section);
@@ -329,10 +338,11 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
 
   const patchWidget = (widget: JiraSemanticWidget) => setConfig((current) => ({ ...current, widgets: current.widgets.map((item) => item.id === widget.id ? widget : item) }));
   const refreshWidget = async (widget: JiraSemanticWidget, group?: { key: string; label: string }) => {
+    if (!sliceState.ready) return;
     setResults((current) => ({ ...current, [widget.id]: null }));
     setWidgetErrors((current) => Object.fromEntries(Object.entries(current).filter(([id]) => id !== widget.id)));
     try {
-      const response = await apiClient.post<QueryResponse>(`/api/projects/${project.id}/jira/semantic-aggregates/${widget.aggregateId}/query`, widgetQuery(widget, config, group?.key), `Не удалось рассчитать виджет «${widget.title}»`);
+      const response = await apiClient.post<QueryResponse>(`/api/projects/${project.id}/jira/semantic-aggregates/${widget.aggregateId}/query`, widgetQuery(widget, config, group?.key, sliceState.slice), `Не удалось рассчитать виджет «${widget.title}»`);
       setResults((current) => ({ ...current, [widget.id]: response.result }));
       setDrilldowns((current) => group ? { ...current, [widget.id]: group } : Object.fromEntries(Object.entries(current).filter(([id]) => id !== widget.id)));
     } catch (error) {
@@ -341,8 +351,9 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
     }
   };
   const exportWidget = async (widget: JiraSemanticWidget) => {
+    if (!sliceState.ready) return;
     try {
-      const file = await apiClient.downloadPost(`/api/projects/${project.id}/jira/semantic-aggregates/${widget.aggregateId}/query.csv`, widgetQuery(widget, config, drilldowns[widget.id]?.key), `Не удалось выгрузить виджет «${widget.title}»`);
+      const file = await apiClient.downloadPost(`/api/projects/${project.id}/jira/semantic-aggregates/${widget.aggregateId}/query.csv`, widgetQuery(widget, config, drilldowns[widget.id]?.key, sliceState.slice), `Не удалось выгрузить виджет «${widget.title}»`);
       saveDownload(file.blob, file.filename);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось выгрузить виджет");
@@ -369,9 +380,10 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
 
   if (!catalog) return <div className="jira-analytics-empty">{uiText("ui.jira.loadingWidgets")}</div>;
   return <div className="jira-analytics-workspace">
-    <div className="jira-analytics-toolbar"><label><span>{uiText("ui.jira.eventPeriod")}</span><select value={config.periodDays} disabled={editing} onChange={(event) => setConfig((current) => ({ ...current, periodDays: Number(event.target.value) as JiraSemanticDashboard["periodDays"] }))}><option value="30">{uiText("ui.automation.thirtyDays")}</option><option value="90">{uiText("ui.jira.ninetyDays")}</option><option value="180">{uiText("ui.jira.oneHundredEightyDays")}</option><option value="365">{uiText("ui.jira.threeHundredSixtyFiveDays")}</option></select></label><label><span>{uiText("ui.jira.assignee")}</span><input value={config.assignee} disabled={editing} placeholder={uiText("ui.jira.all")} onChange={(event) => setConfig((current) => ({ ...current, assignee: event.target.value }))} /></label><div className="jira-analytics-toolbar-actions">{editing ? <><button type="button" className="secondary-button" onClick={addWidget}><Plus size={18} />{uiText("ui.jira.addWidget")}</button><button type="button" className="secondary-button" onClick={() => { setConfig(structuredClone(baseline)); setSelectedId(null); onEditingChange(false); }}><X size={18} />{uiText("ui.jira.cancelAction")}</button><button type="button" className="primary-button" disabled={loading} onClick={() => void save()}><Save size={18} />{uiText("ui.admin.save")}</button></> : <><button type="button" className="secondary-button" disabled={loading} onClick={() => void refresh()}><RefreshCw size={18} />{uiText("ui.admin.refresh")}</button>{canEdit ? <button type="button" className="secondary-button" onClick={onStartEditing}><Pencil size={18} />{uiText("ui.jira.editAction")}</button> : null}</>}</div></div>
+    <div className="jira-analytics-toolbar"><label><span>{uiText("ui.jira.eventPeriod")}</span><select value={config.periodDays} disabled={editing} onChange={(event) => setConfig((current) => ({ ...current, periodDays: Number(event.target.value) as JiraSemanticDashboard["periodDays"] }))}><option value="30">{uiText("ui.automation.thirtyDays")}</option><option value="90">{uiText("ui.jira.ninetyDays")}</option><option value="180">{uiText("ui.jira.oneHundredEightyDays")}</option><option value="365">{uiText("ui.jira.threeHundredSixtyFiveDays")}</option></select></label><div className="jira-analytics-toolbar-actions">{editing ? <><button type="button" className="secondary-button" onClick={addWidget}><Plus size={18} />{uiText("ui.jira.addWidget")}</button><button type="button" className="secondary-button" onClick={() => { setConfig(structuredClone(baseline)); setSelectedId(null); onEditingChange(false); }}><X size={18} />{uiText("ui.jira.cancelAction")}</button><button type="button" className="primary-button" disabled={loading} onClick={() => void save()}><Save size={18} />{uiText("ui.admin.save")}</button></> : <><button type="button" className="secondary-button" disabled={loading} onClick={() => void refresh()}><RefreshCw size={18} />{uiText("ui.admin.refresh")}</button>{canEdit ? <button type="button" className="secondary-button" onClick={onStartEditing}><Pencil size={18} />{uiText("ui.jira.editAction")}</button> : null}</>}</div></div>
+    {!editing ? <JiraSliceBar isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={dataRevision} state={sliceState} userId={currentUser?.id ?? null} /> : null}
     <JiraCurrentFreshnessNotice {...currentFreshness} />
     {aggregates.length === 0 ? <div className="jira-aggregate-validation">{uiText("ui.jira.noPublishedAggregates")} <button type="button" className="button" onClick={onOpenAggregates}>{uiText("ui.jira.openAggregates")}</button></div> : null}
-    <div className={`jira-analytics-edit-layout ${editing && selectedWidget ? "with-editor" : ""}`}><div className="jira-analytics-grid">{widgets.map((widget, index) => <article key={widget.id} className={`jira-analytics-widget width-${widget.width} ${selectedId === widget.id ? "selected" : ""}`}><header><div><h3>{widget.title}</h3><small>{aggregates.find((aggregate) => aggregate.id === widget.aggregateId)?.published?.name ?? uiText("ui.jira.aggregateUnavailable")} · v{widget.aggregateVersion}</small></div>{editing ? <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title={uiText("ui.jira.moveLeft")} disabled={index === 0} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, -1, section) }))}><ChevronLeft size={17} /></button><button type="button" className="icon-button" title={uiText("ui.jira.moveRight")} disabled={index === widgets.length - 1} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, 1, section) }))}><ChevronRight size={17} /></button><button type="button" className="icon-button" title={uiText("ui.jira.configure")} onClick={() => setSelectedId(widget.id)}><Settings2 size={17} /></button><button type="button" className="icon-button danger" title={uiText("ui.admin.delete")} onClick={() => { setConfig((current) => ({ ...current, widgets: current.widgets.filter((item) => item.id !== widget.id) })); if (selectedId === widget.id) setSelectedId(null); }}><Trash2 size={17} /></button></div> : <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title={uiText("ui.jira.downloadCsv")} onClick={() => void exportWidget(widget)}><Download size={17} /></button></div>}</header><WidgetContent widget={widget} result={results[widget.id] ?? null} error={widgetErrors[widget.id] ?? null} drilldown={drilldowns[widget.id] ?? null} onGroup={(group) => void refreshWidget(widget, group)} onBack={() => void refreshWidget(widget)} />{results[widget.id]?.quality.warnings.length ? <footer className="jira-analytics-quality">{uiText("ui.jira.qualityLabel")} {results[widget.id]?.quality.status}{uiText("ui.jira.warningsCountSuffix")} {results[widget.id]?.quality.warnings.reduce((sum, warning) => sum + warning.count, 0)}</footer> : null}</article>)}</div>{editing && selectedWidget && selectedAggregate ? <WidgetEditor key={selectedWidget.id} widget={selectedWidget} aggregate={selectedAggregate} aggregates={aggregates} onChange={patchWidget} onClose={() => setSelectedId(null)} /> : null}</div>
+    <div className={`jira-analytics-edit-layout ${editing && selectedWidget ? "with-editor" : ""}`}><div className="jira-analytics-grid">{widgets.map((widget, index) => <article key={widget.id} className={`jira-analytics-widget width-${widget.width} ${selectedId === widget.id ? "selected" : ""}`}><header><div><h3>{widget.title}</h3><small>{aggregates.find((aggregate) => aggregate.id === widget.aggregateId)?.published?.name ?? uiText("ui.jira.aggregateUnavailable")} · v{widget.aggregateVersion}</small></div>{editing ? <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title={uiText("ui.jira.moveLeft")} disabled={index === 0} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, -1, section) }))}><ChevronLeft size={17} /></button><button type="button" className="icon-button" title={uiText("ui.jira.moveRight")} disabled={index === widgets.length - 1} onClick={() => setConfig((current) => ({ ...current, widgets: moveWidget(current.widgets, widget.id, 1, section) }))}><ChevronRight size={17} /></button><button type="button" className="icon-button" title={uiText("ui.jira.configure")} onClick={() => setSelectedId(widget.id)}><Settings2 size={17} /></button><button type="button" className="icon-button danger" title={uiText("ui.admin.delete")} onClick={() => { setConfig((current) => ({ ...current, widgets: current.widgets.filter((item) => item.id !== widget.id) })); if (selectedId === widget.id) setSelectedId(null); }}><Trash2 size={17} /></button></div> : <div className="jira-analytics-widget-actions"><button type="button" className="icon-button" title={uiText("ui.jira.downloadCsv")} onClick={() => void exportWidget(widget)}><Download size={17} /></button></div>}</header><WidgetContent widget={widget} result={results[widget.id] ?? null} error={widgetErrors[widget.id] ?? null} drilldown={drilldowns[widget.id] ?? null} onGroup={(group) => void refreshWidget(widget, group)} onBack={() => void refreshWidget(widget)} />{!jiraSliceIsEmpty(sliceState.slice) && aggregates.find((aggregate) => aggregate.id === widget.aggregateId)?.published?.rowConfig.kind === "gitlabBranchCommit" ? <footer className="jira-analytics-quality">{uiText("ui.jiraSlice.notForGitlab")}</footer> : null}{results[widget.id]?.quality.warnings.length ? <footer className="jira-analytics-quality">{uiText("ui.jira.qualityLabel")} {results[widget.id]?.quality.status}{uiText("ui.jira.warningsCountSuffix")} {results[widget.id]?.quality.warnings.reduce((sum, warning) => sum + warning.count, 0)}</footer> : null}</article>)}</div>{editing && selectedWidget && selectedAggregate ? <WidgetEditor key={selectedWidget.id} widget={selectedWidget} aggregate={selectedAggregate} aggregates={aggregates} onChange={patchWidget} onClose={() => setSelectedId(null)} /> : null}</div>
   </div>;
 }

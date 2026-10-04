@@ -1,3 +1,4 @@
+import { JIRA_SLICE_VIEW_TYPE, jiraSavedSliceConfigSchema } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { Router, type Request, type RequestHandler } from 'express';
 import { z } from 'zod';
@@ -21,8 +22,14 @@ const retiredJiraAnalyticsViewType = 'jira-analytics-dashboard';
 const crossProjectViewTypes = new Set(['workload']);
 const MAX_CROSS_PROJECT_CONFIG_CHARS = 20_000;
 
-/** Why a cross-project view cannot be saved this way, or null. */
+/** Why a view of a type with its own rules cannot be saved this way, or null. */
 function crossProjectViewProblem(viewType: string, projectId: string | null | undefined, config: unknown) {
+  // A slice of «Jira work» belongs to one project and holds only a valid slice.
+  if (viewType === JIRA_SLICE_VIEW_TYPE) {
+    if (!projectId) return 'Срез Jira сохраняется для проекта';
+    if (config !== undefined && (JSON.stringify(config ?? null).length > MAX_CROSS_PROJECT_CONFIG_CHARS || !jiraSavedSliceConfigSchema.safeParse(config).success)) return 'Некорректный срез Jira';
+    return null;
+  }
   if (!crossProjectViewTypes.has(viewType)) return null;
   if (projectId) return 'Планировщик Загрузки не привязывается к проекту';
   if (config !== undefined && JSON.stringify(config ?? null).length > MAX_CROSS_PROJECT_CONFIG_CHARS) return 'Слишком большой планировщик';

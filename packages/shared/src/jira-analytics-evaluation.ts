@@ -32,6 +32,7 @@ import {
   type JiraAnalyticsIssueData,
   type JiraAnalyticsResultRecord,
 } from "./jira-analytics-evaluation-types.js";
+import { jiraIssueMatchesSlice, jiraSliceIsEmpty } from "./jira-analytics-slice.js";
 
 function validDate(value: string | null | undefined) {
   if (!value) return null;
@@ -667,7 +668,8 @@ export function createJiraAnalyticsEvaluationAccumulator(
 
   const issueMatchesQualityScope = (issue: JiraAnalyticsIssueData) =>
     (definition.scope !== "active" || jiraIssueIsInWorkScope(issue)) &&
-    (!options.assignee || issue.assignee === options.assignee);
+    (!options.assignee || !jiraSliceIsEmpty(options.slice) || issue.assignee === options.assignee) &&
+    jiraIssueMatchesSlice(issue, options.slice);
 
   const criticalQualityCandidate = (issue: JiraAnalyticsIssueData) => {
     const riskConfig = definition.criticalRiskConfig;
@@ -782,7 +784,9 @@ export function createJiraAnalyticsEvaluationAccumulator(
       if (eventAt === null || eventAt < periodStart || eventAt > now) return false;
     }
     if (definition.scope === "active" && !jiraIssueIsInWorkScope(record.issue)) return false;
-    if (options.assignee && record.issue.assignee !== options.assignee) return false;
+    // A slice replaces the old single assignee box: with a slice the box is not looked at.
+    if (options.assignee && jiraSliceIsEmpty(options.slice) && record.issue.assignee !== options.assignee) return false;
+    if (!jiraIssueMatchesSlice(record.issue, options.slice)) return false;
     const baseFilters = definition.baseFilters ?? [];
     const baseMatches = baseFilters.length === 0 || (definition.baseFilterLogic === "or"
       ? baseFilters.some((filter) => filterMatches(record, filter))

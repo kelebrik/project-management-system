@@ -878,3 +878,18 @@
 .jira-extra-fields-chosen button { border: 0; background: transparent; cursor: pointer; padding: 0 4px; }
 .jira-extra-fields-options button { font-size: 12px; }
 .jira-extra-fields .primary { justify-self: start; }
+
+/* The slice bar above the widgets. */
+.jira-slice-bar { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.jira-slice-bar > select { font: inherit; font-size: 13px; }
+.jira-slice-field { position: relative; }
+.jira-slice-field summary { border: 1px solid var(--border); border-radius: 14px; cursor: pointer; font-size: 13px; list-style: none; padding: 3px 10px; white-space: nowrap; }
+.jira-slice-field summary::-webkit-details-marker { display: none; }
+.jira-slice-field.active summary { background: var(--surface-muted, #eef2ff); border-color: var(--accent, #4f46e5); font-weight: 600; }
+.jira-slice-menu { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); display: grid; gap: 4px; left: 0; max-height: 320px; min-width: 220px; overflow: auto; padding: 8px; position: absolute; top: calc(100% + 4px); z-index: 20; }
+.jira-slice-menu label { align-items: center; display: grid; font-size: 13px; gap: 6px; grid-template-columns: auto 1fr auto; }
+.jira-slice-menu small { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.jira-slice-menu input[type="text"], .jira-slice-menu input:not([type]) { font: inherit; font-size: 13px; }
+.jira-slice-save { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
+.jira-slice-save input:not([type]) { font: inherit; font-size: 13px; }
+.jira-slice-save label { align-items: center; display: flex; font-size: 13px; gap: 4px; }

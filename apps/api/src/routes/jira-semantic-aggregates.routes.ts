@@ -73,7 +73,7 @@ async function evaluatePublishedDefinition(
   const options = {
     now: jiraSemanticEvaluationNow(query.asOf),
     periodDays: query.periodDays ?? undefined,
-    assignee: query.assignee,
+    assignee: query.assignee, slice: query.slice ?? null,
     page: query.page,
     pageSize: query.pageSize,
     groupKey: query.groupKey,
@@ -750,7 +750,7 @@ export function registerJiraSemanticAggregateRoutes(
           options: {
             now: jiraSemanticEvaluationNow(item.query.asOf),
             periodDays: item.query.periodDays ?? undefined,
-            assignee: item.query.assignee,
+            assignee: item.query.assignee, slice: item.query.slice ?? null,
             page: item.query.page,
             pageSize: item.query.pageSize,
             groupKey: item.query.groupKey,
@@ -952,7 +952,7 @@ export function registerJiraSemanticAggregateRoutes(
       const exportOptions = jiraAggregateExportOptions({
         now: jiraSemanticEvaluationNow(parsed.data.asOf),
         periodDays: parsed.data.periodDays ?? undefined,
-        assignee: parsed.data.assignee,
+        assignee: parsed.data.assignee, slice: parsed.data.slice ?? null,
         groupKey: parsed.data.groupKey,
       });
       const rawResult = isGitlabBranchAggregate(aggregate.definition)

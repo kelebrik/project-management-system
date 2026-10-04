@@ -1,3 +1,4 @@
+import type { JiraAnalyticsSlice } from "./jira-analytics-slice.js";
 import type {
   JiraAnalyticsFilterField,
   JiraAnalyticsPeriodDays,
@@ -175,6 +176,8 @@ export type JiraAnalyticsEvaluationOptions = {
   now: string;
   periodDays?: JiraAnalyticsPeriodDays;
   assignee: string;
+  /** The slice of the bar above the widgets: it narrows the issues every widget counts. */
+  slice?: JiraAnalyticsSlice | null;
   page: number;
   pageSize: number;
   groupKey?: string;
