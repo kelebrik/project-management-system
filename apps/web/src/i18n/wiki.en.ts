@@ -668,7 +668,10 @@ export const englishWikiGroups: WikiGroup[] = [
               "A section stores a direct JQL and a link to a Jira filter separately; if both fields are filled, the JQL is used.",
               "On sync all old JiraWorkSectionIssue links are deleted, after which new links to the current snapshots are created.",
               "The JiraIssueSnapshot upsert is done by projectId + issueKey, so a single ticket updates its snapshot instead of creating a duplicate.",
-              "Snapshots of Jira issues the synchronization no longer finds are not deleted but marked as retired (retiredAt)."
+              "Snapshots of Jira issues the synchronization no longer finds are not deleted but marked as retired (retiredAt).",
+              "Each issue keeps extra fields from the same search: status category (independent of the Jira language), parent and epic, components, fix versions, story points, due date and the assignee's login. People's e-mail is not kept. Epic Link and Story Points are found by name or set with JIRA_EPIC_LINK_FIELD_ID and JIRA_STORY_POINTS_FIELD_ID.",
+              "On the Jira data tab a system administrator picks up to 10 extra fields of the project from the fields Jira has named in its answers. The choice applies from the next sync; clearing the project's data resets the list but not the choice.",
+              "Background Jira updates are set in Administration → Integrations: Off, Current data every hour on working days (the default), or that with a nightly full sync with history. They cover open projects an administrator has synced once, queue runs one at a time, wait an hour after a failure, and the nightly sync does not start once history is 95% full. JIRA_BACKGROUND_SYNC=false turns them off on the server entirely."
             ]
           },
           {

@@ -7,6 +7,7 @@ import { useConfirm } from "../hooks/useConfirm";
 import { JiraAggregatesPage } from "./JiraAggregatesPage";
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
+import { JiraExtraFieldsPanel } from "../components/jira/JiraExtraFieldsPanel";
 import { usePageContext } from "./PageContext";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
@@ -107,12 +108,15 @@ export function ProjectJiraWorkPage() {
       </div>
 
       {view === "data" ? (
-        <JiraWorkDataSections
-          canClear={canEditWidgets}
-          clearing={clearing}
-          dataRevision={jiraDataRevision}
-          onClearData={() => void clearJiraData()}
-        />
+        <>
+          <JiraWorkDataSections
+            canClear={canEditWidgets}
+            clearing={clearing}
+            dataRevision={jiraDataRevision}
+            onClearData={() => void clearJiraData()}
+          />
+          {canEditWidgets && <JiraExtraFieldsPanel projectId={project.id} revision={jiraDataRevision} />}
+        </>
       ) : null}
       {view === "aggregates" ? <JiraAggregatesPage /> : null}
       {view === "active" || view === "retro"

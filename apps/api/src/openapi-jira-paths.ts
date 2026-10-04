@@ -537,6 +537,14 @@ export const openApiJiraPaths = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/extra-fields": {
+      get: securedOperation(["Jira"], "The project's Jira field catalog (field ids and names seen in search answers), the chosen extra fields and the found Epic Link and Story Points fields; system administrators only", [projectIdParam], "Catalog, selection and known fields"),
+      put: {
+        ...securedOperation(["Jira"], "Choose up to 10 extra Jira fields kept with each issue from the next sync; system administrators only, not for closed projects", [projectIdParam], "Saved selection"),
+        requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["fieldIds"], properties: { fieldIds: { type: "array", maxItems: 10, items: { type: "string", pattern: "^[A-Za-z0-9_.-]{1,100}$" } } } } } } },
+        responses: { "200": { description: "Saved" }, "400": { description: "Invalid field ids" }, "403": { description: "System administrator required" }, "404": { description: "Project not found" }, "409": { description: "Jira is not connected to the project" }, "423": { description: "Project is closed" } },
+      },
+    },
     "/api/projects/{projectId}/jira/sync": {
       post: {
         tags: ["Jira"],

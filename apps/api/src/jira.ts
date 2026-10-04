@@ -38,6 +38,7 @@ import {
   selectJiraDevelopment,
 } from "./jira-data.js";
 import { jiraChangelogPageComplete } from "./jira-changelog.js";
+import { jiraIssueAttributes } from "./jira-attributes.js";
 import {
   jiraIssueKeySearchResponseSchema,
   jiraSearchResponseSchema,
@@ -280,7 +281,7 @@ async function fetchJiraDataWithMeta(
   const buildSearchBody = (effectiveJql: string, startAt: number) =>
     jiraSearchBody(effectiveJql, maxResults, startAt, {
       analyticsFieldIds: !keysOnly && options.includeAnalyticsFields
-        ? jiraAnalyticsFieldIds()
+        ? jiraAnalyticsFieldIds(options.attributeConfig)
         : null,
       includeChangelog,
       keysOnly,
@@ -311,7 +312,7 @@ async function fetchJiraDataWithMeta(
 
     effectiveJql = applyAnalyticsScope(effectiveJql);
     const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
-      ? jiraAnalyticsFieldIds()
+      ? jiraAnalyticsFieldIds(options.attributeConfig)
       : null;
     const result = await fetchJiraSearchWithVerifiedEmptyResult(
       baseUrl,
@@ -364,7 +365,7 @@ async function fetchJiraDataWithMeta(
       const authHeaders = { Cookie: session.cookie };
       effectiveJql = applyAnalyticsScope(effectiveJql);
       const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
-        ? jiraAnalyticsFieldIds()
+        ? jiraAnalyticsFieldIds(options.attributeConfig)
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
@@ -418,7 +419,7 @@ async function fetchJiraDataWithMeta(
       const authHeaders = { Cookie: login.cookie };
       effectiveJql = applyAnalyticsScope(effectiveJql);
       const analyticsFieldIds = !keysOnly && options.includeAnalyticsFields
-        ? jiraAnalyticsFieldIds()
+        ? jiraAnalyticsFieldIds(options.attributeConfig)
         : null;
       const result = await fetchJiraSearchWithVerifiedEmptyResult(
         baseUrl,
@@ -574,6 +575,7 @@ async function fetchJiraDataWithMeta(
           hydratedData.remoteDevelopmentByKey.get(issue.key) ?? null,
           includeRemoteDevelopment,
         ),
+        attributes: jiraIssueAttributes(fields, options.attributeConfig ?? {}),
         ...(history
           ? {
               statusCategory: jiraObjectString(status?.statusCategory, 'name')
@@ -594,6 +596,7 @@ async function fetchJiraDataWithMeta(
     }),
     jiraUser,
     total: completeSearch.total ?? completeSearch.issues.length,
+    fieldNames: names,
     capacityMeasurements,
   };
 }

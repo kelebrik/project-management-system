@@ -1,4 +1,5 @@
 import { createAutomationRunner } from './services/automation/engine.js';
+import { createJiraBackgroundSync } from './services/jira-background-sync.js';
 import express from 'express';
 import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
@@ -102,11 +103,13 @@ async function recalculateActiveProjectSchedulesOnStartup() {
 
 const jiraSyncRunner = createJiraSyncRunner(prisma);
 const automationRunner = createAutomationRunner();
+const jiraBackgroundSync = createJiraBackgroundSync(prisma);
 const server = app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
   void recalculateActiveProjectSchedulesOnStartup();
   jiraSyncRunner.start();
   automationRunner.start();
+  jiraBackgroundSync.start();
 });
 
 let shuttingDown = false;
@@ -117,6 +120,7 @@ async function shutdown(signal: NodeJS.Signals) {
   server.close();
   await jiraSyncRunner.stop();
   await automationRunner.stop();
+  jiraBackgroundSync.stop();
   await prisma.$disconnect();
 }
 

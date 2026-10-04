@@ -866,5 +866,18 @@ export const jiraMessages = {
   "ui.jira.jiraWorkDataTab": {
     "en": "Jira data",
     "ru": "Данные Jira"
-  }
+  },
+  "ui.jiraFields.title": { en: "Extra Jira fields", ru: "Дополнительные поля Jira" },
+  "ui.jiraFields.hint": {
+    en: "Besides status category, parent and epic, components, fix versions, story points, due date and the assignee's login, up to {max} more fields can be kept with each issue. The list shows the fields Jira has named in its answers; a choice applies from the next sync.",
+    ru: "Кроме категории статуса, родителя и эпика, компонентов, версий, story points, срока и логина исполнителя с каждой задачей можно хранить ещё до {max} полей. В списке — поля, которые Jira называла в ответах; выбор действует со следующей синхронизации.",
+  },
+  "ui.jiraFields.known": { en: "Epic Link: {epic}. Story Points: {points}.", ru: "Ссылка на эпик: {epic}. Story points: {points}." },
+  "ui.jiraFields.notFound": { en: "not found yet", ru: "пока не найдено" },
+  "ui.jiraFields.emptyCatalog": { en: "The list fills after the first full sync.", ru: "Список заполнится после первой полной синхронизации." },
+  "ui.jiraFields.search": { en: "Find a field by name or id", ru: "Найти поле по имени или id" },
+  "ui.jiraFields.remove": { en: "Remove {name}", ru: "Убрать {name}" },
+  "ui.jiraFields.save": { en: "Save fields", ru: "Сохранить поля" },
+  "ui.jiraFields.saved": { en: "Saved. The fields are read from the next sync.", ru: "Сохранено. Поля будут прочитаны при следующей синхронизации." },
+  "ui.jiraFields.failed": { en: "Could not load or save the Jira fields", ru: "Не удалось загрузить или сохранить поля Jira" },
 } as const;

@@ -551,6 +551,10 @@ model JiraAnalyticsSettings {
   jiraScopeValue                String
   jiraLabel                     String                 @default("")
   dashboardConfig               Json?
+  /// Field id to name, as Jira's search answers named them; an administrator picks extra fields from it.
+  fieldCatalog                  Json?
+  /// Up to ten extra Jira fields kept with each issue.
+  extraFieldIds                 String[]               @default([])
   semanticDefaultWidgetsVersion Int                    @default(0)
   syncStatus                    String                 @default("NOT_CONFIGURED")
   lastSyncedAt                  DateTime?
@@ -1041,6 +1045,8 @@ model JiraIssueSnapshot {
   reporter                    String?
   issueType                   String
   labels                      String[]                    @default([])
+  /// Extra fields for analytics (status category, epic, components, versions, story points, due date, assignee login, chosen custom fields).
+  attributes                  Json?
   resolution                  String?
   sprint                      String?
   issueCreatedAt              DateTime?
@@ -1111,6 +1117,8 @@ model JiraIssueVersion {
   parentKey                    String?
   epicKey                      String?
   labels                       String[]                   @default([])
+  /// The same extra fields as observed in this version; null in versions made before they were read.
+  attributes                   Json?
   sprintIds                    String[]                   @default([])
   sprint                       String?
   criticalPriorityAt           DateTime?

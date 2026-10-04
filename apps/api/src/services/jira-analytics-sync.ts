@@ -5,6 +5,13 @@ export { isJiraCriticalBugSlaCandidate } from '@pms/shared';
 
 import type { JiraIssue } from '../jira.js';
 import { hashJiraVersionV1 } from './jira-version-canonical.js';
+import { storedJiraAttributes } from '../jira-attributes.js';
+
+/** The extra fields as a JSON column value; data read before them leaves the column as it is. */
+export function jiraAttributesColumn(issue: Pick<JiraIssue, 'attributes'>) {
+  const stored = storedJiraAttributes(issue.attributes);
+  return stored ? (stored as unknown as Prisma.InputJsonValue) : undefined;
+}
 
 export class JiraHistoryObservationError extends Error {
   override name = 'JiraHistoryObservationError';
@@ -51,6 +58,7 @@ export type JiraIssueVersionProjection = {
   reporter: string | null;
   issueType: string;
   labels: string[];
+  attributes: Prisma.JsonValue | null;
   resolution: string | null;
   sprint: string | null;
   issueCreatedAt: Date | null;
@@ -83,6 +91,8 @@ export function jiraSnapshotDataFromObservedVersion(
     reporter: version.reporter,
     issueType: version.issueType,
     labels: version.labels,
+    // A version made before the extra fields were read leaves them as the last search wrote them.
+    ...(version.attributes == null ? {} : { attributes: version.attributes as Prisma.InputJsonValue }),
     resolution: version.resolution,
     sprint: version.sprint,
     issueCreatedAt: version.issueCreatedAt,
@@ -143,6 +153,7 @@ export async function rebuildJiraCurrentProjections(
               reporter: true,
               issueType: true,
               labels: true,
+              attributes: true,
               resolution: true,
               sprint: true,
               issueCreatedAt: true,
@@ -553,6 +564,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           reporter: issue.reporter,
           issueType: issue.issueType,
           labels: issue.labels,
+          attributes: jiraAttributesColumn(issue),
           resolution: issue.resolution,
           sprint: issue.sprintAvailable ? issue.sprint : undefined,
           issueCreatedAt: issue.createdAt,
@@ -582,6 +594,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           reporter: issue.reporter,
           issueType: issue.issueType,
           labels: issue.labels,
+          attributes: jiraAttributesColumn(issue),
           resolution: issue.resolution,
           sprint: issue.sprint,
           issueCreatedAt: issue.createdAt,
@@ -709,6 +722,7 @@ export function createPrismaJiraAnalyticsSyncStore(
           parentKey: issue.parentKey ?? null,
           epicKey: issue.epicKey ?? null,
           labels: issue.labels ?? [],
+          attributes: jiraAttributesColumn(issue),
           sprintIds: issue.sprintIds ?? [],
           sprint: currentProjection ? currentProjection.sprint : issue.sprint,
           criticalPriorityAt: currentProjection

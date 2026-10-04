@@ -26,4 +26,5 @@ DATABASE_URL="$JIRA_HISTORY_TEST_DATABASE_URL" ./node_modules/.bin/prisma migrat
 ./node_modules/.bin/tsx --test \
   tests/integration/jira-history-race.test.ts \
   tests/integration/jira-history-replay.test.ts \
-  tests/integration/jira-history-asof.test.ts
+  tests/integration/jira-history-asof.test.ts \
+  tests/integration/jira-attributes-postgres.test.ts

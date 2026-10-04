@@ -363,6 +363,9 @@ export function useAdminActionsController({
                 value: systemSettingsDraft.gitlabToken.trim(),
                 isSecret: true,
               },
+              "jira.backgroundSync": {
+                value: systemSettingsDraft.jiraBackgroundSync,
+              },
             },
           },
           "Не удалось сохранить системные настройки",

@@ -148,6 +148,8 @@ export async function clearJiraProjectData(
         syncStatus: 'CONFIGURED',
         lastSyncedAt: null,
         currentProjectionRefreshedAt: null,
+        // The catalog is learnt again from the next searches; the chosen extra fields stay.
+        fieldCatalog: Prisma.DbNull,
         syncStartedAt: null,
         syncLockExpiresAt: null,
         syncRunId: null,

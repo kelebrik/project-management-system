@@ -1,3 +1,6 @@
+import { jiraAttributeConfigForProject, rememberJiraFieldNames } from './jira-field-catalog.js';
+import { sameJiraAttributes, storedJiraAttributes } from '../jira-attributes.js';
+import { jiraAttributesColumn } from './jira-analytics-sync.js';
 import {
   isJiraBugIssueType,
   isJiraCriticalPriority,
@@ -299,6 +302,7 @@ type CurrentSnapshot = {
   reporter: string | null;
   issueType: string;
   labels: string[];
+  attributes: Prisma.JsonValue | null;
   resolution: string | null;
   sprint: string | null;
   issueCreatedAt: Date | null;
@@ -333,6 +337,7 @@ export function jiraCurrentProjectionChanged(existing: CurrentSnapshot, issue: J
     || issue.reporter !== existing.reporter
     || issue.issueType !== existing.issueType
     || !sameStrings(issue.labels, existing.labels)
+    || (issue.attributes !== undefined && !sameJiraAttributes(storedJiraAttributes(issue.attributes), existing.attributes))
     || issue.resolution !== existing.resolution
     || (issue.sprintAvailable && issue.sprint !== existing.sprint)
     || (issue.createdAt !== null && !sameDate(issue.createdAt, existing.issueCreatedAt))
@@ -390,6 +395,7 @@ async function persistCurrentIssue(
         reporter: true,
         issueType: true,
         labels: true,
+        attributes: true,
         resolution: true,
         sprint: true,
         issueCreatedAt: true,
@@ -430,6 +436,7 @@ async function persistCurrentIssue(
         reporter: issue.reporter,
         issueType: issue.issueType,
         labels: issue.labels,
+        attributes: jiraAttributesColumn(issue),
         resolution: issue.resolution,
         sprint: issue.sprintAvailable ? issue.sprint : undefined,
         issueCreatedAt: issue.createdAt ?? undefined,
@@ -455,6 +462,7 @@ async function persistCurrentIssue(
         reporter: issue.reporter,
         issueType: issue.issueType,
         labels: issue.labels,
+        attributes: jiraAttributesColumn(issue),
         resolution: issue.resolution,
         sprint: issue.sprint,
         issueCreatedAt: issue.createdAt,
@@ -474,9 +482,11 @@ function abortIfNeeded(signal?: AbortSignal) {
   if (signal?.aborted) throw new JiraSyncFencedError();
 }
 
-async function fetchCurrentIssues(run: ClaimedJiraSyncRun, signal?: AbortSignal) {
+async function fetchCurrentIssues(run: ClaimedJiraSyncRun, signal?: AbortSignal, database: PrismaClient = prisma) {
   const jiraUsers = new Set<string>();
+  const attributeConfig = await jiraAttributeConfigForProject(database, run.projectId);
   const options = {
+    attributeConfig,
     baseUrl: run.jiraBaseUrl ?? undefined,
     fetchAllPages: true,
     includeAnalyticsFields: true,
@@ -492,6 +502,7 @@ async function fetchCurrentIssues(run: ClaimedJiraSyncRun, signal?: AbortSignal)
     analyticsScope: { type: run.jiraScopeType, value: run.jiraScopeValue },
   });
   if (primary.jiraUser) jiraUsers.add(primary.jiraUser);
+  await rememberJiraFieldNames(database, run.projectId, primary.fieldNames);
   const byKey = new Map(primary.issues.map((issue) => [issue.key.toUpperCase(), issue]));
   if (run.jiraScopeType === 'EPIC' && byKey.size > 0) {
     for (const parentKeys of jiraIssueKeyBatches(
@@ -523,7 +534,7 @@ export async function runJiraCurrentRefreshPipeline(
   const fence = { runId: run.id, projectId: run.projectId, fenceToken: run.fenceToken };
   const syncedAt = new Date();
   options.onProgress?.({ phase: 'CURRENT_FETCH', done: 0, total: 0, unit: 'issues' });
-  const fetched = await (options.fetchIssues ?? fetchCurrentIssues)(run, options.signal);
+  const fetched = await (options.fetchIssues ?? fetchCurrentIssues)(run, options.signal, database);
   const discoveredIssueKeys = normalizedJiraIssueKeys(fetched.issues.map((issue) => issue.key));
   await checkpointJiraSyncRun(database, fence, {
     phase: 'CURRENT_WRITE',

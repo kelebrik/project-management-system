@@ -71,4 +71,6 @@ export const integrationSettings = [
   ['gitlab.enabled', 'false', false],
   ['gitlab.baseUrl', '', false],
   ['gitlab.token', '', true],
+  // off, current (refresh the current data hourly on working days) or nightly (that and a full sync with history every night).
+  ['jira.backgroundSync', 'current', false],
 ] as const;

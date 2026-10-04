@@ -907,6 +907,7 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
     assert.ok(!searchBody.fields.includes('customfield_10300'));
     assert.ok(searchBody.fields.includes('resolutiondate'));
     assert.ok(searchBody.fields.includes('labels'));
+    for (const field of ['parent', 'components', 'fixVersions', 'duedate']) assert.ok(searchBody.fields.includes(field), field);
     assert.deepEqual(issues, [
       {
         jiraId: '10042',
@@ -952,6 +953,17 @@ test('fetchJiraIssues maps Jira search response into internal issue snapshot', a
           mergeRequestCount: 2,
           updatedAt: null,
           available: true,
+        },
+        attributes: {
+          statusCategoryKey: null,
+          parentKey: null,
+          epicKey: null,
+          components: [],
+          fixVersions: [],
+          storyPoints: null,
+          dueDate: null,
+          assigneeLogin: null,
+          custom: {},
         },
       },
     ]);

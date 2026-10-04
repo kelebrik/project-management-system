@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient } from '@prisma/client';
 
 import {
   clearJiraProjectData,
@@ -127,6 +127,7 @@ test('project Jira clear deletes only imported data for the selected project', a
       syncStatus: 'CONFIGURED',
       lastSyncedAt: null,
       currentProjectionRefreshedAt: null,
+      fieldCatalog: Prisma.DbNull,
       syncStartedAt: null,
       syncLockExpiresAt: null,
       syncRunId: null,

@@ -29,6 +29,47 @@ export type JiraAnalyticsDevelopmentData = {
   isBaseline: boolean;
 };
 
+/** Extra fields kept with an issue (see the API's jira-attributes.ts); absent in data read before them. */
+export type JiraAnalyticsIssueAttributes = {
+  statusCategoryKey: 'new' | 'indeterminate' | 'done' | null;
+  parentKey: string | null;
+  epicKey: string | null;
+  components: string[];
+  fixVersions: string[];
+  storyPoints: number | null;
+  dueDate: string | null;
+  assigneeLogin: string | null;
+  custom: Record<string, string | number | string[]>;
+};
+
+const textOrNull = (value: unknown) => (typeof value === 'string' && value ? value : null);
+const textList = (value: unknown) => (Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []);
+
+/** The stored JSON read back defensively: anything unexpected becomes empty, never an error. */
+export function readJiraIssueAttributes(value: unknown): JiraAnalyticsIssueAttributes | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = value as Record<string, unknown>;
+  const category = raw.statusCategoryKey;
+  const custom: Record<string, string | number | string[]> = {};
+  if (raw.custom && typeof raw.custom === 'object' && !Array.isArray(raw.custom)) {
+    for (const [id, entry] of Object.entries(raw.custom as Record<string, unknown>)) {
+      if (typeof entry === 'string' || (typeof entry === 'number' && Number.isFinite(entry))) custom[id] = entry;
+      else if (Array.isArray(entry)) custom[id] = textList(entry);
+    }
+  }
+  return {
+    statusCategoryKey: category === 'new' || category === 'indeterminate' || category === 'done' ? category : null,
+    parentKey: textOrNull(raw.parentKey),
+    epicKey: textOrNull(raw.epicKey),
+    components: textList(raw.components),
+    fixVersions: textList(raw.fixVersions),
+    storyPoints: typeof raw.storyPoints === 'number' && Number.isFinite(raw.storyPoints) ? raw.storyPoints : null,
+    dueDate: typeof raw.dueDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.dueDate) ? raw.dueDate : null,
+    assigneeLogin: textOrNull(raw.assigneeLogin),
+    custom,
+  };
+}
+
 export type JiraAnalyticsIssueData = {
   id: string;
   issueKey: string;
@@ -56,6 +97,7 @@ export type JiraAnalyticsIssueData = {
   updatedAt: string;
   statusTransitions: JiraAnalyticsTransitionData[];
   developmentActivities: JiraAnalyticsDevelopmentData[];
+  attributes?: JiraAnalyticsIssueAttributes | null;
 };
 
 export type JiraAnalyticsGoalMapping = {

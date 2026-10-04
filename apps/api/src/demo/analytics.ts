@@ -33,6 +33,18 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
         sprint: n === 5 ? null : 'Demo Sprint 4', commitCount: n + 2, mergeRequestCount: 1,
         developmentDataAvailable: true, developmentBaselineCaptured: true,
         developmentUpdatedAt: dateAt(-1, base), updatedAt: dateAt(-1, base), syncedAt: base,
+        // The extra fields a real sync reads: epics, components, versions, story points and due dates to slice by.
+        attributes: {
+          statusCategoryKey: resolved ? 'done' : status === 'Open' ? 'new' : 'indeterminate',
+          parentKey: n % 4 === 0 ? null : `DEMO-EPIC-${(n % 3) + 1}`,
+          epicKey: `DEMO-EPIC-${(n % 3) + 1}`,
+          components: [['Firmware', 'Backend', 'QA'][n % 3]],
+          fixVersions: [n < 8 ? '1.0' : '1.1'],
+          storyPoints: [1, 2, 3, 5, 8][n % 5],
+          dueDate: dateAt(n - 4, base).toISOString().slice(0, 10),
+          assigneeLogin: `demo.user${(n % owners.length) + 1}`,
+          custom: {},
+        },
       };
       const snapshot = await tx.jiraIssueSnapshot.upsert({
         where: { id: id(`snapshot-${n}`) }, create: { id: id(`snapshot-${n}`), ...data }, update: data,
@@ -57,7 +69,7 @@ export async function fillAnalytics(client: PrismaClient, project: Project, base
         status: snapshot.status, statusCategory: resolved ? 'done' : status === 'Open' ? 'new' : 'indeterminate',
         priority: snapshot.priority, resolution: snapshot.resolution, resolutionAt: snapshot.resolutionAt,
         issueCreatedAt: snapshot.issueCreatedAt, assignee: snapshot.assignee, reporter: snapshot.reporter,
-        labels: snapshot.labels, sprintIds: n === 5 ? [] : ['demo-1', 'demo-2', 'demo-3', 'demo-4'], sprint: snapshot.sprint,
+        labels: snapshot.labels, attributes: data.attributes, sprintIds: n === 5 ? [] : ['demo-1', 'demo-2', 'demo-3', 'demo-4'], sprint: snapshot.sprint,
         criticalPriorityAt: snapshot.criticalPriorityAt, criticalEndPriority: snapshot.criticalEndPriority,
         commitCount: snapshot.commitCount, mergeRequestCount: snapshot.mergeRequestCount,
         developmentDataAvailable: true, developmentBaselineCaptured: true, transitionHistoryComplete: true,

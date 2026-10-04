@@ -212,6 +212,7 @@ export const emptyUserForm: UserFormState = {
 export const emptySystemSettingsDraft: SystemSettingsDraft = {
   gitlabEnabled: false,
   gitlabBaseUrl: "",
+  jiraBackgroundSync: "current",
   gitlabToken: "",
 };
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
 import { registerIssueJiraRoutes } from './issues-jira.routes.js';
+import { registerJiraFieldRoutes } from './issues-jira-fields.routes.js';
 import { registerOpenIssueLinkRoutes } from './issues-open-links.routes.js';
 import { registerOpenIssueRoutes } from './issues-open.routes.js';
 
@@ -26,5 +27,6 @@ export function createIssuesRouter() {
   registerOpenIssueRoutes(router);
   registerOpenIssueLinkRoutes(router);
   registerIssueJiraRoutes(router);
+  registerJiraFieldRoutes(router);
   return router;
 }

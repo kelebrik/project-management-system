@@ -867,3 +867,14 @@
   margin: 0;
   padding: 12px;
 }
+
+/* Extra Jira fields picked by an administrator. */
+.jira-extra-fields { display: grid; gap: 8px; margin-top: 12px; max-width: 720px; }
+.jira-extra-fields h3 { margin: 0; font-size: 15px; }
+.jira-extra-fields input { font: inherit; font-size: 13px; max-width: 360px; }
+.jira-extra-fields-chosen, .jira-extra-fields-options { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; margin: 0; padding: 0; }
+.jira-extra-fields-chosen li { align-items: center; background: var(--surface-muted, #f3f4f6); border-radius: 12px; display: flex; font-size: 13px; gap: 6px; padding: 2px 4px 2px 10px; }
+.jira-extra-fields small { color: var(--text-muted); }
+.jira-extra-fields-chosen button { border: 0; background: transparent; cursor: pointer; padding: 0 4px; }
+.jira-extra-fields-options button { font-size: 12px; }
+.jira-extra-fields .primary { justify-self: start; }

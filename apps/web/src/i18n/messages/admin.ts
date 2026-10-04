@@ -351,6 +351,14 @@ export const adminMessages = {
     "en": "Enterprise integrations",
     "ru": "Enterprise-интеграции"
   },
+  "ui.admin.jiraBackgroundSync": { "en": "Background Jira updates", "ru": "Фоновое обновление Jira" },
+  "ui.admin.jiraBackgroundSync.off": { "en": "Off: only when a page is opened or an administrator starts it", "ru": "Выключено: только при открытии страницы или по кнопке администратора" },
+  "ui.admin.jiraBackgroundSync.current": { "en": "Current data every hour on working days", "ru": "Текущие данные каждый час в рабочее время" },
+  "ui.admin.jiraBackgroundSync.nightly": { "en": "Current data hourly and a full sync with history every night", "ru": "Текущие данные каждый час и полная синхронизация с историей каждую ночь" },
+  "ui.admin.jiraBackgroundSyncHint": {
+    "en": "For every open project with Jira connected and synced once by an administrator. Jira is only searched; runs go one at a time. The full sync adds to the history store and stops at 95% of its budget.",
+    "ru": "Для каждого открытого проекта, где Jira подключена и один раз синхронизирована администратором. Jira только читается, прогоны идут по одному. Полная синхронизация пополняет историю и останавливается на 95% её бюджета."
+  },
   "ui.admin.gitlabEnabled": {
     "en": "GitLab enabled",
     "ru": "GitLab включен"

@@ -36,6 +36,7 @@ type SystemSetting = {
 type SystemSettingsDraft = {
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
+  jiraBackgroundSync: "off" | "current" | "nightly";
   gitlabToken: string;
 };
 
@@ -128,10 +129,16 @@ export function systemSettingsToDraft(settings: SystemSetting[]): SystemSettings
   return {
     gitlabEnabled: byKey.get("gitlab.enabled")?.value === "true",
     gitlabBaseUrl: byKey.get("gitlab.baseUrl")?.value ?? "",
+    jiraBackgroundSync: jiraBackgroundSyncMode(byKey.get("jira.backgroundSync")?.value),
     gitlabToken: "",
   };
 }
 
 export function systemSettingHasValue(settings: SystemSetting[], key: string) {
   return Boolean(settings.find((setting) => setting.key === key)?.hasValue);
+}
+
+/** The stored mode of background Jira syncs; anything unknown is the default, current. */
+export function jiraBackgroundSyncMode(value: string | undefined): "off" | "current" | "nightly" {
+  return value === "off" || value === "nightly" ? value : "current";
 }

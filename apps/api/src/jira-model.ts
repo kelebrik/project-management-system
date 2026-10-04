@@ -1,3 +1,4 @@
+import type { JiraAttributeConfig, JiraIssueAttributes } from './jira-attributes.js';
 import { z } from "zod";
 
 export type JiraIssue = {
@@ -44,6 +45,8 @@ export type JiraIssue = {
     updatedAt: Date | null;
     available: boolean;
   };
+  /** Extra fields kept for analytics; absent only in data made before they were read. */
+  attributes?: JiraIssueAttributes;
   history?: {
     document: unknown;
     changelogComplete: boolean;
@@ -200,6 +203,8 @@ export type JiraConfigOptions = {
   capacitySample?: boolean;
   includeHistoryDocument?: boolean;
   remoteDevelopmentCache?: Map<string, JiraIssue['development']>;
+  /** Which extra fields to ask for and how to read epic and story points. */
+  attributeConfig?: JiraAttributeConfig;
 };
 
 export type JiraAnalyticsScope = {
@@ -232,6 +237,8 @@ export type JiraIssueFetchResult = {
   issues: JiraIssue[];
   jiraUser: string | null;
   total: number;
+  /** Field id to name, as the answer named them; it feeds the field catalog. */
+  fieldNames?: Record<string, string>;
   capacityMeasurements?: JiraCapacityIssueMeasurement[];
 };
 

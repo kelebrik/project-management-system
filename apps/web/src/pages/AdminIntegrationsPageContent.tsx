@@ -332,6 +332,23 @@ export function AdminIntegrationsPageContent() {
                             }
                           />
                         </label>
+                        <label className="span-2">
+                          {uiText("ui.admin.jiraBackgroundSync")}
+                          <select
+                            value={systemSettingsDraft.jiraBackgroundSync}
+                            onChange={(event) =>
+                              setSystemSettingsDraft({
+                                ...systemSettingsDraft,
+                                jiraBackgroundSync: event.target.value as "off" | "current" | "nightly",
+                              })
+                            }
+                          >
+                            <option value="off">{uiText("ui.admin.jiraBackgroundSync.off")}</option>
+                            <option value="current">{uiText("ui.admin.jiraBackgroundSync.current")}</option>
+                            <option value="nightly">{uiText("ui.admin.jiraBackgroundSync.nightly")}</option>
+                          </select>
+                          <small>{uiText("ui.admin.jiraBackgroundSyncHint")}</small>
+                        </label>
                         <button type="submit" disabled={savingSystemSettings}>
                           {savingSystemSettings ? uiText("ui.admin.savingEllipsisDots") : uiText("ui.admin.saveIntegrations")}
                         </button>

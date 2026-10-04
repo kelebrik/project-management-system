@@ -233,5 +233,7 @@ export type UserDraftState = {
 export type SystemSettingsDraft = {
   gitlabEnabled: boolean;
   gitlabBaseUrl: string;
+  /** off, current or nightly: how the server keeps project Jira data fresh on its own. */
+  jiraBackgroundSync: "off" | "current" | "nightly";
   gitlabToken: string;
 };

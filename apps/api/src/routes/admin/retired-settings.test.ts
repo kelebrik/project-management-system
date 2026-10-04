@@ -40,5 +40,5 @@ test('retired permissions and settings are neither managed nor seeded', () => {
     assert.equal(retiredSystemSettings.includes(key), true, key);
     assert.equal(seededKeys.includes(key), false, key);
   }
-  assert.deepEqual(seededKeys, ['gitlab.enabled', 'gitlab.baseUrl', 'gitlab.token']);
+  assert.deepEqual(seededKeys, ['gitlab.enabled', 'gitlab.baseUrl', 'gitlab.token', 'jira.backgroundSync']);
 });

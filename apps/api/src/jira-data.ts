@@ -1,3 +1,4 @@
+import { jiraAttributeFieldIds, type JiraAttributeConfig } from './jira-attributes.js';
 import {
   isJiraCriticalPriority,
   jiraAnalyticsLabels,
@@ -209,8 +210,9 @@ export function jiraEpicKey(fields: Record<string, unknown>, names: Record<strin
   return epicField ? jiraObjectString(fields[epicField], 'key') : null;
 }
 
-export function jiraAnalyticsFieldIds() {
-  return [jiraSprintFieldId(), 'labels'];
+/** Sprint and labels for the analytics, and the extra fields kept with each issue. */
+export function jiraAnalyticsFieldIds(attributeConfig: JiraAttributeConfig = {}) {
+  return [...new Set([jiraSprintFieldId(), 'labels', ...jiraAttributeFieldIds(attributeConfig)])];
 }
 
 export function parseJiraDate(value: unknown) {

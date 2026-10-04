@@ -1,4 +1,4 @@
-import { isJiraCriticalBugSlaCandidate, type JiraAnalyticsIssueData } from '@pms/shared';
+import { isJiraCriticalBugSlaCandidate, readJiraIssueAttributes, type JiraAnalyticsIssueData } from '@pms/shared';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
 export const JIRA_ASOF_MAX_VERSION_ROWS = 200_000;
@@ -71,6 +71,7 @@ export type JiraAsOfVersionRow = {
   sprint: string | null;
   sprintIds: string[];
   labels: string[];
+  attributes: unknown;
   issueCreatedAt: Date | string | null;
   criticalPriorityAt: Date | string | null;
   criticalEndPriority: string | null;
@@ -110,6 +111,7 @@ export function jiraAsOfIssueFromRow(row: JiraAsOfVersionRow): JiraAnalyticsIssu
     sprint: row.sprint,
     sprintCount: row.sprintIds.length,
     labels: row.labels,
+    attributes: readJiraIssueAttributes(row.attributes),
     issueCreatedAt: iso(row.issueCreatedAt),
     criticalPriorityAt: iso(row.criticalPriorityAt),
     criticalEndPriority: row.criticalEndPriority,
@@ -167,6 +169,7 @@ async function* jiraAsOfIssueBatches(
         v."sprint" AS "sprint",
         v."sprintIds" AS "sprintIds",
         v."labels" AS "labels",
+        v."attributes" AS "attributes",
         v."issueCreatedAt" AS "issueCreatedAt",
         v."criticalPriorityAt" AS "criticalPriorityAt",
         v."criticalEndPriority" AS "criticalEndPriority",

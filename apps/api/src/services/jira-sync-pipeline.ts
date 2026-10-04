@@ -1,3 +1,4 @@
+import { jiraAttributeConfigForProject, rememberJiraFieldNames } from './jira-field-catalog.js';
 import { JiraSyncRunKind, Prisma, type PrismaClient } from '@prisma/client';
 
 import { prisma } from '../db.js';
@@ -484,8 +485,10 @@ export async function runJiraSyncPipeline(
       message: error instanceof Error ? error.message : String(error),
     });
   };
-  const fetchHistoryIssues = (issueKeys: readonly string[]) =>
-    fetchJiraIssuesWithMeta(jiraIssueKeyBatchJql(issueKeys), {
+  const attributeConfig = await jiraAttributeConfigForProject(database, run.projectId);
+  const fetchHistoryIssues = async (issueKeys: readonly string[]) => {
+    const result = await fetchJiraIssuesWithMeta(jiraIssueKeyBatchJql(issueKeys), {
+      attributeConfig,
       baseUrl: run.jiraBaseUrl ?? undefined,
       fetchAllPages: true,
       includeAnalyticsFields: true,
@@ -495,6 +498,10 @@ export async function runJiraSyncPipeline(
       remoteDevelopmentCache,
       deadlineAt,
     });
+    // Full-history answers name every field: they fill the catalog the extra fields are picked from.
+    await rememberJiraFieldNames(database, run.projectId, result.fieldNames);
+    return result;
+  };
   const applyHistoryResult = async (
     requestedIssueKeys: readonly string[],
     jiraResult: Awaited<ReturnType<typeof fetchJiraIssuesWithMeta>>,

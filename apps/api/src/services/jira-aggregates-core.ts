@@ -15,6 +15,7 @@ import {
   jiraAnalyticsSourceUsesPeriod,
   normalizeJiraAnalyticsDatasetRevision,
   normalizeJiraAnalyticsName,
+  readJiraIssueAttributes,
   type JiraAnalyticsAggregateDraft,
   type JiraAnalyticsDataQuality,
   type JiraAnalyticsDatasetDraft,
@@ -335,6 +336,7 @@ export const jiraAggregateIssueSelect = {
   reporter: true,
   issueType: true,
   labels: true,
+  attributes: true,
   resolution: true,
   sprint: true,
   currentVersion: {
@@ -378,9 +380,10 @@ export const jiraAggregateIssueSelect = {
 type SelectedIssue = Prisma.JiraIssueSnapshotGetPayload<{ select: typeof jiraAggregateIssueSelect }>;
 
 function serializeIssue(issue: SelectedIssue): JiraAnalyticsIssueData {
-  const { currentVersion, ...snapshot } = issue;
+  const { currentVersion, attributes, ...snapshot } = issue;
   return {
     ...snapshot,
+    attributes: readJiraIssueAttributes(attributes),
     sprintCount: currentVersion?.sprintIds.length ?? (issue.sprint ? 1 : 0),
     issueCreatedAt: issue.issueCreatedAt?.toISOString() ?? null,
     criticalPriorityAt: issue.criticalPriorityAt?.toISOString() ?? null,
