@@ -537,6 +537,20 @@ export const openApiJiraPaths = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/flow-series": {
+      get: {
+        ...securedOperation(["Jira"], "Flow of the project's Jira work from its snapshots and status transitions (Jira is not asked): per step created, resolved, open at the end, open work by status category (cumulative flow; the category of a past status is the one it has now) and running scope and done for a burnup. Cancelled issues are left out; at most 5000 issues; as-of is not supported", [projectIdParam], "Steps and data quality"),
+        parameters: [
+          projectIdParam,
+          { name: "periodDays", in: "query", required: false, description: "Days back from now", schema: { type: "integer", enum: [30, 90, 180, 365], default: 90 } },
+          { name: "step", in: "query", required: false, description: "Length of one step", schema: { type: "string", enum: ["day", "week", "month"], default: "week" } },
+          { name: "metric", in: "query", required: false, description: "Issues or their current story points", schema: { type: "string", enum: ["count", "storyPoints"], default: "count" } },
+          { name: "timeZone", in: "query", required: false, description: "Where steps begin", schema: { type: "string", enum: ["Europe/Moscow", "UTC"], default: "Europe/Moscow" } },
+          { name: "slice", in: "query", required: false, description: "A slice as base64url of its JSON (see JiraAnalyticsSlice)", schema: { type: "string", maxLength: 20000 } },
+        ],
+        responses: { "200": { description: "Flow series" }, "400": { description: "Invalid parameters or slice" }, "404": { description: "Project not found" }, "409": { description: "More issues than the analytics limit" } },
+      },
+    },
     "/api/projects/{projectId}/jira/extra-fields": {
       get: securedOperation(["Jira"], "The project's Jira field catalog (field ids and names seen in search answers), the chosen extra fields and the found Epic Link and Story Points fields; system administrators only", [projectIdParam], "Catalog, selection and known fields"),
       put: {

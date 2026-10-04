@@ -399,9 +399,11 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
 export function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
   const existing = new Set(definition.outputFields.map((field) => field.key));
   const available = new Set<JiraAnalyticsFilterField>(JIRA_ANALYTICS_FIELDS_BY_SOURCE[legacySource(definition)]);
+  // The fields of issue attributes (status category, epic, components, versions, story points, due date, age) come to every ticket aggregate.
+  const attributeFields = ["statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"] as const;
   const required = definition.rowConfig.kind === "issue" || definition.rowConfig.kind === "goalIssue"
-    ? (["sprintCount", "labels"] as const)
-    : (["labels"] as const);
+    ? (["sprintCount", "labels", ...attributeFields] as const)
+    : (["labels", ...attributeFields] as const);
   const added = required
     .filter((field) => available.has(field) && !existing.has(field))
     .map(jiraSemanticDefaultOutputField);
@@ -447,6 +449,95 @@ export async function ensureMissingJiraSystemSemanticAggregates(client: PrismaCl
   });
 }
 
+/**
+ * Gives a published aggregate the ticket fields it lacks (labels, sprint count
+ * and the fields of issue attributes) as a new compatible published revision;
+ * a draft on top of it moves onto the new version. Nothing changes when all
+ * fields are there.
+ */
+async function upgradePublishedTicketFields(
+  transaction: Prisma.TransactionClient,
+  projectId: string,
+  row: Awaited<ReturnType<Prisma.TransactionClient["jiraAggregateDefinition"]["findUniqueOrThrow"]>>,
+) {
+  if (row.publishedVersion !== null) {
+    const publishedRevision = await transaction.jiraAggregateDefinitionRevision.findUnique({
+      where: { aggregateId_version: { aggregateId: row.id, version: row.publishedVersion } },
+    });
+    const publishedDefinition = parsedDefinition(publishedRevision?.definition);
+    const upgradedPublished = publishedDefinition
+      ? withCurrentTicketFields(publishedDefinition)
+      : null;
+    if (
+      publishedRevision
+      && publishedDefinition
+      && upgradedPublished
+      && upgradedPublished !== publishedDefinition
+    ) {
+      const hasDraft = row.version !== row.publishedVersion;
+      const publishedVersion = row.version + 1;
+      await transaction.jiraAggregateDefinitionRevision.create({
+        data: {
+          projectId,
+          aggregateId: row.id,
+          version: publishedVersion,
+          definition: upgradedPublished as unknown as Prisma.InputJsonObject,
+          fingerprint: hash(upgradedPublished),
+          status: "published",
+          changeKind: "compatible",
+          publishedAt: new Date(),
+        },
+      });
+      if (hasDraft) {
+        const draftDefinition = withCurrentTicketFields(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
+        const draftVersion = publishedVersion + 1;
+        await transaction.jiraAggregateDefinitionRevision.updateMany({
+          where: { aggregateId: row.id, version: row.version, status: "draft" },
+          data: { status: "archived" },
+        });
+        await transaction.jiraAggregateDefinitionRevision.create({
+          data: {
+            projectId,
+            aggregateId: row.id,
+            version: draftVersion,
+            definition: draftDefinition as unknown as Prisma.InputJsonObject,
+            fingerprint: hash(draftDefinition),
+            status: "draft",
+            changeKind: jiraSemanticCompatibleChange(upgradedPublished, draftDefinition) ? "compatible" : "breaking",
+          },
+        });
+        row = await transaction.jiraAggregateDefinition.update({
+          where: { id: row.id },
+          data: {
+            ...jiraSemanticDefinitionUpdateData(draftDefinition, draftVersion),
+            publishedVersion,
+            exposedFields: draftDefinition.outputFields.map((field) => field.key),
+          },
+        });
+      } else {
+        row = await transaction.jiraAggregateDefinition.update({
+          where: { id: row.id },
+          data: {
+            ...jiraSemanticDefinitionUpdateData(upgradedPublished, publishedVersion),
+            publishedVersion,
+            exposedFields: upgradedPublished.outputFields.map((field) => field.key),
+          },
+        });
+      }
+    }
+  }
+  return row;
+}
+
+/** Brings every published aggregate of a project, system or user-made, up to the current ticket fields. */
+export async function upgradeJiraAggregateTicketFields(client: PrismaClient, projectId: string) {
+  await client.$transaction(async (transaction) => {
+    await lockJiraAggregateProject(transaction, projectId);
+    const rows = await transaction.jiraAggregateDefinition.findMany({ where: { projectId, archivedAt: null, publishedVersion: { not: null } } });
+    for (const row of rows) await upgradePublishedTicketFields(transaction, projectId, row);
+  });
+}
+
 export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {
   await client.$transaction(async (transaction) => {
     await lockJiraAggregateProject(transaction, projectId);
@@ -482,72 +573,7 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
         },
         update: {},
       });
-      if (row.publishedVersion !== null) {
-        const publishedRevision = await transaction.jiraAggregateDefinitionRevision.findUnique({
-          where: { aggregateId_version: { aggregateId: row.id, version: row.publishedVersion } },
-        });
-        const publishedDefinition = parsedDefinition(publishedRevision?.definition);
-        const upgradedPublished = publishedDefinition
-          ? withCurrentTicketFields(publishedDefinition)
-          : null;
-        if (
-          publishedRevision
-          && publishedDefinition
-          && upgradedPublished
-          && upgradedPublished !== publishedDefinition
-        ) {
-          const hasDraft = row.version !== row.publishedVersion;
-          const publishedVersion = row.version + 1;
-          await transaction.jiraAggregateDefinitionRevision.create({
-            data: {
-              projectId,
-              aggregateId: row.id,
-              version: publishedVersion,
-              definition: upgradedPublished as unknown as Prisma.InputJsonObject,
-              fingerprint: hash(upgradedPublished),
-              status: "published",
-              changeKind: "compatible",
-              publishedAt: new Date(),
-            },
-          });
-          if (hasDraft) {
-            const draftDefinition = withCurrentTicketFields(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
-            const draftVersion = publishedVersion + 1;
-            await transaction.jiraAggregateDefinitionRevision.updateMany({
-              where: { aggregateId: row.id, version: row.version, status: "draft" },
-              data: { status: "archived" },
-            });
-            await transaction.jiraAggregateDefinitionRevision.create({
-              data: {
-                projectId,
-                aggregateId: row.id,
-                version: draftVersion,
-                definition: draftDefinition as unknown as Prisma.InputJsonObject,
-                fingerprint: hash(draftDefinition),
-                status: "draft",
-                changeKind: jiraSemanticCompatibleChange(upgradedPublished, draftDefinition) ? "compatible" : "breaking",
-              },
-            });
-            row = await transaction.jiraAggregateDefinition.update({
-              where: { id: row.id },
-              data: {
-                ...jiraSemanticDefinitionUpdateData(draftDefinition, draftVersion),
-                publishedVersion,
-                exposedFields: draftDefinition.outputFields.map((field) => field.key),
-              },
-            });
-          } else {
-            row = await transaction.jiraAggregateDefinition.update({
-              where: { id: row.id },
-              data: {
-                ...jiraSemanticDefinitionUpdateData(upgradedPublished, publishedVersion),
-                publishedVersion,
-                exposedFields: upgradedPublished.outputFields.map((field) => field.key),
-              },
-            });
-          }
-        }
-      }
+      row = await upgradePublishedTicketFields(transaction, projectId, row);
       references[references.length - 1] = row;
     }
     const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
@@ -628,6 +654,7 @@ export function jiraSemanticExecutableDefinition(
   query: {
     metric: JiraAnalyticsMetric;
     groupBy: JiraAnalyticsGroupBy;
+    groupBy2?: JiraAnalyticsGroupBy;
     filters: JiraAnalyticsFilter[];
     filterLogic: "and" | "or";
     periodDays: JiraAnalyticsPeriodDays | null;
@@ -646,6 +673,7 @@ export function jiraSemanticExecutableDefinition(
     source,
     metric: query.metric,
     groupBy: query.groupBy,
+    groupBy2: query.groupBy2 ?? "none",
     scope: "retro",
     filterLogic: query.filterLogic,
     filters: query.filters,

@@ -3,6 +3,7 @@ import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.
 import { registerIssueJiraRoutes } from './issues-jira.routes.js';
 import { registerJiraFieldRoutes } from './issues-jira-fields.routes.js';
 import { registerJiraAnalyticsFacetRoutes } from './jira-analytics-facets.routes.js';
+import { registerJiraFlowSeriesRoutes } from './jira-flow-series.routes.js';
 import { registerOpenIssueLinkRoutes } from './issues-open-links.routes.js';
 import { registerOpenIssueRoutes } from './issues-open.routes.js';
 
@@ -30,5 +31,6 @@ export function createIssuesRouter() {
   registerIssueJiraRoutes(router);
   registerJiraFieldRoutes(router);
   registerJiraAnalyticsFacetRoutes(router);
+  registerJiraFlowSeriesRoutes(router);
   return router;
 }

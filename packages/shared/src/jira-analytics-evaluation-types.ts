@@ -1,6 +1,7 @@
 import type { JiraAnalyticsSlice } from "./jira-analytics-slice.js";
 import type {
   JiraAnalyticsFilterField,
+  JiraAnalyticsGroupBy,
   JiraAnalyticsPeriodDays,
   JiraAnalyticsPeriodMode,
   JiraAnalyticsSortDirection,
@@ -137,6 +138,8 @@ export type JiraAnalyticsResultRecord = {
   occurrenceCount?: number;
   goal?: JiraAnalyticsGoalRecord;
   semanticValues?: Partial<Record<JiraAnalyticsFilterField, string | number | boolean | null>>;
+  /** Days from creation to resolution or to the evaluation time; set while evaluating. */
+  ageDays?: number | null;
 };
 
 export type JiraAnalyticsDataQualityStatus =
@@ -184,6 +187,8 @@ export type JiraAnalyticsEvaluationOptions = {
 };
 
 export type JiraAnalyticsExecutableDefinition = JiraAnalyticsAggregateDraft & {
+  /** A second grouping inside each group: each group gets a breakdown by it. */
+  groupBy2?: JiraAnalyticsGroupBy;
   baseFilterLogic?: "and" | "or";
   baseFilters?: JiraAnalyticsFilter[];
   rowConfig?: JiraAnalyticsRowConfig | null;
@@ -219,7 +224,11 @@ export type JiraAnalyticsEvaluationResult = {
     assignee: string;
   };
   value: number;
-  groups: Array<{ key: string; label: string; value: number; recordCount: number }>;
+  groups: Array<{ key: string; label: string; value: number; recordCount: number; breakdown?: Array<{ key: string; label: string; value: number; recordCount: number }> }>;
+  /** The keys of the second grouping across all groups, in order, when there is one. */
+  breakdownKeys?: Array<{ key: string; label: string }>;
+  /** A record may sit in several groups (components, fix versions): groups can add up to more than the total. */
+  multiValued?: boolean;
   records: JiraAnalyticsResultRecord[];
   totalRecords: number;
   page: number;

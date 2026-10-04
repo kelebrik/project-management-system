@@ -50,6 +50,7 @@ import {
 import {
   batchQuerySchema,
   dashboardSaveSchema,
+  groupField,
   deleteSchema,
   evaluationErrorMessage,
   gitlabSyncSchema,
@@ -94,11 +95,6 @@ export function jiraSemanticEvaluationNow(asOf: string | null | undefined) {
   return asOf ?? new Date().toISOString();
 }
 
-const groupField: Record<string, string | null> = {
-  none: null, goal: "goalName", project: "project", status: "status", assignee: "assignee", reporter: "reporter",
-  priority: "priority", sprint: "sprint", issueType: "issueType", resolution: "resolution",
-  fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt",
-};
 
 function widgetContractError(
   widget: z.infer<typeof jiraSemanticWidgetSchema>,
@@ -110,8 +106,10 @@ function widgetContractError(
   const filter = widget.filters.find((item) => !fields.has(item.field));
   if (filter) return `Поле условия ${filter.field} не опубликовано агрегатом`;
   if (widget.dateField && fields.get(widget.dateField)?.type !== "date") return "Поле периода должно иметь тип «дата»";
-  const grouping = groupField[widget.groupBy];
-  if (grouping && !fields.has(grouping as never)) return "Поле группировки не опубликовано агрегатом";
+  const groupBy2 = widget.groupBy2 ?? "none", grouping = groupField[widget.groupBy], grouping2 = groupField[groupBy2];
+  if ((grouping && !fields.has(grouping as never)) || (grouping2 && !fields.has(grouping2 as never))) return "Поле группировки не опубликовано агрегатом";
+  if (groupBy2 !== "none" && (widget.groupBy === "none" || groupBy2 === widget.groupBy)) return "Вторая группировка нужна поверх первой и отличается от неё";
+  if (widget.metric === "storyPoints" && !fields.has("storyPoints")) return "Метрика story points требует поле storyPoints";
   if (widget.metric.endsWith("Duration") && !fields.has("durationHours")) return "Метрика длительности требует поле durationHours";
   if (widget.metric === "commits" && !fields.has("commitCount")) return "Метрика коммитов требует поле commitCount";
   if (widget.metric === "mergeRequests" && !fields.has("mergeRequestCount")) return "Метрика merge requests требует поле mergeRequestCount";
@@ -136,7 +134,7 @@ function queryContractError(
     dateField: query.dateField,
     asOf: query.asOf ?? null,
     metric: query.metric,
-    groupBy: query.groupBy,
+    groupBy: query.groupBy, groupBy2: query.groupBy2,
     sortBy: query.sortBy,
     sortDirection: query.sortDirection,
     visualization: query.groupBy === "none" ? "number" : "bar",

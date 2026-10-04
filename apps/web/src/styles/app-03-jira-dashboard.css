@@ -893,3 +893,14 @@
 .jira-slice-save { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
 .jira-slice-save input:not([type]) { font: inherit; font-size: 13px; }
 .jira-slice-save label { align-items: center; display: flex; font-size: 13px; gap: 4px; }
+.jira-analytics-pivot { max-width: 100%; overflow: auto; }
+.jira-analytics-pivot table { border-collapse: collapse; font-size: 13px; width: 100%; }
+.jira-analytics-pivot th, .jira-analytics-pivot td { border-bottom: 1px solid var(--border); padding: 4px 8px; text-align: right; white-space: nowrap; }
+.jira-analytics-pivot th:first-child { text-align: left; }
+.jira-analytics-pivot thead th { color: var(--text-muted); font-weight: 600; }
+.jira-flow-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); }
+.jira-flow-chart { background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 8px; margin: 0; padding: 10px; }
+.jira-flow-chart figcaption { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.jira-flow-chart svg { color: var(--text-muted); display: block; height: auto; width: 100%; }
+.jira-flow-legend { display: flex; flex-wrap: wrap; font-size: 12px; gap: 12px; list-style: none; margin: 4px 0 0; padding: 0; }
+.jira-flow-legend span { border-radius: 2px; display: inline-block; height: 10px; margin-right: 4px; width: 10px; }

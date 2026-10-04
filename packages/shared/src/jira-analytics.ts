@@ -4,3 +4,4 @@ export * from "./jira-analytics-dashboard.js";
 export * from "./jira-analytics-evaluation-types.js";
 export * from "./jira-analytics-evaluation.js";
 export * from "./jira-analytics-slice.js";
+export * from "./jira-analytics-grouping.js";

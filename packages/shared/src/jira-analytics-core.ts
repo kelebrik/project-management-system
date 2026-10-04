@@ -119,6 +119,7 @@ export const jiraAnalyticsMetrics = [
   "p95Duration",
   "commits",
   "mergeRequests",
+  "storyPoints",
 ] as const;
 export const jiraAnalyticsGroupings = [
   "none",
@@ -134,6 +135,12 @@ export const jiraAnalyticsGroupings = [
   "fromStatus",
   "toStatus",
   "week",
+  "statusCategory",
+  "epic",
+  "component",
+  "fixVersion",
+  "ageBucket",
+  "month",
 ] as const;
 export const jiraAnalyticsFilterFields = [
   "goalId",
@@ -182,6 +189,13 @@ export const jiraAnalyticsFilterFields = [
   "mergeRequestUrl",
   "jiraKeys",
   "jiraLinkState",
+  "statusCategory",
+  "epic",
+  "components",
+  "fixVersions",
+  "storyPoints",
+  "dueDate",
+  "ageDays",
 ] as const;
 export const jiraAnalyticsFilterOperators = [
   "equals",
@@ -233,22 +247,24 @@ export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
   JiraAnalyticsSource,
   readonly JiraAnalyticsMetric[]
 > = {
-  issues: ["count", "commits", "mergeRequests"],
-  goalIssues: ["count", "commits", "mergeRequests"],
+  issues: ["count", "commits", "mergeRequests", "storyPoints"],
+  goalIssues: ["count", "commits", "mergeRequests", "storyPoints"],
   transitions: [
     "count",
     "averageDuration",
     "p50Duration",
     "p85Duration",
     "p95Duration",
+    "storyPoints",
   ],
-  development: ["count", "commits", "mergeRequests"],
+  development: ["count", "commits", "mergeRequests", "storyPoints"],
   criticalBugs: [
     "count",
     "averageDuration",
     "p50Duration",
     "p85Duration",
     "p95Duration",
+    "storyPoints",
   ],
   statusIntervals: [
     "count",
@@ -256,6 +272,7 @@ export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
     "p50Duration",
     "p85Duration",
     "p95Duration",
+    "storyPoints",
   ],
   gitlabCommits: ["count"],
 };
@@ -264,12 +281,12 @@ export const JIRA_ANALYTICS_GROUPS_BY_SOURCE: Record<
   JiraAnalyticsSource,
   readonly JiraAnalyticsGroupBy[]
 > = {
-  issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType"],
-  goalIssues: ["none", "goal", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType"],
-  transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week"],
-  development: ["none", "project", "status", "assignee", "reporter", "sprint", "week"],
-  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution"],
-  statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week"],
+  issues: ["none", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
+  goalIssues: ["none", "goal", "project", "status", "assignee", "reporter", "priority", "sprint", "issueType", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
+  transitions: ["none", "project", "status", "assignee", "reporter", "fromStatus", "toStatus", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
+  development: ["none", "project", "status", "assignee", "reporter", "sprint", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
+  criticalBugs: ["none", "project", "priority", "assignee", "reporter", "status", "issueType", "resolution", "statusCategory", "epic", "component", "fixVersion", "ageBucket"],
+  statusIntervals: ["none", "project", "status", "assignee", "reporter", "issueType", "priority", "fromStatus", "week", "statusCategory", "epic", "component", "fixVersion", "ageBucket", "month"],
   gitlabCommits: ["none"],
 };
 
@@ -296,22 +313,19 @@ export const JIRA_ANALYTICS_FIELDS_BY_SOURCE: Record<
     "issueCreatedAt",
     "criticalPriorityAt",
     "resolutionAt",
-    "updatedAt",
-  ],
+    "updatedAt", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
   goalIssues: [
     "goalId", "goalName", "goalStatus", "goalDate", "goalLabels", "matchedLabels",
     "issueKey", "project", "summary", "status", "assignee", "reporter", "priority",
     "sprint", "sprintCount", "labels", "issueType", "resolution", "hasDevelopment",
-    "commitCount", "mergeRequestCount", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt",
-  ],
-  transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "fromStatus", "toStatus", "eventAt", "durationHours"],
-  development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "sprint", "eventAt", "commitCount", "mergeRequestCount"],
-  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "priority", "issueType", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours"],
+    "commitCount", "mergeRequestCount", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
+  transitions: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "fromStatus", "toStatus", "eventAt", "durationHours", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
+  development: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "sprint", "eventAt", "commitCount", "mergeRequestCount", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
+  criticalBugs: ["issueKey", "project", "summary", "status", "assignee", "reporter", "labels", "priority", "issueType", "resolution", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "durationHours", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
   statusIntervals: [
     "issueKey", "project", "summary", "status", "assignee", "reporter",
     "issueType", "priority", "labels", "resolution", "issueCreatedAt", "fromStatus",
-    "criticalPriorityAt", "resolutionAt", "eventAt", "intervalStartAt", "intervalEndAt", "durationHours",
-  ],
+    "criticalPriorityAt", "resolutionAt", "eventAt", "intervalStartAt", "intervalEndAt", "durationHours", "statusCategory", "epic", "components", "fixVersions", "storyPoints", "dueDate", "ageDays"],
   gitlabCommits: [
     "gitlabProjectPath", "gitlabTargetBranch", "commitSha", "commitShortSha",
     "commitTitle", "commitAuthor", "commitAuthorEmail", "committedAt", "commitUrl",
@@ -326,6 +340,8 @@ export const numericFields = new Set<JiraAnalyticsFilterField>([
   "mergeRequestCount",
   "sprintCount",
   "mergeRequestIid",
+  "storyPoints",
+  "ageDays",
 ]);
 
 export const dateFields = new Set<JiraAnalyticsFilterField>([
@@ -338,6 +354,7 @@ export const dateFields = new Set<JiraAnalyticsFilterField>([
   "intervalStartAt",
   "intervalEndAt",
   "committedAt",
+  "dueDate",
 ]);
 
 export type JiraAnalyticsFieldKind = "text" | "number" | "boolean" | "date";

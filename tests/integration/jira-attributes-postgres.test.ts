@@ -87,3 +87,30 @@ test('extra Jira fields are kept in the snapshot and its version, survive a rebu
     await prisma.$disconnect();
   }
 });
+
+test('aggregates made before the new ticket fields get them as a compatible version, once', { skip: !testDatabaseUrl }, async () => {
+  const { JIRA_SYSTEM_SEMANTIC_AGGREGATES, jiraSemanticCreateData, jiraSemanticRevisionCreateData, upgradeJiraAggregateTicketFields } = await import('../../apps/api/src/services/jira-semantic-aggregates.js');
+  const prisma = new PrismaClient({ datasourceUrl: testDatabaseUrl });
+  const suffix = randomUUID().slice(0, 8);
+  const unit = await prisma.businessUnit.create({ data: { code: `agg-${suffix}`, name: 'Aggregates' } });
+  try {
+    const project = await prisma.project.create({ data: { businessUnitId: unit.id, code: `AGG-${suffix}`, name: 'Aggregates', portfolio: 'T', sponsor: 'T', projectManager: 'T', startDate: new Date('2026-09-01'), targetDate: new Date('2026-12-01'), budgetPlanned: '0', budgetForecast: '0', summary: '' } });
+    const issuesAggregate = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.definition.rowConfig.kind === 'issue')!;
+    const fresh = new Set(['statusCategory', 'epic', 'components', 'fixVersions', 'storyPoints', 'dueDate', 'ageDays']);
+    // A user's aggregate published before: without the new fields.
+    const old = { ...issuesAggregate.definition, name: 'Мои тикеты', outputFields: issuesAggregate.definition.outputFields.filter((field) => !fresh.has(field.key)) };
+    const row = await prisma.jiraAggregateDefinition.create({ data: { ...jiraSemanticCreateData(project.id, `user-${suffix}`, old), publishedVersion: 1 } });
+    await prisma.jiraAggregateDefinitionRevision.create({ data: { ...jiraSemanticRevisionCreateData(project.id, row.id, 1, old, 'compatible'), status: 'published', publishedAt: new Date() } });
+
+    await upgradeJiraAggregateTicketFields(prisma, project.id);
+    const upgraded = await prisma.jiraAggregateDefinition.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal(upgraded.publishedVersion, 2);
+    for (const field of fresh) assert.ok(upgraded.exposedFields.includes(field), field);
+    await upgradeJiraAggregateTicketFields(prisma, project.id);
+    assert.equal((await prisma.jiraAggregateDefinition.findUniqueOrThrow({ where: { id: row.id } })).publishedVersion, 2, 'nothing new the second time');
+  } finally {
+    await prisma.project.deleteMany({ where: { businessUnitId: unit.id } });
+    await prisma.businessUnit.delete({ where: { id: unit.id } });
+    await prisma.$disconnect();
+  }
+});

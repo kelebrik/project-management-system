@@ -683,6 +683,15 @@ export const englishWikiGroups: WikiGroup[] = [
             ]
           },
           {
+            heading: "Groupings, story points and flow",
+            points: [
+              "Ticket aggregates publish new fields: status category, epic, components, fix versions, story points, due date and age in days (from creation to resolution or to the time of counting). System aggregates get them as a new compatible version by themselves.",
+              "A widget also groups by status category, epic, component, fix version, age (0–7, 8–30, 31–90, over 90 days) and month. An issue with several components or versions counts in each of them, and the widget says so. The Story points metric adds each issue's points once, however many transitions or intervals it has.",
+              "Then by adds a second grouping: the widget shows a table with the first grouping as rows, the second as columns and a total per row. Clicking a row opens its issues.",
+              "The Flow tab charts from snapshots and transitions over 30–365 days by day, week or month: created and resolved, open at the end of each step, a cumulative flow by status category and a burnup of scope against done — in issues or story points and in the same slice as the widgets. Cancelled issues are left out. The category of a past status is the one the status has now, and story points are the current ones; the charts say so."
+            ]
+          },
+          {
             "heading": "Open issues",
             "points": [
               "An issue stores a source of INTERNAL or JIRA, a section (category), title, criticality (severity), readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, dueDate, a reference link, a linked risk, a WBS phase and Jira links. An issue has no separate \"needs a decision\" flag: criticality and readiness decide whether a decision is needed.",

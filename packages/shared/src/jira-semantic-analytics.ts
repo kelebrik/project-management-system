@@ -315,6 +315,8 @@ export const jiraSemanticWidgetSchema = z.object({
   asOf: z.string().datetime({ offset: true }).nullable(),
   metric: z.enum(jiraAnalyticsMetrics),
   groupBy: z.enum(jiraAnalyticsGroupings),
+  /** A second grouping inside each group; absent or "none" without one. */
+  groupBy2: z.enum(jiraAnalyticsGroupings).optional(),
   sortBy: z.enum(jiraAnalyticsSortFields),
   sortDirection: z.enum(jiraAnalyticsSortDirections),
   visualization: z.enum(["number", "bar", "table"]),
@@ -438,10 +440,17 @@ export const JIRA_SEMANTIC_FIELD_LABELS: Record<(typeof jiraAnalyticsFilterField
   mergeRequestUrl: "Ссылка на MR",
   jiraKeys: "Упомянутые Jira-тикеты",
   jiraLinkState: "Связь с Jira",
+  statusCategory: "Категория статуса",
+  epic: "Эпик",
+  components: "Компоненты",
+  fixVersions: "Версии",
+  storyPoints: "Story points",
+  dueDate: "Срок",
+  ageDays: "Возраст, дни",
 };
 
-const dateFields = new Set(["goalDate", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt", "committedAt"]);
-const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount", "mergeRequestIid"]);
+const dateFields = new Set(["goalDate", "issueCreatedAt", "criticalPriorityAt", "resolutionAt", "updatedAt", "eventAt", "intervalStartAt", "intervalEndAt", "committedAt", "dueDate"]);
+const numberFields = new Set(["durationHours", "commitCount", "mergeRequestCount", "sprintCount", "mergeRequestIid", "storyPoints", "ageDays"]);
 
 export function jiraSemanticDefaultOutputField(key: (typeof jiraAnalyticsFilterFields)[number]): JiraSemanticOutputField {
   return {

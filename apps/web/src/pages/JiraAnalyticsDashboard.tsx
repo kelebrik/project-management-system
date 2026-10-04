@@ -44,7 +44,8 @@ const FIELD_FOR_GROUP: Partial<Record<JiraAnalyticsGroupBy, JiraAnalyticsFilterF
   goal: "goalName",
   project: "project", status: "status", assignee: "assignee", reporter: "reporter",
   priority: "priority", sprint: "sprint", issueType: "issueType", resolution: "resolution",
-  fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt",
+  fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt", month: "eventAt",
+  statusCategory: "statusCategory", epic: "epic", component: "components", fixVersion: "fixVersions", ageBucket: "ageDays",
 };
 
 function uid(prefix: string) {
@@ -89,6 +90,7 @@ function widgetQuery(widget: JiraSemanticWidget, dashboard: JiraSemanticDashboar
     selectedFields: widget.selectedFields,
     metric: widget.metric,
     groupBy: widget.groupBy,
+    groupBy2: widget.groupBy === "none" ? "none" : widget.groupBy2 ?? "none",
     filters: widget.filters,
     filterLogic: widget.filterLogic,
     periodDays: widget.dateField ? dashboard.periodDays : null,
@@ -162,11 +164,25 @@ function WidgetContent({ widget, result, error, drilldown, onGroup, onBack }: {
   if (widget.visualization === "table") {
     return <RecordsTable widget={widget} result={result} />;
   }
+  if (widget.groupBy !== "none" && result.breakdownKeys) {
+    return <BreakdownTable metric={widget.metric} result={result} onGroup={onGroup} />;
+  }
   if (widget.groupBy !== "none") {
     const maximum = Math.max(1, ...result.groups.map((group) => group.value));
     return <div className="jira-analytics-bars">{result.groups.map((group) => <button type="button" className="jira-analytics-bar-row" key={group.key} onClick={() => onGroup(group)}><span className="jira-analytics-bar-label">{group.label}</span><span className="jira-analytics-bar-track"><span style={{ width: `${Math.max(2, group.value / maximum * 100)}%` }} /></span><b>{formatJiraAnalyticsMetric(widget.metric, group.value)}</b></button>)}</div>;
   }
   return <div className="jira-analytics-number"><strong>{formatJiraAnalyticsMetric(widget.metric, result.value)}</strong><span>{uiText("ui.jira.rowsCountLabel")} {result.totalRecords.toLocaleString(intlLocale(uiLocale))}</span></div>;
+}
+
+/** Groups by rows and the second grouping by columns, with a total per row. */
+function BreakdownTable({ metric, result, onGroup }: { metric: JiraSemanticWidget["metric"]; result: SemanticResult; onGroup: (group: { key: string; label: string }) => void }) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { jira: { formatJiraAnalyticsMetric } } = useJiraTranslations();
+  const columns = result.breakdownKeys ?? [];
+  return <div className="jira-analytics-pivot"><table><thead><tr><th />{columns.map((column) => <th key={column.key}>{column.label}</th>)}<th>{uiText("ui.jira.pivotTotal")}</th></tr></thead><tbody>{result.groups.map((group) => {
+    const cells = new Map((group.breakdown ?? []).map((cell) => [cell.key, cell.value]));
+    return <tr key={group.key}><th><button type="button" className="link-button" onClick={() => onGroup(group)}>{group.label}</button></th>{columns.map((column) => <td key={column.key}>{cells.has(column.key) ? formatJiraAnalyticsMetric(metric, cells.get(column.key)!) : ""}</td>)}<td><b>{formatJiraAnalyticsMetric(metric, group.value)}</b></td></tr>;
+  })}</tbody></table>{result.multiValued ? <p className="jira-analytics-quality">{uiText("ui.jira.multiValuedNote")}</p> : null}</div>;
 }
 
 function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
@@ -184,7 +200,7 @@ function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
   const selected = new Set(widget.selectedFields);
   const available = new Set(availableFields);
   const durationAvailable = available.has("durationHours");
-  const metrics = jiraAnalyticsMetrics.filter((metric) => metric === "count" || (metric.endsWith("Duration") && durationAvailable) || (metric === "commits" && available.has("commitCount")) || (metric === "mergeRequests" && available.has("mergeRequestCount")));
+  const metrics = jiraAnalyticsMetrics.filter((metric) => metric === "count" || (metric.endsWith("Duration") && durationAvailable) || (metric === "commits" && available.has("commitCount")) || (metric === "mergeRequests" && available.has("mergeRequestCount")) || (metric === "storyPoints" && available.has("storyPoints")));
   const groups = jiraAnalyticsGroupings.filter((group) => group === "none" || available.has(FIELD_FOR_GROUP[group]!));
   const dateFields = published.outputFields.filter((field) => field.type === "date").map((field) => field.key);
   const listMode = widget.visualization === "table" && widget.metric === "count" && widget.groupBy === "none";
@@ -219,7 +235,8 @@ function WidgetEditor({ widget, aggregate, aggregates, onChange, onClose }: {
     {widget.visualization === "table" || widget.groupBy !== "none" ? <fieldset className="jira-widget-column-widths"><legend>{uiText("ui.jira.columnWidth")}</legend><div>{widget.selectedFields.map((field) => <ColumnWidthControl key={field} widget={widget} field={field} draft={columnWidthDrafts[field] ?? String(jiraWidgetColumnWidth(widget, field))} onDraftChange={(value) => setColumnWidthDraft(field, value)} onCommit={() => commitColumnWidth(field)} onRevert={() => setColumnWidthDraft(field, undefined)} onReset={() => { const next = jiraWidgetWithoutColumnWidth(widget, field); setColumnWidthDraft(field, undefined); onChange(next); }} />)}</div></fieldset> : null}
     <label>{uiText("ui.jira.periodField")}<select value={widget.dateField ?? ""} onChange={(event) => onChange({ ...widget, dateField: event.target.value ? event.target.value as JiraAnalyticsFilterField : null })}><option value="">{uiText("ui.jira.noPeriodLimit")}</option>{dateFields.map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
     {widget.placement === "retro" && published.asOfSupport === "supported" ? <label>{uiText("ui.jira.stateAsOfDate")}<input type="datetime-local" value={widget.asOf ? widget.asOf.slice(0, 16) : ""} onChange={(event) => onChange({ ...widget, asOf: event.target.value ? new Date(event.target.value).toISOString() : null })} /></label> : null}
-    <label>{uiText("ui.jira.grouping")}<select value={widget.groupBy} disabled={listMode} onChange={(event) => { const groupBy = event.target.value as JiraAnalyticsGroupBy; onChange({ ...widget, groupBy, visualization: groupBy === "none" ? "number" : "bar" }); }}>{groups.map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
+    <label>{uiText("ui.jira.grouping")}<select value={widget.groupBy} disabled={listMode} onChange={(event) => { const groupBy = event.target.value as JiraAnalyticsGroupBy; onChange({ ...widget, groupBy, groupBy2: groupBy === "none" || widget.groupBy2 === groupBy ? undefined : widget.groupBy2, visualization: groupBy === "none" ? "number" : "bar" }); }}>{groups.map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label>
+    {widget.groupBy !== "none" && !listMode ? <label>{uiText("ui.jira.secondGrouping")}<select value={widget.groupBy2 ?? "none"} onChange={(event) => { const groupBy2 = event.target.value as JiraAnalyticsGroupBy; onChange({ ...widget, groupBy2: groupBy2 === "none" ? undefined : groupBy2 }); }}>{groups.filter((group) => group !== widget.groupBy).map((group) => <option key={group} value={group}>{JIRA_ANALYTICS_GROUP_LABELS[group]}</option>)}</select></label> : null}
     <label>{uiText("ui.jira.sorting")}<select value={widget.sortBy} onChange={(event) => onChange({ ...widget, sortBy: event.target.value as JiraSemanticWidget["sortBy"] })}><option value="default">{uiText("ui.jira.defaultOption")}</option>{availableFields.filter((field) => ["goalDate", "issueKey", "eventAt", "durationHours", "commitCount", "mergeRequestCount", "sprintCount", "committedAt", "commitSha"].includes(field)).map((field) => <option key={field} value={field}>{JIRA_SEMANTIC_FIELD_LABELS[field]}</option>)}</select></label>
     <fieldset><legend>{uiText("ui.jira.direction")}</legend><div className="jira-widget-segments"><button type="button" className={widget.sortDirection === "desc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "desc" })}>{uiText("ui.jira.descending")}</button><button type="button" className={widget.sortDirection === "asc" ? "active" : ""} onClick={() => onChange({ ...widget, sortDirection: "asc" })}>{uiText("ui.jira.ascending")}</button></div></fieldset>
     <JiraWidgetFilters widget={widget} fields={availableFields} onChange={onChange} />

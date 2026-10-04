@@ -1,5 +1,5 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import { BarChart3, Database, History, Sigma } from "lucide-react";
+import { BarChart3, Database, History, Sigma, TrendingUp } from "lucide-react";
 import { useState } from "react";
 
 import { apiClient } from "../api/client";
@@ -8,11 +8,12 @@ import { JiraAggregatesPage } from "./JiraAggregatesPage";
 import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
 import { JiraExtraFieldsPanel } from "../components/jira/JiraExtraFieldsPanel";
+import { JiraFlowPanel } from "../components/jira/JiraFlowPanel";
 import { usePageContext } from "./PageContext";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
-type JiraWorkView = "active" | "retro" | "data" | "aggregates";
+type JiraWorkView = "active" | "retro" | "flow" | "data" | "aggregates";
 
 export function ProjectJiraWorkPage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -91,6 +92,13 @@ export function ProjectJiraWorkPage() {
             </button>
             <button
               type="button"
+              className={view === "flow" ? "active" : ""}
+              onClick={() => setView("flow")}
+            >
+              <TrendingUp size={16} /> {uiText("ui.jiraFlow.tab")}
+            </button>
+            <button
+              type="button"
               className={view === "data" ? "active" : ""}
               onClick={() => setView("data")}
             >
@@ -119,6 +127,7 @@ export function ProjectJiraWorkPage() {
         </>
       ) : null}
       {view === "aggregates" ? <JiraAggregatesPage /> : null}
+      {view === "flow" ? <JiraFlowPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision} userId={currentUser?.id ?? null} /> : null}
       {view === "active" || view === "retro"
         ? (
             <JiraAnalyticsDashboard

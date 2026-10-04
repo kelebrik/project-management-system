@@ -73,3 +73,58 @@ test("a link to a saved slice opens it before anything is counted, and an unavai
   await page.goto("/TV-OVERVIEW/jira-work?slice=missing");
   await expect(page.getByText("Срез по ссылке вам недоступен")).toBeVisible();
 });
+
+test("a widget grouped twice shows a table of groups by the second grouping with totals", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  const analytics = await mockManagedJiraAnalytics(page, project);
+  analytics.getSemanticDashboard().widgets.push({
+    id: "pivot-widget", title: "Эпики по категориям", aggregateId: "semantic-issues", aggregateVersion: 1, placement: "active",
+    selectedFields: ["issueKey"], filterLogic: "and", filters: [], dateField: null, asOf: null,
+    metric: "storyPoints", groupBy: "epic", groupBy2: "statusCategory", sortBy: "default", sortDirection: "desc", visualization: "bar", width: "full",
+  });
+  const queries: Array<{ groupBy: string; groupBy2?: string; metric: string }> = [];
+  await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates\/query-batch$/, async (route) => {
+    const body = route.request().postDataJSON() as { queries: Array<{ widgetId: string; aggregateId: string; query: { groupBy: string; groupBy2?: string; metric: string } }> };
+    queries.push(body.queries[0].query);
+    await route.fulfill({ json: { results: body.queries.map((item) => ({
+      widgetId: item.widgetId,
+      aggregate: { id: item.aggregateId, name: "Тикеты", version: 1 },
+      result: {
+        evaluatedAt: "2026-10-04T12:00:00.000Z", effective: { periodDays: null, periodSource: "NONE", timeZone: "Europe/Moscow", assignee: "" },
+        value: 8, totalRecords: 3, page: 1, pageSize: 100, records: [],
+        quality: { status: "COMPLETE", population: 3, complete: 3, completenessPercent: 100, oldestObservedAt: null, latestObservedAt: null, warnings: [] },
+        groups: [
+          { key: "value:E1", label: "E1", value: 8, recordCount: 2, breakdown: [{ key: "value:indeterminate", label: "В работе", value: 5, recordCount: 1 }, { key: "value:new", label: "К выполнению", value: 3, recordCount: 1 }] },
+          { key: "__empty__", label: "Без эпика", value: 0, recordCount: 1, breakdown: [{ key: "value:done", label: "Готово", value: 0, recordCount: 1 }] },
+        ],
+        breakdownKeys: [{ key: "value:done", label: "Готово" }, { key: "value:indeterminate", label: "В работе" }, { key: "value:new", label: "К выполнению" }],
+      },
+    })) } });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  const table = page.locator(".jira-analytics-pivot table");
+  await expect(table).toBeVisible();
+  expect(queries[0]).toMatchObject({ groupBy: "epic", groupBy2: "statusCategory", metric: "storyPoints" });
+  await expect(table.locator("thead th")).toHaveText(["", "Готово", "В работе", "К выполнению", "Итого"]);
+  await expect(table.locator("tbody tr").first().locator("td")).toHaveText(["", "5", "3", "8"]);
+});
+
+test("the Flow tab charts created against resolved, work in progress, the cumulative flow and a burnup", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  await mockManagedJiraAnalytics(page, project);
+  const urls: string[] = [];
+  const bucket = (start: string, created: number, resolved: number) => ({ start, end: start, created, resolved, open: 3, byCategory: { new: 1, indeterminate: 2, done: resolved }, scope: 4 + created, done: resolved });
+  await page.route(/\/api\/projects\/project-1\/jira\/flow-series\?/, async (route) => {
+    urls.push(route.request().url());
+    await route.fulfill({ json: { step: "week", metric: "count", periodDays: 90, buckets: [bucket("2026-09-21T21:00:00.000Z", 2, 1), bucket("2026-09-28T21:00:00.000Z", 1, 2)], quality: { issues: 7, incompleteHistory: 1, withoutCreationDate: 0, missingStoryPoints: 0, reconstructedCategories: true, unknownStatuses: ["Archived"] } } });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Потоки" }).click();
+  for (const title of ["Создано и закрыто", "Открыто на конец шага", "Накопительный поток по категориям статуса", "Burnup: объём и сделано"]) {
+    await expect(page.getByRole("img", { name: title })).toBeVisible();
+  }
+  await expect(page.getByText(/Статусы, которых сейчас нет ни у одной задачи, считаются «в работе»: Archived/)).toBeVisible();
+  expect(urls.at(-1)).toContain("periodDays=90&step=week&metric=count");
+  await page.locator(".jira-flow-panel .jira-analytics-toolbar select").nth(1).selectOption("month");
+  await expect.poll(() => urls.at(-1)).toContain("step=month");
+});

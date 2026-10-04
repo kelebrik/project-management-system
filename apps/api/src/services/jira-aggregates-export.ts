@@ -2,6 +2,7 @@ import {
   JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1,
   JIRA_ANALYTICS_FIELDS_BY_SOURCE,
   JIRA_SEMANTIC_FIELD_LABELS,
+  jiraAttributeFieldValue,
   isJiraUnresolvedResolution,
   jiraAnalyticsDashboardV2Schema,
   jiraAnalyticsDashboardV3Schema,
@@ -86,6 +87,10 @@ export function jiraAggregateOutputValue(record: JiraAnalyticsResultRecord, fiel
   if (field === 'eventAt') return record.eventAt;
   if (field === 'intervalStartAt') return record.intervalStartAt;
   if (field === 'intervalEndAt') return record.intervalEndAt;
+  // The fields kept in issue attributes; lists read as one comma-separated text, like labels.
+  const attributeValue = jiraAttributeFieldValue(record, field);
+  if (Array.isArray(attributeValue)) return attributeValue.length > 0 ? attributeValue.join(', ') : null;
+  if (attributeValue !== undefined) return attributeValue;
   return null;
 }
 

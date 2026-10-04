@@ -60,6 +60,10 @@ const messages = {
     "mergeRequests": {
       "en": "Merge requests",
       "ru": "Merge requests"
+    },
+    "storyPoints": {
+      "en": "Story points",
+      "ru": "Story points"
     }
   },
   "JIRA_ANALYTICS_GROUP_LABELS": {
@@ -114,6 +118,30 @@ const messages = {
     "week": {
       "en": "Week",
       "ru": "Неделя"
+    },
+    "statusCategory": {
+      "en": "Status category",
+      "ru": "Категория статуса"
+    },
+    "epic": {
+      "en": "Epic",
+      "ru": "Эпик"
+    },
+    "component": {
+      "en": "Component",
+      "ru": "Компонент"
+    },
+    "fixVersion": {
+      "en": "Fix version",
+      "ru": "Версия"
+    },
+    "ageBucket": {
+      "en": "Age",
+      "ru": "Возраст"
+    },
+    "month": {
+      "en": "Month",
+      "ru": "Месяц"
     }
   },
   "JIRA_ANALYTICS_FILTER_LABELS": {
@@ -300,6 +328,34 @@ const messages = {
     "jiraLinkState": {
       "en": "Jira link",
       "ru": "Связь с Jira"
+    },
+    "statusCategory": {
+      "en": "Status category",
+      "ru": "Категория статуса"
+    },
+    "epic": {
+      "en": "Epic",
+      "ru": "Эпик"
+    },
+    "components": {
+      "en": "Components",
+      "ru": "Компоненты"
+    },
+    "fixVersions": {
+      "en": "Fix versions",
+      "ru": "Версии"
+    },
+    "storyPoints": {
+      "en": "Story points",
+      "ru": "Story points"
+    },
+    "dueDate": {
+      "en": "Due date",
+      "ru": "Срок"
+    },
+    "ageDays": {
+      "en": "Age, days",
+      "ru": "Возраст, дни"
     }
   },
   "JIRA_ANALYTICS_OPERATOR_LABELS": {
@@ -540,6 +596,34 @@ const messages = {
     "jiraLinkState": {
       "en": "Jira link",
       "ru": "Связь с Jira"
+    },
+    "statusCategory": {
+      "en": "Status category",
+      "ru": "Категория статуса"
+    },
+    "epic": {
+      "en": "Epic",
+      "ru": "Эпик"
+    },
+    "components": {
+      "en": "Components",
+      "ru": "Компоненты"
+    },
+    "fixVersions": {
+      "en": "Fix versions",
+      "ru": "Версии"
+    },
+    "storyPoints": {
+      "en": "Story points",
+      "ru": "Story points"
+    },
+    "dueDate": {
+      "en": "Due date",
+      "ru": "Срок"
+    },
+    "ageDays": {
+      "en": "Age, days",
+      "ru": "Возраст, дни"
     }
   }
 } as const;

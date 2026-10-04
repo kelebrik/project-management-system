@@ -33,6 +33,7 @@ import {
   type JiraAnalyticsResultRecord,
 } from "./jira-analytics-evaluation-types.js";
 import { jiraIssueMatchesSlice, jiraSliceIsEmpty } from "./jira-analytics-slice.js";
+import { jiraAttributeFieldValue, jiraGroupIdentities, jiraGroupingIsMultiValued, jiraIssueAgeDays, type JiraGroupIdentity } from "./jira-analytics-grouping.js";
 
 function validDate(value: string | null | undefined) {
   if (!value) return null;
@@ -399,12 +400,14 @@ function recordValue(record: JiraAnalyticsResultRecord, field: JiraAnalyticsFilt
   if (field === "sprint") return record.sprint;
   if (field === "resolution") return isJiraUnresolvedResolution(record.issue.resolution) ? null : record.issue.resolution;
   if (JIRA_ANALYTICS_FIELDS_BY_SOURCE.gitlabCommits.includes(field)) return null;
+  const attributeValue = jiraAttributeFieldValue(record, field);
+  if (attributeValue !== undefined) return attributeValue;
   return record.issue[field as keyof typeof record.issue];
 }
 
 function filterMatches(record: JiraAnalyticsResultRecord, filter: JiraAnalyticsFilter) {
   const actual = recordValue(record, filter.field);
-  if (filter.field === "labels" || filter.field === "goalLabels" || filter.field === "matchedLabels") {
+  if (filter.field === "labels" || filter.field === "goalLabels" || filter.field === "matchedLabels" || filter.field === "components" || filter.field === "fixVersions") {
     const labels = Array.isArray(actual)
       ? actual.map((label) => String(label).trim()).filter(Boolean)
       : [];
@@ -471,6 +474,9 @@ type MetricState = {
   mergeRequestCount: number;
   durationSum: number;
   durations: number[];
+  /** Story points of each issue once, however many rows (transitions, intervals) it has. */
+  storyPoints: number;
+  storyIssues: Set<string>;
 };
 
 function emptyMetricState(): MetricState {
@@ -480,6 +486,8 @@ function emptyMetricState(): MetricState {
     mergeRequestCount: 0,
     durationSum: 0,
     durations: [],
+    storyPoints: 0,
+    storyIssues: new Set(),
   };
 }
 
@@ -491,80 +499,23 @@ function addRecordToMetricState(state: MetricState, record: JiraAnalyticsResultR
     state.durationSum += record.durationHours;
     state.durations.push(record.durationHours);
   }
+  const points = record.issue.attributes?.storyPoints;
+  if (typeof points === "number" && Number.isFinite(points) && !state.storyIssues.has(record.issue.id)) {
+    state.storyIssues.add(record.issue.id);
+    state.storyPoints += points;
+  }
 }
 
 function metricValue(metric: JiraAnalyticsMetric, state: MetricState) {
   if (metric === "count") return state.recordCount;
   if (metric === "commits") return state.commitCount;
   if (metric === "mergeRequests") return state.mergeRequestCount;
+  if (metric === "storyPoints") return state.storyPoints;
   if (state.durations.length === 0) return 0;
   if (metric === "averageDuration") return state.durationSum / state.durations.length;
   if (metric === "p50Duration") return percentile(state.durations, 0.5);
   if (metric === "p85Duration") return percentile(state.durations, 0.85);
   return percentile(state.durations, 0.95);
-}
-
-function zonedDateParts(date: Date, timeZone: JiraAnalyticsTimeZone) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(date);
-  const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value);
-  return { year: value("year"), month: value("month"), day: value("day") };
-}
-
-function isoWeek(date: Date, timeZone: JiraAnalyticsTimeZone) {
-  const parts = zonedDateParts(date, timeZone);
-  const localDate = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-  const weekday = localDate.getUTCDay() || 7;
-  localDate.setUTCDate(localDate.getUTCDate() + 4 - weekday);
-  const weekYear = localDate.getUTCFullYear();
-  const yearStart = new Date(Date.UTC(weekYear, 0, 1));
-  const week = Math.ceil((((localDate.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
-  const monday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
-  monday.setUTCDate(monday.getUTCDate() - weekday + 1);
-  const label = new Intl.DateTimeFormat("ru-RU", {
-    timeZone: "UTC",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(monday);
-  return { key: `${weekYear}-W${String(week).padStart(2, "0")}`, label };
-}
-
-function groupIdentity(
-  record: JiraAnalyticsResultRecord,
-  groupBy: JiraAnalyticsGroupBy,
-  timeZone: JiraAnalyticsTimeZone,
-) {
-  const value = (raw: string | null | undefined, emptyLabel: string) => raw
-    ? { key: `value:${raw}`, label: raw }
-    : { key: "__empty__", label: emptyLabel };
-  if (groupBy === "goal") return value(record.goal?.name, "Без цели");
-  if (groupBy === "project") {
-    const project = record.issue.issueKey.trim().toUpperCase().match(/^([A-Z][A-Z0-9_]*)-\d+$/)?.[1];
-    return value(project, "Без проекта");
-  }
-  if (groupBy === "status") return value(record.issue.status, "Без статуса");
-  if (groupBy === "assignee") return value(record.issue.assignee, "Не назначен");
-  if (groupBy === "reporter") return value(record.issue.reporter, "Без автора");
-  if (groupBy === "priority") return value(record.issue.priority, "Без приоритета");
-  if (groupBy === "sprint") return value(record.sprint, "Без Sprint");
-  if (groupBy === "issueType") return value(record.issue.issueType, "Без типа");
-  if (groupBy === "resolution") {
-    return isJiraUnresolvedResolution(record.issue.resolution)
-      ? { key: "__empty__", label: "Без Resolution" }
-      : value(record.issue.resolution, "Без Resolution");
-  }
-  if (groupBy === "fromStatus") return value(record.fromStatus, "Без статуса");
-  if (groupBy === "toStatus") return value(record.toStatus, "Без статуса");
-  if (groupBy === "week") {
-    const eventAt = validDate(record.eventAt);
-    return eventAt ? isoWeek(eventAt, timeZone) : { key: "__empty__", label: "Без даты" };
-  }
-  return { key: "__all__", label: "Все" };
 }
 
 function effectivePeriod(
@@ -656,7 +607,11 @@ export function createJiraAnalyticsEvaluationAccumulator(
 
   const allState = emptyMetricState();
   const selectedState = options.groupKey ? emptyMetricState() : allState;
-  const grouped = new Map<string, { label: string; state: MetricState }>();
+  type Breakdown = Map<string, { label: string; state: MetricState }>;
+  const grouped = new Map<string, { label: string; state: MetricState; breakdown: Breakdown }>();
+  const groupBy2 = definition.groupBy !== "none" && definition.groupBy2 && definition.groupBy2 !== definition.groupBy ? definition.groupBy2 : "none";
+  const breakdownKeys = new Map<string, string>();
+  let pairCount = 0;
   const selectedRecords: JiraAnalyticsResultRecord[] = [];
   let qualityPopulation = 0;
   let qualityComplete = 0;
@@ -815,6 +770,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
           throw new JiraAnalyticsEvaluationLimitError("rowsPerIssue", definition.maximumRowsPerIssue);
         }
         for (const record of uniqueRows) {
+          record.ageDays = jiraIssueAgeDays(record.issue, now);
           if (!recordMatches(record)) continue;
           matchedRows += 1;
           if (definition.maximumRows !== undefined && matchedRows > definition.maximumRows) {
@@ -822,22 +778,39 @@ export function createJiraAnalyticsEvaluationAccumulator(
           }
           addRecordToMetricState(allState, record);
 
-          const identity = definition.groupBy !== "none" || options.groupKey
-            ? groupIdentity(record, definition.groupBy, definition.timeZone)
-            : null;
-          if (definition.groupBy !== "none" && identity) {
-            let group = grouped.get(identity.key);
-            if (!group) {
-              if (limits.maxGroups !== undefined && grouped.size >= limits.maxGroups) {
-                throw new JiraAnalyticsEvaluationLimitError("groups", limits.maxGroups);
+          const identities: JiraGroupIdentity[] = definition.groupBy !== "none" || options.groupKey
+            ? jiraGroupIdentities(record, definition.groupBy, definition.timeZone)
+            : [];
+          const secondIdentities = groupBy2 !== "none" ? jiraGroupIdentities(record, groupBy2, definition.timeZone) : [];
+          if (definition.groupBy !== "none") {
+            for (const identity of identities) {
+              let group = grouped.get(identity.key);
+              if (!group) {
+                // Groups and pairs of the two groupings share one limit.
+                if (limits.maxGroups !== undefined && grouped.size + pairCount >= limits.maxGroups) {
+                  throw new JiraAnalyticsEvaluationLimitError("groups", limits.maxGroups);
+                }
+                group = { label: identity.label, state: emptyMetricState(), breakdown: new Map() };
+                grouped.set(identity.key, group);
               }
-              group = { label: identity.label, state: emptyMetricState() };
-              grouped.set(identity.key, group);
+              addRecordToMetricState(group.state, record);
+              for (const second of secondIdentities) {
+                let cell = group.breakdown.get(second.key);
+                if (!cell) {
+                  pairCount += 1;
+                  if (limits.maxGroups !== undefined && grouped.size + pairCount > limits.maxGroups) {
+                    throw new JiraAnalyticsEvaluationLimitError("groups", limits.maxGroups);
+                  }
+                  cell = { label: second.label, state: emptyMetricState() };
+                  group.breakdown.set(second.key, cell);
+                  breakdownKeys.set(second.key, second.label);
+                }
+                addRecordToMetricState(cell.state, record);
+              }
             }
-            addRecordToMetricState(group.state, record);
           }
 
-          if (!options.groupKey || identity?.key === options.groupKey) {
+          if (!options.groupKey || identities.some((identity) => identity.key === options.groupKey)) {
             if (selectedState !== allState) addRecordToMetricState(selectedState, record);
             selectedRecords.push(record);
             if (selectedRecords.length > pageWindow * 2) {
@@ -867,6 +840,9 @@ export function createJiraAnalyticsEvaluationAccumulator(
           label: group.label,
           value: metricValue(definition.metric, group.state),
           recordCount: group.state.recordCount,
+          ...(groupBy2 !== "none"
+            ? { breakdown: [...group.breakdown.entries()].map(([cellKey, cell]) => ({ key: cellKey, label: cell.label, value: metricValue(definition.metric, cell.state), recordCount: cell.state.recordCount })) }
+            : {}),
         }))
         .sort((left, right) => right.value - left.value || codePointCompare(left.key, right.key));
       return {
@@ -879,6 +855,8 @@ export function createJiraAnalyticsEvaluationAccumulator(
         },
         value: metricValue(definition.metric, selectedState),
         groups,
+        ...(groupBy2 !== "none" ? { breakdownKeys: [...breakdownKeys.entries()].map(([key, label]) => ({ key, label })).sort((left, right) => codePointCompare(left.key, right.key)) } : {}),
+        ...(jiraGroupingIsMultiValued(definition.groupBy) || jiraGroupingIsMultiValued(groupBy2) ? { multiValued: true } : {}),
         records: selectedRecords.slice(offset, pageWindow),
         totalRecords: selectedState.recordCount,
         page,

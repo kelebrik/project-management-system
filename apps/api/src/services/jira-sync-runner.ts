@@ -1,3 +1,4 @@
+import { upgradeJiraAggregateTicketFields } from './jira-semantic-aggregates.js';
 import { randomUUID } from 'node:crypto';
 
 import { JiraSyncRunKind, JiraSyncRunStatus, type PrismaClient } from '@prisma/client';
@@ -132,6 +133,9 @@ export function createJiraSyncRunner(prisma: PrismaClient) {
         versionsCreated: captured.result.versionsCreated,
         retriesQueued: captured.result.retriesQueued,
       });
+      // Aggregates made before new ticket fields existed get them now; a failure here does not undo the sync.
+      await upgradeJiraAggregateTicketFields(prisma, run.projectId).catch((error) =>
+        logEvent('warn', 'jira.aggregates.ticket_fields_upgrade_failed', { projectId: run.projectId, error: error instanceof Error ? error.message : String(error) }));
     } catch (error) {
       const requestSummary = jiraReadOnlyRequestSummaryForError(error) ?? EMPTY_REQUEST_SUMMARY;
       const action = jiraSyncRunnerFailureAction(error, stopping, controller.signal.aborted);

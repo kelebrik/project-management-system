@@ -23,7 +23,8 @@ if (!['postgres:', 'postgresql:'].includes(url.protocol) || !/test/i.test(databa
 NODE
 
 DATABASE_URL="$JIRA_HISTORY_TEST_DATABASE_URL" ./node_modules/.bin/prisma migrate deploy
-./node_modules/.bin/tsx --test \
+# One file at a time: several tests claim the next run of the shared sync queue.
+./node_modules/.bin/tsx --test --test-concurrency=1 \
   tests/integration/jira-history-race.test.ts \
   tests/integration/jira-history-replay.test.ts \
   tests/integration/jira-history-asof.test.ts \

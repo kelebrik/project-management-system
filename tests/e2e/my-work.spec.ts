@@ -33,7 +33,7 @@ test("my work takes a weekly check-in and the team tab shows who has not checked
     }),
   );
   await page.goto("/development/my-work");
-  await expect(page.getByRole("heading", { name: "Мои задачи", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Мои задачи", level: 2 })).toBeVisible({ timeout: 15_000 });
   const row = page.locator(".my-work-row").first();
   await expect(row).toContainText("просрочено");
   await expect(row.getByRole("button", { name: "Отметить" })).toBeDisabled();

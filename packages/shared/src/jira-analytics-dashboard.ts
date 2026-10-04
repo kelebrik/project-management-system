@@ -281,6 +281,12 @@ const jiraAnalyticsGroupingField: Partial<Record<JiraAnalyticsGroupBy, JiraAnaly
   fromStatus: "fromStatus",
   toStatus: "toStatus",
   week: "eventAt",
+  month: "eventAt",
+  statusCategory: "statusCategory",
+  epic: "epic",
+  component: "components",
+  fixVersion: "fixVersions",
+  ageBucket: "ageDays",
 };
 
 export function jiraAnalyticsWidgetDatasetError(

@@ -33,6 +33,7 @@ export const querySchema = z.object({
   selectedFields: jiraSemanticWidgetSchema.shape.selectedFields,
   metric: z.enum(jiraAnalyticsMetrics),
   groupBy: z.enum(jiraAnalyticsGroupings),
+  groupBy2: z.enum(jiraAnalyticsGroupings).default("none"),
   filters: z.array(jiraAnalyticsFilterSchema).max(30),
   filterLogic: z.enum(["and", "or"]),
   periodDays: z.union(jiraAnalyticsPeriodDays.map((value) => z.literal(value)) as [
@@ -116,3 +117,11 @@ export function evaluationErrorMessage(error: Error) {
   }
   return "Не удалось рассчитать этот виджет";
 }
+
+/** The published field a grouping reads; a widget may group only by what its aggregate publishes. */
+export const groupField: Record<string, string | null> = {
+  none: null, goal: "goalName", project: "project", status: "status", assignee: "assignee", reporter: "reporter",
+  priority: "priority", sprint: "sprint", issueType: "issueType", resolution: "resolution",
+  fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt", month: "eventAt",
+  statusCategory: "statusCategory", epic: "epic", component: "components", fixVersion: "fixVersions", ageBucket: "ageDays",
+};
