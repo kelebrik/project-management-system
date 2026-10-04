@@ -322,6 +322,8 @@ model User {
   id                      String                    @id @default(cuid())
   email                   String                    @unique
   name                    String
+  /// The login of this person in Jira; by default the part of the e-mail before @.
+  jiraLogin               String?
   role                    UserRole                  @default(EXECUTIVE_VIEWER)
   passwordHash            String?
   isActive                Boolean                   @default(true)

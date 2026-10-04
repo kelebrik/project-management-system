@@ -21,3 +21,6 @@
 .my-work-team td.AT_RISK { color: var(--warning-strong, #9a5b00); font-weight: 600; }
 .my-work-team td.OFF_TRACK { color: var(--danger, #c0392b); font-weight: 600; }
 .my-work-page .automation-error { color: var(--danger, #c0392b); margin: 0; }
+.my-jira-login { align-items: center; display: flex; flex-wrap: wrap; gap: 8px; }
+.my-jira-login input { font: inherit; font-size: 13px; width: 220px; }
+.my-jira-table small { color: var(--text-muted); }

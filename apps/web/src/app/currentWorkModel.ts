@@ -1,3 +1,4 @@
+import { normalizePersonName } from "@pms/shared";
 import type { WbsItem } from "./domainTypes";
 import { wbsToForm, type WbsFormState } from "./formState";
 
@@ -27,7 +28,15 @@ export type CurrentWorkRow = {
   mattermostUrl: string;
 };
 
-export type CurrentWorkFilter = "all" | "active" | "blocked" | "overdue";
+export type CurrentWorkFilter = "all" | "active" | "blocked" | "overdue" | "dueSoon";
+
+/** Who and how soon: owners as normalized names ("" stands for rows without an owner). */
+export type CurrentWorkOptions = { owners?: string[]; dueSoonDays?: number };
+
+/** The owner key a row is filtered by: the normalized name, or "" when nobody is set. */
+export function currentWorkOwnerKey(owner: string) {
+  return owner.trim() ? normalizePersonName(owner) : "";
+}
 
 function startOfLocalDay(value: Date) {
   return new Date(value.getFullYear(), value.getMonth(), value.getDate());
@@ -101,28 +110,32 @@ export function createCurrentWorkRows(
   drafts: Record<string, WbsFormState> = {},
   today = new Date(),
   filter: CurrentWorkFilter = "all",
+  options: CurrentWorkOptions = {},
 ): CurrentWorkRow[] {
   const range = currentWorkDateRange(today);
   const itemsById = new Map(items.map((item) => [item.id, item]));
+  const todayStart = startOfLocalDay(today);
+  const dueSoonThrough = new Date(todayStart.getTime() + (options.dueSoonDays ?? 7) * DAY_MS);
+  const owners = options.owners && options.owners.length > 0 ? new Set(options.owners) : null;
 
   return items
     .filter((item) => {
       const draft = draftFor(item, drafts);
       if (!CURRENT_WORK_TYPES.has(draft.type)) return false;
       if (EXCLUDED_STATUSES.has(draft.status)) return false;
+      if (owners && !owners.has(currentWorkOwnerKey(draft.owner))) return false;
       const dueDate = parseLocalDate(draft.dueDate || null);
-      const overdue = Boolean(dueDate && dueDate < startOfLocalDay(today));
+      const overdue = Boolean(dueDate && dueDate < todayStart);
+      // Due within the next N days, whatever the status; overdue rows have their own filter.
+      if (filter === "dueSoon") return Boolean(dueDate && dueDate >= todayStart && dueDate <= dueSoonThrough);
       if (filter === "blocked") return draft.status === "BLOCKED";
       if (filter === "overdue") return overdue;
       if (filter === "all" && (overdue || draft.status === "BLOCKED")) return true;
       if (filter === "active" && draft.status === "BLOCKED") return false;
       if (ACTIVE_STATUSES.has(draft.status)) return true;
+      // Not started yet but due by the end of the next two working weeks, this week included.
       if (draft.status === "NOT_STARTED") {
-        return Boolean(
-          dueDate &&
-            dueDate >= range.upcomingMonday &&
-            dueDate <= range.upcomingThrough,
-        );
+        return Boolean(dueDate && dueDate >= todayStart && dueDate <= range.upcomingThrough);
       }
       return false;
     })

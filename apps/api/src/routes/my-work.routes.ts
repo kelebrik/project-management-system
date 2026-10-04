@@ -33,6 +33,17 @@ async function linkedPerson(userId: string) {
 export function createMyWorkRouter() {
   const router = Router();
 
+  // Who "me" is for the owner filters: the linked person's name; nobody when not linked, as a login name may match a namesake.
+  router.get('/my-work/person', async (req, res) => {
+    const user = currentUser(req);
+    if (!user) {
+      res.status(401).json({ error: 'Требуется вход в систему' });
+      return;
+    }
+    const person = await linkedPerson(user.id);
+    res.json({ person, name: person?.name ?? '' });
+  });
+
   router.get('/my-work', async (req, res) => {
     const user = currentUser(req);
     if (!user) {

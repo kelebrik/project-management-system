@@ -15,6 +15,38 @@ export const work = {
     "en": "Overdue",
     "ru": "Просроченные"
   },
+  "work.filter.dueSoon": {
+    "en": "Due soon",
+    "ru": "Срок скоро"
+  },
+  "work.filter.dueSoonDays": {
+    "en": "Days ahead",
+    "ru": "Дней вперёд"
+  },
+  "work.filter.days": {
+    "en": "{count} days",
+    "ru": "{count} дн."
+  },
+  "work.filter.allOwners": {
+    "en": "All owners",
+    "ru": "Все исполнители"
+  },
+  "work.filter.ownersChosen": {
+    "en": "Owners: {count}",
+    "ru": "Исполнители: {count}"
+  },
+  "work.filter.me": {
+    "en": "Me",
+    "ru": "Я"
+  },
+  "work.filter.noOwner": {
+    "en": "No owner",
+    "ru": "Без исполнителя"
+  },
+  "work.filter.clearOwners": {
+    "en": "Show everyone",
+    "ru": "Показать всех"
+  },
   "work.saveWidthsError": {
     "en": "Failed to save current work column widths",
     "ru": "Не удалось сохранить ширину колонок Текучки"

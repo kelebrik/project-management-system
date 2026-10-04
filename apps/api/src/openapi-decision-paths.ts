@@ -149,6 +149,19 @@ export const openApiDecisionPaths = {
   "/api/my-work": {
     get: securedOperation(["Projects"], "The signed-in user's unfinished work across readable open projects (overdue or within four weeks) with this week's check-in; NOT_LINKED when no person of the leave schedule is linked", [], "Person, week and work"),
   },
+  "/api/my-work/person": {
+    get: securedOperation(["Projects"], "Who \"me\" is for owner filters: the person of the leave schedule linked to the user, empty when none is linked", [], "Person and name"),
+  },
+  "/api/my-work/jira": {
+    get: securedOperation(["Projects"], "Open Jira issues assigned to the user's Jira login (the part of the e-mail before @ unless set) and labelled for a readable open project, by project. Jira is only searched, at most 100 issues, kept for five minutes; NOT_CONFIGURED when Jira is not connected", [], "Login, status and issues by project"),
+  },
+  "/api/my-work/jira-login": {
+    put: {
+      ...securedOperation(["Projects"], "Set one's own Jira login; null or empty goes back to the part of the e-mail before @", [], "Saved login"),
+      requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["login"], properties: { login: { type: "string", nullable: true, maxLength: 100 } } } } } },
+      responses: { "200": { description: "Saved" }, "400": { description: "Invalid login" } },
+    },
+  },
   "/api/my-work/check-ins": {
     put: {
       ...securedOperation(["Projects"], "Save this week's check-in on one's own work", [], "Check-in"),

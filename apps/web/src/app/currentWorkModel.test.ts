@@ -111,3 +111,22 @@ test("current work focus collapses every unrelated structure branch", () => {
   assert.equal(focus?.scrollItemId, "task-a");
   assert.deepEqual(focus?.collapsedIds, new Set(["wp-b", "phase-b", "wp-c"]));
 });
+
+test("work not started but due this week is shown before it becomes overdue", () => {
+  const today = new Date(2026, 6, 20); // Monday
+  const rows = createCurrentWorkRows([item({ id: "a", code: "1", title: "Эта неделя", dueDate: "2026-07-23" })], {}, today);
+  assert.deepEqual(rows.map((row) => row.id), ["a"]);
+});
+
+test("rows are filtered by owners, by no owner, and by a due date within the next days", () => {
+  const today = new Date(2026, 6, 20);
+  const items = [
+    item({ id: "a", code: "1", title: "Анна, скоро", owner: "Анна Петрова", status: "IN_PROGRESS", dueDate: "2026-07-24" }),
+    item({ id: "b", code: "2", title: "Иван, позже", owner: "Иван", status: "IN_PROGRESS", dueDate: "2026-08-20" }),
+    item({ id: "c", code: "3", title: "Без исполнителя", status: "IN_PROGRESS", dueDate: "2026-07-22" }),
+  ];
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "all", { owners: ["анна петрова"] }).map((row) => row.id), ["a"]);
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "all", { owners: [""] }).map((row) => row.id), ["c"]);
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "dueSoon", { dueSoonDays: 7 }).map((row) => row.id), ["a", "c"]);
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "dueSoon", { dueSoonDays: 31 }).map((row) => row.id), ["a", "b", "c"]);
+});

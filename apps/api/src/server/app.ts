@@ -26,6 +26,7 @@ import { createWbsDraftRouter } from '../routes/wbs-draft.routes.js';
 import { createWbsImportRouter } from '../routes/wbs-import.routes.js';
 import { createAutomationRulesRouter, createNotificationsRouter } from '../routes/automation-rules.routes.js';
 import { createWorkloadRouter } from '../routes/workload.routes.js';
+import { createMyJiraRouter } from '../routes/my-jira.routes.js';
 import { createSearchRouter } from '../routes/search.routes.js';
 import { createWbsRouter } from '../routes/wbs.routes.js';
 import { attachAuth, currentUser, requireAdmin, requireAuth, userResponse, wouldRemoveLastAdmin } from './auth.js';
@@ -196,6 +197,7 @@ export function createApp() {
   app.use('/api', createLessonsRouter());
   app.use('/api', createRaciRouter());
   app.use('/api', createMyWorkRouter());
+  app.use('/api', createMyJiraRouter());
   app.use('/api', createWbsImportRouter());
   app.use('/api', createAutomationRulesRouter());
   app.use('/api', createNotificationsRouter());

@@ -2,12 +2,13 @@ import { useCallback, useEffect, useState } from "react";
 import { apiClient } from "../api/client";
 import { groupByProject, shiftWeek, type Confidence, type MyWork, type MyWorkItem, type TeamWeek } from "../app/myWork";
 import { SegmentedFilter } from "../components/SegmentedFilter";
+import { MyJiraTasks } from "../components/myWork/MyJiraTasks";
 import { useI18n } from "../i18n/I18nProvider";
 import "../styles/my-work.css";
 import { usePageContext } from "./PageContext";
 
 const CONFIDENCE: Confidence[] = ["ON_TRACK", "AT_RISK", "OFF_TRACK"];
-type Tab = "mine" | "team";
+type Tab = "mine" | "jira" | "team";
 
 /** One row of my work with this week's word on it. */
 function CheckInRow({ item, onSaved }: { item: MyWorkItem; onSaved: () => void }) {
@@ -111,6 +112,7 @@ export function MyWorkPage() {
         onChange={setTab}
         options={[
           { value: "mine", label: t("ui.myWork.tabMine") },
+          { value: "jira", label: t("ui.myWork.tabJira") },
           { value: "team", label: t("ui.myWork.tabTeam") },
         ]}
         value={tab}
@@ -136,6 +138,7 @@ export function MyWorkPage() {
           ))}
         </>
       )}
+      {tab === "jira" && <MyJiraTasks />}
       {tab === "team" && (
         <>
           {!project && <p>{t("ui.raci.chooseProject")}</p>}

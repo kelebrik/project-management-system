@@ -34,7 +34,7 @@ test("the RACI matrix sets roles, explains a second Accountable and exports CSV"
   await expect(page.getByRole("row", { name: /1\.1 Прошивка/ })).toContainText("нет A, нет R");
 
   await page.getByLabel("Роль Петров в 1.1").selectOption("R");
-  expect(puts.at(-1)).toEqual({ wbsItemId: "w1", personName: "Петров", role: "R" });
+  await expect.poll(() => puts.at(-1)).toEqual({ wbsItemId: "w1", personName: "Петров", role: "R" });
   await page.getByLabel("Роль Петров в 1", { exact: true }).selectOption("A");
   await expect(page.getByRole("alert")).toContainText("уже есть ответственный (A): Иванов");
 

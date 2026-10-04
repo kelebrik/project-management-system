@@ -1,11 +1,12 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
+  useEffect,
   useState,
   type CSSProperties,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
-import { createCurrentWorkRows, type CurrentWorkFilter } from "../app/currentWorkModel";
+import { createCurrentWorkRows, currentWorkOwnerKey, type CurrentWorkFilter } from "../app/currentWorkModel";
 import {
   CURRENT_WORK_COLUMNS,
   currentWorkGridTemplate,
@@ -22,6 +23,7 @@ import { effectiveProjectView } from "../app/projectView";
 import { usePageContext } from "./PageContext";
 import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
+import { apiClient } from "../api/client";
 
 const STATUS_OPTIONS: WbsItemStatus[] = [
   "NOT_STARTED",
@@ -54,9 +56,33 @@ export function ProjectCurrentWorkPage() {
     normalizeCurrentWorkColumnWidths(effectiveProjectView(project, currentUser?.id).currentWorkColumnWidths),
   );
   const [widthError, setWidthError] = useState<{ message: string | null } | null>(null);
-  const [workFilter, setWorkFilter] = useState<CurrentWorkFilter>("all");
+  // The filters stay as set for this project, like the search.
+  const [workFilter, setWorkFilter] = usePersistedViewState<CurrentWorkFilter>(`pms:current-work:${project.id}:filter`, "all");
+  const [savedDueSoonDays, setDueSoonDays] = usePersistedViewState(`pms:current-work:${project.id}:dueSoonDays`, 7);
+  const dueSoonDays = savedDueSoonDays === 14 ? 14 : 7;
+  const [owners, setOwners] = usePersistedViewState<string[]>(`pms:current-work:${project.id}:owners`, []);
   const normalizedQuery = query.trim().toLowerCase();
-  const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}, new Date(), workFilter).filter((row) => !normalizedQuery || [row.code, row.title, row.owner, row.workPackage].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
+  // The people to choose from: everyone on a row the other filters let through.
+  const ownerChoices = [...new Map(
+    createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}, new Date(), workFilter, { dueSoonDays })
+      .map((row) => [currentWorkOwnerKey(row.owner), row.owner.trim()] as const),
+  )].sort((left, right) => left[1].localeCompare(right[1], "ru"));
+  // "Me" is the person of the directory linked to the user, as on "My work"; without a link there is no "me".
+  const [myName, setMyName] = useState("");
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    let alive = true;
+    apiClient
+      .get<{ name: string }>("/api/my-work/person")
+      .then((answer) => alive && setMyName(answer.name))
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [isAuthenticated]);
+  const myKey = myName ? currentWorkOwnerKey(myName) : "";
+  const toggleOwner = (key: string) => setOwners((current) => (current.includes(key) ? current.filter((value) => value !== key) : [...current, key]));
+  const rows = createCurrentWorkRows(project.wbsItems, wbsDrafts ?? {}, new Date(), workFilter, { owners, dueSoonDays }).filter((row) => !normalizedQuery || [row.code, row.title, row.owner, row.workPackage].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery)));
   const gridTemplate = currentWorkGridTemplate(columnWidths);
   const tableMinWidth = currentWorkTableMinWidth(columnWidths);
 
@@ -116,7 +142,27 @@ export function ProjectCurrentWorkPage() {
         <div>
           <h2>{uiText("ui.projects.currentWorkPageTitle")}</h2>
           <p>{uiText("ui.projects.currentWorkPageSubtitle")}</p>
-        <div className="segmented-control">{([["all", uiText("work.filter.all")], ["active", uiText("work.filter.active")], ["blocked", uiText("work.filter.blocked")], ["overdue", uiText("work.filter.overdue")]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
+        <div className="current-work-filters">
+          <div className="segmented-control">{([["all", uiText("work.filter.all")], ["active", uiText("work.filter.active")], ["blocked", uiText("work.filter.blocked")], ["overdue", uiText("work.filter.overdue")], ["dueSoon", uiText("work.filter.dueSoon")]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
+          {workFilter === "dueSoon" && (
+            <select aria-label={uiText("work.filter.dueSoonDays")} value={dueSoonDays} onChange={(event) => setDueSoonDays(Number(event.target.value))}>
+              {[7, 14].map((days) => <option key={days} value={days}>{uiText("work.filter.days", { count: days })}</option>)}
+            </select>
+          )}
+          <details className="current-work-owners">
+            <summary>{owners.length === 0 ? uiText("work.filter.allOwners") : uiText("work.filter.ownersChosen", { count: owners.length })}</summary>
+            <div className="current-work-owners-menu">
+              {myKey && (
+                <label><input type="checkbox" checked={owners.includes(myKey)} onChange={() => toggleOwner(myKey)} />{uiText("work.filter.me")}</label>
+              )}
+              {ownerChoices.filter(([key]) => key && key !== myKey).map(([key, name]) => (
+                <label key={key}><input type="checkbox" checked={owners.includes(key)} onChange={() => toggleOwner(key)} />{name}</label>
+              ))}
+              <label><input type="checkbox" checked={owners.includes("")} onChange={() => toggleOwner("")} />{uiText("work.filter.noOwner")}</label>
+              {owners.length > 0 && <button type="button" className="link-button" onClick={() => setOwners([])}>{uiText("work.filter.clearOwners")}</button>}
+            </div>
+          </details>
+        </div>
         </div>
       </div>
       <ListToolbar label={uiText("ui.projects.currentWorkSearchLabel")} query={query} onQueryChange={setQuery} />

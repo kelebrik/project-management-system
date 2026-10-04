@@ -1,0 +1,49 @@
+/* Current work filters: status, how soon, and whose rows. */
+.current-work-filters {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.current-work-owners {
+  position: relative;
+}
+
+.current-work-owners > summary {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+  padding: 6px 10px;
+}
+
+.current-work-owners-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  display: grid;
+  gap: 6px;
+  max-height: 320px;
+  min-width: 240px;
+  overflow: auto;
+  padding: 10px;
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 40;
+}
+
+.current-work-owners-menu label {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.current-work-owners-menu input {
+  width: auto;
+}
