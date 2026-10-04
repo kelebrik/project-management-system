@@ -36,7 +36,8 @@ import {
   type JiraAsOfReconstruction,
 } from "./jira-history-asof.js";
 
-export const JIRA_AGGREGATE_MAX_BATCH_WIDGETS = 100;
+// 100 shared and 30 personal widgets, each KPI counted twice (its period and the one before).
+export const JIRA_AGGREGATE_MAX_BATCH_WIDGETS = 260;
 export const JIRA_AGGREGATE_MAX_ISSUES = 5_000;
 export const JIRA_AGGREGATE_MAX_EVENTS = 100_000;
 export const JIRA_AGGREGATE_MAX_GROUPS = 5_000;

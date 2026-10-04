@@ -184,6 +184,8 @@ export type JiraAnalyticsEvaluationOptions = {
   page: number;
   pageSize: number;
   groupKey?: string;
+  /** With groupKey: only records also in this group of the second grouping (a cell of the table). */
+  groupKey2?: string;
 };
 
 export type JiraAnalyticsExecutableDefinition = JiraAnalyticsAggregateDraft & {

@@ -1,0 +1,18 @@
+/* Widget views of step 4: comparison, line, stacked bars, record pages, the personal layer. */
+.jira-analytics-kpi { display: grid; gap: 4px; }
+.jira-analytics-kpi > span { font-size: 14px; font-weight: 600; }
+.jira-analytics-kpi > span.up { color: #15803d; }
+.jira-analytics-kpi > span.down { color: #b91c1c; }
+.jira-analytics-kpi small { color: var(--text-muted); }
+.jira-analytics-line { color: var(--accent, #3b82f6); display: grid; gap: 6px; }
+.jira-analytics-line svg { height: 120px; width: 100%; }
+.jira-analytics-line-labels { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.jira-analytics-line-labels button { background: none; border: 0; color: var(--text-muted); cursor: pointer; font-size: 11px; padding: 0; }
+.jira-analytics-line-labels b { color: var(--text-primary, inherit); margin-left: 4px; }
+.jira-analytics-stacked { display: grid; gap: 6px; }
+.jira-analytics-stacked .jira-analytics-bar-track { display: flex; overflow: hidden; }
+.jira-analytics-stacked .jira-analytics-bar-track button { border: 0; cursor: pointer; height: 100%; min-width: 2px; padding: 0; }
+.jira-analytics-pager { align-items: center; display: flex; font-size: 13px; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+.jira-mine-mark { color: var(--text-muted); font-size: 13px; }
+.jira-mine-badge { background: var(--surface-muted, #eef2ff); border-radius: 8px; font-size: 11px; font-weight: 600; margin-left: 6px; padding: 1px 6px; }
+.jira-mine-hidden { align-items: center; display: flex; flex-wrap: wrap; font-size: 13px; gap: 6px; margin: 6px 0; }

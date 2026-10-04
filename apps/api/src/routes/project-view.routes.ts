@@ -5,7 +5,8 @@ import { prisma } from '../db.js';
 import { currentUser } from '../server/auth.js';
 import { userCanReadProject } from '../server/business-units.js';
 
-const MAX_STATE_BYTES = 20_000;
+// Room for the personal Jira dashboard (up to 30 widgets) next to the column settings.
+const MAX_STATE_BYTES = 100_000;
 
 /** The stored personal view of a project, or null when this person has not arranged it yet. */
 export async function loadProjectViewState(userId: string | undefined, projectId: string): Promise<ProjectViewState | null> {

@@ -15,6 +15,7 @@ import { z } from "zod";
 import { prisma as defaultPrisma } from "../db.js";
 import { currentUser } from "../server/auth.js";
 import { userCanReadProject } from "../server/business-units.js";
+import { userCanWriteProject } from "../server/project-access.js";
 import { recordAuditEvent } from "../services/audit.js";
 import { requestJiraCurrentRefresh } from "../services/jira-current-refresh.js";
 import {
@@ -51,6 +52,11 @@ import {
   batchQuerySchema,
   dashboardSaveSchema,
   groupField,
+  jiraQueryOptions,
+  jiraSemanticEvaluationNow,
+  compareProblem,
+  previousPeriodNow,
+  visualizationProblem,
   deleteSchema,
   evaluationErrorMessage,
   gitlabSyncSchema,
@@ -71,14 +77,7 @@ async function evaluatePublishedDefinition(
   definition: z.infer<typeof jiraSemanticAggregateDefinitionSchema>,
   query: z.infer<typeof querySchema>,
 ) {
-  const options = {
-    now: jiraSemanticEvaluationNow(query.asOf),
-    periodDays: query.periodDays ?? undefined,
-    assignee: query.assignee, slice: query.slice ?? null,
-    page: query.page,
-    pageSize: query.pageSize,
-    groupKey: query.groupKey,
-  };
+  const options = jiraQueryOptions(query);
   if (isGitlabBranchAggregate(definition)) {
     return evaluateGitlabBranchCommitAggregateFromDatabase(client, projectId, definition, query, options);
   }
@@ -91,9 +90,7 @@ async function evaluatePublishedDefinition(
   );
 }
 
-export function jiraSemanticEvaluationNow(asOf: string | null | undefined) {
-  return asOf ?? new Date().toISOString();
-}
+export { jiraSemanticEvaluationNow };
 
 
 function widgetContractError(
@@ -110,6 +107,9 @@ function widgetContractError(
   if ((grouping && !fields.has(grouping as never)) || (grouping2 && !fields.has(grouping2 as never))) return "Поле группировки не опубликовано агрегатом";
   if (groupBy2 !== "none" && (widget.groupBy === "none" || groupBy2 === widget.groupBy)) return "Вторая группировка нужна поверх первой и отличается от неё";
   if (widget.metric === "storyPoints" && !fields.has("storyPoints")) return "Метрика story points требует поле storyPoints";
+  // The dashboard always has a period; a query brings its own, checked by the query contract.
+  const shown = visualizationProblem(widget.visualization, widget.groupBy, groupBy2, widget.dateField, 1);
+  if (shown) return shown;
   if (widget.metric.endsWith("Duration") && !fields.has("durationHours")) return "Метрика длительности требует поле durationHours";
   if (widget.metric === "commits" && !fields.has("commitCount")) return "Метрика коммитов требует поле commitCount";
   if (widget.metric === "mergeRequests" && !fields.has("mergeRequestCount")) return "Метрика merge requests требует поле mergeRequestCount";
@@ -137,16 +137,20 @@ function queryContractError(
     groupBy: query.groupBy, groupBy2: query.groupBy2,
     sortBy: query.sortBy,
     sortDirection: query.sortDirection,
-    visualization: query.groupBy === "none" ? "number" : "bar",
+    visualization: query.visualization ?? (query.groupBy === "none" ? "number" : "bar"),
     width: "half",
   });
-  return contract.success
-    ? widgetContractError(contract.data, definition)
-    : "Запрос не соответствует контракту виджета";
+  if (!contract.success) return "Запрос не соответствует контракту виджета";
+  return widgetContractError(contract.data, definition) ?? visualizationProblem(contract.data.visualization, query.groupBy, query.groupBy2, query.dateField, query.periodDays) ?? compareProblem(query.compare, contract.data.visualization);
 }
 
 function admin(req: Parameters<typeof currentUser>[0]) {
   return currentUser(req)?.role === "ADMIN";
+}
+
+async function canEditJiraDashboard(req: Parameters<typeof currentUser>[0], projectId: string) {
+  const user = currentUser(req);
+  return Boolean(user && (user.role === "ADMIN" || await userCanWriteProject(user.id, projectId)));
 }
 
 async function readable(projectId: string, req: Parameters<typeof currentUser>[0], canRead: typeof userCanReadProject) {
@@ -202,6 +206,7 @@ export function registerJiraSemanticAggregateRoutes(
           }),
       dashboard: dashboardConfig,
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
+      canEditDashboard: await canEditJiraDashboard(req, req.params.projectId),
       dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
       systemAggregatesSeedRequired: JIRA_SYSTEM_SEMANTIC_AGGREGATES.some(
         (systemAggregate) => !definitions.some(
@@ -342,8 +347,9 @@ export function registerJiraSemanticAggregateRoutes(
 
   router.patch("/projects/:projectId/jira/semantic-dashboard", async (req, res) => {
     const user = currentUser(req);
-    if (!user || !admin(req)) {
-      res.status(user ? 403 : 401).json({ error: user ? "Настраивать виджеты может только системный администратор" : "Требуется вход в систему" });
+    // The shared dashboard is set up by a system administrator or anyone who may change the project; aggregates stay with administrators.
+    if (!user || !(await canEditJiraDashboard(req, req.params.projectId))) {
+      res.status(user ? 403 : 401).json({ error: user ? "Настраивать общие виджеты может администратор или участник с правом изменения проекта" : "Требуется вход в систему" });
       return;
     }
     const parsed = dashboardSaveSchema.safeParse(req.body ?? {});
@@ -741,21 +747,18 @@ export function registerJiraSemanticAggregateRoutes(
     try {
       const jiraEntries = valid.filter(({ aggregate }) => !isGitlabBranchAggregate(aggregate!.definition));
       const gitlabEntries = valid.filter(({ aggregate }) => isGitlabBranchAggregate(aggregate!.definition));
-      const jiraEvaluated = jiraEntries.length === 0 ? [] : await evaluateJiraAggregatesFromDatabase(
-        prisma, req.params.projectId, jiraEntries.map(({ item, aggregate }) => ({
-          key: item.widgetId,
-          definition: jiraSemanticExecutableDefinition(aggregate!.definition, item.query),
-          options: {
-            now: jiraSemanticEvaluationNow(item.query.asOf),
-            periodDays: item.query.periodDays ?? undefined,
-            assignee: item.query.assignee, slice: item.query.slice ?? null,
-            page: item.query.page,
-            pageSize: item.query.pageSize,
-            groupKey: item.query.groupKey,
-          },
-          asOf: item.query.asOf ? new Date(item.query.asOf) : undefined,
-        })),
-      );
+      // KPI widgets count the period before in the same pass over the data; keys by position never meet a widget id.
+      const jiraEvaluated = jiraEntries.length === 0 ? [] : (await evaluateJiraAggregatesFromDatabase(
+        prisma, req.params.projectId, jiraEntries.flatMap(({ item, aggregate }, index) => {
+          const entry = { key: `current:${index}`, definition: jiraSemanticExecutableDefinition(aggregate!.definition, item.query), options: jiraQueryOptions(item.query), asOf: item.query.asOf ? new Date(item.query.asOf) : undefined };
+          const previous = previousPeriodNow(item.query);
+          return previous ? [entry, { ...entry, key: `previous:${index}`, options: jiraQueryOptions(item.query, previous) }] : [entry];
+        }),
+      )).map((outcome) => {
+        const [kind, index] = outcome.key.split(":");
+        const widgetId = jiraEntries[Number(index)]!.item.widgetId;
+        return kind === "previous" ? { ...outcome, key: widgetId, previous: true } : { ...outcome, key: widgetId, previous: false };
+      });
       const gitlabEvaluated = await Promise.all(gitlabEntries.map(async ({ item, aggregate }) => {
         try {
           return {
@@ -765,22 +768,16 @@ export function registerJiraSemanticAggregateRoutes(
               req.params.projectId,
               aggregate!.definition,
               item.query,
-              {
-                now: jiraSemanticEvaluationNow(item.query.asOf),
-                periodDays: item.query.periodDays ?? undefined,
-                assignee: item.query.assignee,
-                page: item.query.page,
-                pageSize: item.query.pageSize,
-                groupKey: item.query.groupKey,
-              },
+              { ...jiraQueryOptions(item.query), slice: null },
             ),
           };
         } catch (error) {
           return { key: item.widgetId, error: error instanceof Error ? error : new Error("GITLAB_EVALUATION_FAILED") };
         }
       }));
-      const evaluated = [...jiraEvaluated, ...gitlabEvaluated];
+      const evaluated = [...jiraEvaluated.filter((entry) => !entry.previous), ...gitlabEvaluated];
       const evaluatedByWidget = new Map(evaluated.map((entry) => [entry.key, entry]));
+      const previousByWidget = new Map(jiraEvaluated.filter((entry) => entry.previous).map((entry) => [entry.key, entry]));
       res.json({
         results: prepared.map(({ item, aggregate, error }) => {
           if (error || !aggregate) return { widgetId: item.widgetId, error: error ?? "Агрегат недоступен" };
@@ -788,10 +785,11 @@ export function registerJiraSemanticAggregateRoutes(
           if (!outcome || outcome.error || !outcome.result) {
             return { widgetId: item.widgetId, error: evaluationErrorMessage(outcome?.error ?? new Error("MISSING_RESULT")) };
           }
+          const previous = previousByWidget.get(item.widgetId)?.result;
           return {
             widgetId: item.widgetId,
             aggregate: { id: aggregate.row.id, name: aggregate.definition.name, version: aggregate.revision.version },
-            result: jiraAggregateResultProjection(outcome.result, item.query.selectedFields),
+            result: { ...jiraAggregateResultProjection(outcome.result, item.query.selectedFields), ...(previous ? { previousValue: previous.value } : {}) },
           };
         }),
       });
@@ -947,12 +945,8 @@ export function registerJiraSemanticAggregateRoutes(
       return;
     }
     try {
-      const exportOptions = jiraAggregateExportOptions({
-        now: jiraSemanticEvaluationNow(parsed.data.asOf),
-        periodDays: parsed.data.periodDays ?? undefined,
-        assignee: parsed.data.assignee, slice: parsed.data.slice ?? null,
-        groupKey: parsed.data.groupKey,
-      });
+      const { page: _page, pageSize: _pageSize, ...queryOptions } = jiraQueryOptions(parsed.data);
+      const exportOptions = jiraAggregateExportOptions(queryOptions);
       const rawResult = isGitlabBranchAggregate(aggregate.definition)
         ? await evaluateGitlabBranchCommitAggregateFromDatabase(
             prisma,

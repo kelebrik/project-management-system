@@ -56,3 +56,24 @@ test('groups and pairs of two groupings share one limit', async () => {
   // One epic group and one pair fit; the second pair (another category) is past the limit.
   assert.throws(() => accumulator.addIssues(issues.slice(0, 2)), /GROUPS_LIMIT/);
 });
+
+test('a cell of the table drills into the records of both groups', () => {
+  const cell = evaluateJiraAnalyticsAggregate(definition({ groupBy: 'epic', groupBy2: 'statusCategory' }), issues, { ...options, groupKey: 'value:E1', groupKey2: 'value:new' });
+  assert.deepEqual(cell.records.map((record) => record.issue.id), ['2']);
+  assert.equal(cell.totalRecords, 1);
+});
+
+test('views fit their groupings, and a comparison looks one period back', async () => {
+  const { compareProblem, previousPeriodNow, visualizationProblem } = await import('../routes/jira-semantic-aggregates.support.js');
+  assert.equal(visualizationProblem('line', 'month', 'none', null, null), null);
+  assert.match(visualizationProblem('line', 'epic', 'none', null, null) ?? '', /неделям или месяцам/);
+  assert.match(visualizationProblem('stacked', 'epic', 'none', null, null) ?? '', /две группировки/);
+  assert.equal(visualizationProblem('pivot', 'epic', 'statusCategory', null, null), null);
+  assert.match(visualizationProblem('kpi', 'none', 'none', null, 30) ?? '', /полем периода/);
+  assert.equal(visualizationProblem('kpi', 'none', 'none', 'resolutionAt', 30), null);
+  const query = { visualization: 'kpi', periodDays: 30, asOf: '2026-10-31T00:00:00.000Z' } as never;
+  assert.equal(previousPeriodNow(query), '2026-10-01T00:00:00.000Z');
+  assert.equal(previousPeriodNow({ visualization: 'bar', compare: 'previousPeriod', periodDays: 30 } as never), null, 'only a KPI compares');
+  assert.match(compareProblem('previousPeriod', 'bar') ?? '', /только у показателя/);
+  assert.equal(compareProblem(undefined, 'kpi'), null);
+});

@@ -467,7 +467,7 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   await expect(page.locator(".jira-aggregate-preview-records").getByRole("link", { name: "TV-101" })).toBeVisible();
 
   await page.getByRole("button", { name: "В работе", exact: true }).click();
-  await page.getByRole("button", { name: "Редактировать" }).click();
+  await page.getByRole("button", { name: "Настроить для всех" }).click();
   await page.getByRole("button", { name: "Добавить виджет" }).click();
   const editor = page.getByLabel("Настройки виджета");
   await expect(editor.getByLabel("Агрегат")).toHaveValue("semantic-issues");
@@ -529,7 +529,7 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   expect(summaryHeader?.width).toBeCloseTo(420, 0);
   expect(table?.width).toBeCloseTo(600, 0);
 
-  await page.getByRole("button", { name: "Редактировать" }).click();
+  await page.getByRole("button", { name: "Настроить для всех" }).click();
   await widget.getByRole("button", { name: "Настроить" }).click();
   await editor.getByRole("checkbox", { name: "Проект Jira", exact: true }).check();
   await editor.getByLabel("Результат").selectOption("count");
@@ -538,7 +538,7 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   await expect(widget.locator(".jira-analytics-bars")).toBeVisible();
   await expect(widget.getByText("In Progress", { exact: true })).toBeVisible();
 
-  await page.getByRole("button", { name: "Редактировать" }).click();
+  await page.getByRole("button", { name: "Настроить для всех" }).click();
   await widget.getByRole("button", { name: "Удалить" }).click();
   await expect(page.locator(".jira-analytics-widget")).toHaveCount(0);
   await page.getByRole("button", { name: "Сохранить" }).click();
@@ -550,7 +550,7 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
 
 test("Jira v5 aggregate and widget mutations stay hidden from non-system administrators", async ({ page }) => {
   const project = await mockAdminProject(page);
-  await mockManagedJiraAnalytics(page, project);
+  await mockManagedJiraAnalytics(page, project, { canEditDashboard: false });
   await page.unroute("**/api/auth/me");
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -568,7 +568,7 @@ test("Jira v5 aggregate and widget mutations stay hidden from non-system adminis
   );
 
   await page.goto("/TV-OVERVIEW/jira-work");
-  await expect(page.getByRole("button", { name: "Редактировать" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Настроить для всех" })).toHaveCount(0);
   await page.getByRole("button", { name: "Агрегаты" }).click();
   await expect(page.getByRole("button", { name: "Создать агрегат" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Показать данные" })).toBeDisabled();

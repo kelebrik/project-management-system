@@ -241,7 +241,7 @@ export type JiraAnalyticsTimeZone = (typeof jiraAnalyticsTimeZones)[number];
 export type JiraAnalyticsPeriodDays = (typeof jiraAnalyticsPeriodDays)[number];
 export type JiraAnalyticsSortField = (typeof jiraAnalyticsSortFields)[number];
 export type JiraAnalyticsSortDirection = (typeof jiraAnalyticsSortDirections)[number];
-export type JiraAnalyticsVisualization = "number" | "bar" | "table";
+export type JiraAnalyticsVisualization = "number" | "bar" | "table" | "line" | "stacked" | "pivot" | "kpi";
 
 export const JIRA_ANALYTICS_METRICS_BY_SOURCE: Record<
   JiraAnalyticsSource,

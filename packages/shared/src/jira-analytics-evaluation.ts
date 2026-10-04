@@ -606,7 +606,7 @@ export function createJiraAnalyticsEvaluationAccumulator(
   }
 
   const allState = emptyMetricState();
-  const selectedState = options.groupKey ? emptyMetricState() : allState;
+  const selectedState = options.groupKey || options.groupKey2 ? emptyMetricState() : allState;
   type Breakdown = Map<string, { label: string; state: MetricState }>;
   const grouped = new Map<string, { label: string; state: MetricState; breakdown: Breakdown }>();
   const groupBy2 = definition.groupBy !== "none" && definition.groupBy2 && definition.groupBy2 !== definition.groupBy ? definition.groupBy2 : "none";
@@ -810,7 +810,9 @@ export function createJiraAnalyticsEvaluationAccumulator(
             }
           }
 
-          if (!options.groupKey || identities.some((identity) => identity.key === options.groupKey)) {
+          const inGroup = !options.groupKey || identities.some((identity) => identity.key === options.groupKey);
+          const inCell = !options.groupKey2 || secondIdentities.some((identity) => identity.key === options.groupKey2);
+          if (inGroup && inCell) {
             if (selectedState !== allState) addRecordToMetricState(selectedState, record);
             selectedRecords.push(record);
             if (selectedRecords.length > pageWindow * 2) {

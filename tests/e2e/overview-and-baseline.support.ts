@@ -238,6 +238,7 @@ export async function mockAdminProject(
 export async function mockManagedJiraAnalytics(
   page: Page,
   project: ReturnType<typeof projectFixture>,
+  options: { canEditDashboard?: boolean } = {},
 ) {
   const evaluatedAt = `${isoDay(0)}T12:00:00.000Z`;
   const aggregateDefinitions = JIRA_ANALYTICS_DEFAULT_DASHBOARD_V1.widgets.map(
@@ -461,7 +462,7 @@ export async function mockManagedJiraAnalytics(
   let semanticDashboardHash = "d".repeat(64);
 
   await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates$/, (route) =>
-    route.fulfill({ json: { definitions: semanticDefinitions, goals: [], dashboard: semanticDashboard, dashboardConfigHash: semanticDashboardHash } }),
+    route.fulfill({ json: { definitions: semanticDefinitions, goals: [], dashboard: semanticDashboard, dashboardConfigHash: semanticDashboardHash, canEditDashboard: options.canEditDashboard ?? true } }),
   );
   await page.route("**/api/projects/project-1/jira/semantic-dashboard", async (route) => {
     const body = route.request().postDataJSON() as { config: typeof semanticDashboard };

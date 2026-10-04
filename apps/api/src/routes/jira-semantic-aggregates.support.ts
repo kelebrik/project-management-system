@@ -48,15 +48,22 @@ export const querySchema = z.object({
   page: z.number().int().min(1).max(100_000).default(1),
   pageSize: z.number().int().min(1).max(100).default(20),
   groupKey: z.string().max(500).optional(),
+  /** With groupKey: the cell of the second grouping to drill into. */
+  groupKey2: z.string().max(500).optional(),
   asOf: z.string().datetime({ offset: true }).nullable().optional(),
+  /** How the widget shows the result: the contract checks it fits the groupings. */
+  visualization: z.enum(["number", "bar", "table", "line", "stacked", "pivot", "kpi"]).optional(),
+  /** A KPI also counts the period before, ending where this one starts. */
+  compare: z.enum(["previousPeriod"]).optional(),
 }).strict();
 
 export const batchQuerySchema = z.object({
+  // Up to 100 shared and 30 personal widgets.
   queries: z.array(z.object({
     widgetId: z.string().min(1).max(200),
     aggregateId: z.string().min(1).max(200),
     query: querySchema,
-  }).strict()).min(1).max(100),
+  }).strict()).min(1).max(130),
 }).strict().superRefine((value, context) => {
   const ids = value.queries.map((query) => query.widgetId);
   if (new Set(ids).size !== ids.length) {
@@ -125,3 +132,39 @@ export const groupField: Record<string, string | null> = {
   fromStatus: "fromStatus", toStatus: "toStatus", week: "eventAt", month: "eventAt",
   statusCategory: "statusCategory", epic: "epic", component: "components", fixVersion: "fixVersions", ageBucket: "ageDays",
 };
+
+export function jiraSemanticEvaluationNow(asOf: string | null | undefined) {
+  return asOf ?? new Date().toISOString();
+}
+
+/** The evaluation options of a widget query, at its own moment or at `now`. */
+export function jiraQueryOptions(query: z.infer<typeof querySchema>, now = jiraSemanticEvaluationNow(query.asOf)) {
+  return {
+    now,
+    periodDays: query.periodDays ?? undefined,
+    assignee: query.assignee, slice: query.slice ?? null,
+    page: query.page,
+    pageSize: query.pageSize,
+    groupKey: query.groupKey,
+    groupKey2: query.groupKey2,
+  };
+}
+
+/** Where the period before a KPI's period ends: its start, one period back; null for any other view. */
+export function previousPeriodNow(query: z.infer<typeof querySchema>) {
+  if (query.visualization !== "kpi" || !query.periodDays) return null;
+  return new Date(Date.parse(jiraSemanticEvaluationNow(query.asOf)) - query.periodDays * 86_400_000).toISOString();
+}
+
+/** Why a visualization does not fit the widget's groupings, or null. */
+export function visualizationProblem(visualization: string, groupBy: string, groupBy2: string, dateField: string | null, periodDays: number | null) {
+  if (visualization === "line" && groupBy !== "week" && groupBy !== "month") return "Линия строится по неделям или месяцам";
+  if ((visualization === "stacked" || visualization === "pivot") && (groupBy === "none" || groupBy2 === "none")) return "Нужны две группировки";
+  if (visualization === "kpi" && (groupBy !== "none" || !dateField || !periodDays)) return "Показатель сравнивает период с предыдущим: без группировки и с полем периода";
+  return null;
+}
+
+/** Comparison belongs to the KPI view only; the KPI compares with or without the flag. */
+export function compareProblem(compare: string | undefined, visualization: string | undefined) {
+  return compare && visualization !== "kpi" ? "Сравнение с прошлым периодом есть только у показателя" : null;
+}

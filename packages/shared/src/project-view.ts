@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { jiraPersonalDashboardSchema } from "./jira-dashboard-layer.js";
 
 /**
  * How one person arranges the view of a project: the Structure's columns
@@ -24,6 +25,8 @@ export const projectViewStateSchema = z
     currentWorkColumnWidths: widths,
     openIssueColumnWidths: widths,
     openIssuesPrototypeColumnWidths: widths,
+    /** The person's layer over the project's shared Jira dashboard. */
+    jiraDashboard: jiraPersonalDashboardSchema,
   })
   .partial()
   .strict();
