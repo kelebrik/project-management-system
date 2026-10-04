@@ -354,5 +354,77 @@ export const reportMessages = {
   "portfolio.noReason": {
     "en": "no reason given",
     "ru": "причина не указана"
+  },
+  "jiraPortfolio.tab": {
+    "en": "Jira",
+    "ru": "Jira"
+  },
+  "jiraPortfolio.open": {
+    "en": "Open",
+    "ru": "Открыто"
+  },
+  "jiraPortfolio.inProgress": {
+    "en": "In progress",
+    "ru": "В работе"
+  },
+  "jiraPortfolio.overdue": {
+    "en": "Overdue",
+    "ru": "Просрочено"
+  },
+  "jiraPortfolio.unassigned": {
+    "en": "No assignee",
+    "ru": "Без исполнителя"
+  },
+  "jiraPortfolio.points": {
+    "en": "Open story points",
+    "ru": "Открытые story points"
+  },
+  "jiraPortfolio.created": {
+    "en": "Created in the period",
+    "ru": "Создано за период"
+  },
+  "jiraPortfolio.resolved": {
+    "en": "Resolved in the period",
+    "ru": "Закрыто за период"
+  },
+  "jiraPortfolio.oldest": {
+    "en": "Oldest open",
+    "ru": "Самая старая открытая"
+  },
+  "jiraPortfolio.days": {
+    "en": "{count} d",
+    "ru": "{count} дн."
+  },
+  "jiraPortfolio.fresh": {
+    "en": "Updated",
+    "ru": "Обновлено"
+  },
+  "jiraPortfolio.never": {
+    "en": "never synced",
+    "ru": "не синхронизировано"
+  },
+  "jiraPortfolio.withoutAttributes": {
+    "en": "{count} without the extra fields yet",
+    "ru": "{count} пока без доп. полей"
+  },
+  "jiraPortfolio.total": {
+    "en": "Total",
+    "ru": "Итого"
+  },
+  "jiraPortfolio.assignee": {
+    "en": "Assignee",
+    "ru": "Исполнитель"
+  },
+  "jiraPortfolio.none": {
+    "en": "No open projects with Jira connected",
+    "ru": "Нет открытых проектов с подключённой Jira"
+  },
+  "jiraPortfolio.failed": {
+    "en": "Could not count the Jira work",
+    "ru": "Не удалось посчитать работы Jira"
+  },
+  "jiraPortfolio.note": {
+    "en": "Open means no resolution and not cancelled; cancelled issues count nowhere. Created and resolved read today's data. The total adds the lines: an issue of two projects counts in each.",
+    "ru": "Открытая — без резолюции и не отменённая; отменённые не учитываются нигде. «Создано» и «закрыто» — по сегодняшним данным. Итог складывает строки: задача двух проектов учитывается в каждом."
   }
 } as const;

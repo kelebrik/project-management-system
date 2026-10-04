@@ -242,7 +242,7 @@ function TaskReportSections({
 }
 
 type ReportView = "builder" | "weekly" | PortfolioView;
-const REPORT_VIEWS: ReportView[] = ["builder", "weekly", "summary", "shifts", "upcoming", "risks"];
+const REPORT_VIEWS: ReportView[] = ["builder", "weekly", "summary", "shifts", "upcoming", "risks", "jira"];
 const viewFromUrl = (): ReportView => {
   const value = new URLSearchParams(window.location.search).get("reportView") as ReportView | null;
   return value && REPORT_VIEWS.includes(value) ? value : "builder";
@@ -270,6 +270,7 @@ export function ReportsPage() {
     ["shifts", uiText("portfolio.tab.shifts")],
     ["upcoming", uiText("portfolio.tab.upcoming")],
     ["risks", uiText("portfolio.tab.risks")],
+    ["jira", uiText("jiraPortfolio.tab")],
   ];
   return <><div className="automation-tabs" role="group" aria-label={uiText("ui.reports.reportViewLabel")}>
     {tabs.map(([key, label]) => <button aria-pressed={view === key} key={key} onClick={() => open(key)}>{label}</button>)}

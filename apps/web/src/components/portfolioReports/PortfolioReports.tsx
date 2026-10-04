@@ -6,8 +6,9 @@ import type { TableDocument } from "../../app/tables/tableDocument";
 import { createDomainLabels } from "../../i18n/domainLabels";
 import { useI18n } from "../../i18n/I18nProvider";
 import type { SimpleTranslationKey } from "../../i18n/types";
+import { JiraPortfolioReport } from "./JiraPortfolioReport";
 
-export type PortfolioView = "summary" | "shifts" | "upcoming" | "risks";
+export type PortfolioView = "summary" | "shifts" | "upcoming" | "risks" | "jira";
 
 type ProjectRef = { projectId: string; projectCode: string; projectName: string };
 type Report = {
@@ -191,6 +192,7 @@ export function PortfolioReports({ view }: { view: PortfolioView }) {
           ]}
         />
       )}
+      {view === "jira" && <JiraPortfolioReport shownProjects={report && (filters.unit || filters.portfolio || filters.manager) ? shown : null} />}
       {report && view === "risks" && (
         <>
           <h3>{t("portfolio.risksTitle")}</h3>

@@ -692,6 +692,16 @@ export const englishWikiGroups: WikiGroup[] = [
             ]
           },
           {
+            heading: "Widget views, drill-down and your own view",
+            points: [
+              "A widget shows a number, a number against the previous period (no grouping and a period field: the change and percent against the same span before it), bars, a line (by week or month, in time order) and, with two groupings, a table or stacked bars.",
+              "Clicking a group, a table cell or a part of a stacked bar opens its issues; records come in pages of 100 with Previous and Next, the issue key leads to Jira and the arrow goes one level up.",
+              "The shared set of widgets (Edit for everyone) is changed by a system administrator or a member who may change the project; aggregates are still created and published only by an administrator. A closed project's shared set does not change.",
+              "My view is open to everyone: hide shared widgets for yourself, reorder, add and set up up to 30 widgets of your own; Back to the shared view removes all your changes. Your view is kept in your personal project settings and nobody else sees it.",
+              "The Jira tab of the portfolio reports gives a line per open project with Jira connected: open, in progress, past the issue due date, without assignee, open story points, created and resolved in 7/30/90 days, the oldest open and when the data was updated. Open means no resolution and not cancelled; cancelled issues count nowhere. The total adds the lines (an issue of two projects counts in each); the portfolio filters and an assignee choice narrow the table, and it goes to Excel."
+            ]
+          },
+          {
             "heading": "Open issues",
             "points": [
               "An issue stores a source of INTERNAL or JIRA, a section (category), title, criticality (severity), readiness GREEN/AMBER/RED, status (Open, In Progress, Blocked, Resolved, Closed), owner, impact, dueDate, a reference link, a linked risk, a WBS phase and Jira links. An issue has no separate \"needs a decision\" flag: criticality and readiness decide whether a decision is needed.",

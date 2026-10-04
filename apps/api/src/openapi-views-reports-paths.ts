@@ -40,6 +40,16 @@ export const openApiViewsReportsPaths = {
       ],
     },
   },
+  "/api/reports/jira-portfolio": {
+    get: {
+      ...securedOperation(["Reports"], "Jira work per open project the person may read, from the projects' snapshots (Jira is not asked): open, in progress, overdue, unassigned, open story points, created and resolved in the period, the oldest open, freshness; and the total of the lines (an issue of two projects counts in each). Open means no resolution and not cancelled; cancelled issues count nowhere. At most 50000 issues, else 409", [], "Lines, total and assignee hints"),
+      parameters: [
+        { name: "period", in: "query", schema: { type: "integer", enum: [7, 30, 90], default: 30 }, description: "Days for created and resolved" },
+        { name: "slice", in: "query", schema: { type: "string", maxLength: 20000 }, description: "A slice as base64url of its JSON (see JiraAnalyticsSlice)" },
+      ],
+      responses: { "200": { description: "Jira portfolio" }, "400": { description: "Invalid period or slice" }, "409": { description: "More issues than the limit" } },
+    },
+  },
   "/api/wbs-import/preview": {
     post: {
       ...securedOperation(["Structure"], "What a table would become as the Structure of a project not created yet; writes nothing", [], "Import plan summary"),
