@@ -1,8 +1,6 @@
-import { randomUUID } from 'node:crypto';
 import { automationParamsSchemas, normalizePersonName, type AutomationTemplate, type NotificationParams } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db.js';
-import { usersWhoCanReadProject } from '../../server/business-units.js';
 import { logEvent } from '../../server/logger.js';
 import { projectModulesConfig } from '../../routes/admin/project-modules.js';
 import { missingCheckIns, weekStartOf } from '../my-work.js';
@@ -11,53 +9,9 @@ import { needsReason } from '../schedule-shifts.js';
 import { calculateProjectCriticalPath } from '../wbs-critical-path.js';
 import { blockerEvents, blockerIssueTitle, cutText, exhaustedFloat, jiraDoneEvents, listed, newlyExhausted, rowRef, shiftEvents, type CheckInSource, type ShiftSource } from './templates.js';
 import { automationTimeZone, DAILY_HOUR, localMoment, WEEKLY_CHECK_IN } from './time.js';
-
-type Tx = Prisma.TransactionClient;
-/** What a rule keeps between runs: when it was switched on, how far its event sources were read, and the float set it last saw. */
-export type RuleState = { since?: string; cursor?: string; floatIds?: string[] };
-
-/** Late commits of a source row are caught by reading this far back on every run; repeats are dropped by the firing key. */
-const OVERLAP_MS = 10 * 60_000;
-const SOURCE_BATCH = 2000;
-const DAY_MS = 86_400_000;
-
-type RunContext = {
-  tx: Tx;
-  rule: { id: string; projectId: string; template: AutomationTemplate; params: Prisma.JsonValue; recipientIds: string[] };
-  project: { id: string; code: string; projectManager: string };
-  state: RuleState;
-  now: Date;
-  zone: string;
-  recipients: string[];
-  /** Rows read per page of an event source. */
-  batch: number;
-};
-
-/** Claims a firing; null when this key already fired, which is how repeats and overlapping reads are dropped. */
-async function fire(ctx: RunContext, dedupeKey: string, summary: Record<string, unknown>) {
-  const rows = await ctx.tx.$queryRaw<Array<{ id: string }>>`
-    INSERT INTO "AutomationFiring" ("id", "ruleId", "projectId", "template", "dedupeKey", "summary", "firedAt")
-    VALUES (${randomUUID()}, ${ctx.rule.id}, ${ctx.project.id}, ${ctx.rule.template}, ${dedupeKey}, ${JSON.stringify(summary)}::jsonb, ${ctx.now})
-    ON CONFLICT ("ruleId", "dedupeKey") DO NOTHING
-    RETURNING "id"`;
-  return rows[0]?.id ?? null;
-}
-
-async function notify(ctx: RunContext, firingId: string, userIds: string[], params: NotificationParams, href: string) {
-  // Nobody hears about a project they may not see.
-  const unique = await usersWhoCanReadProject([...new Set(userIds)], ctx.project.id);
-  if (unique.length === 0) return;
-  await ctx.tx.notification.createMany({
-    data: unique.map((userId) => ({ userId, projectId: ctx.project.id, firingId, kind: params.kind, params: params as unknown as Prisma.InputJsonValue, href })),
-    skipDuplicates: true,
-  });
-}
-
-/** Active users linked to people of the leave schedule, by normalized name. */
-async function linkedUsers(tx: Tx) {
-  const people = await tx.leaveEmployee.findMany({ where: { isActive: true, userId: { not: null }, user: { isActive: true } }, select: { name: true, userId: true } });
-  return new Map(people.map((person) => [normalizePersonName(person.name), person.userId!]));
-}
+import { changeRequestPending, decisionWaiting, issueOverdue, milestoneAtRisk, riskIncomplete, workDueSoon } from './watch-rules.js';
+import { DAY_MS, fire, linkedUsers, notify, OVERLAP_MS, SOURCE_BATCH, type RunContext, type RuleState, type Tx } from './context.js';
+export type { RuleState } from './context.js';
 
 const rulesHref = (projectId: string) => `/development/rules?project=${encodeURIComponent(projectId)}&tab=proposals`;
 const rowHref = (code: string, itemId: string) => `/${encodeURIComponent(code)}/wbs?focusWbs=${encodeURIComponent(itemId)}`;
@@ -297,6 +251,12 @@ const HANDLERS: Record<AutomationTemplate, (ctx: RunContext) => Promise<void>> =
   CHECK_IN_BLOCKER: checkInBlocker,
   FLOAT_EXHAUSTED: floatExhausted,
   JIRA_DONE: jiraDone,
+  DECISION_WAITING: decisionWaiting,
+  RISK_INCOMPLETE: riskIncomplete,
+  ISSUE_OVERDUE: issueOverdue,
+  WORK_DUE_SOON: workDueSoon,
+  MILESTONE_AT_RISK: milestoneAtRisk,
+  CHANGE_REQUEST_PENDING: changeRequestPending,
 };
 
 class RuleChanged extends Error {}

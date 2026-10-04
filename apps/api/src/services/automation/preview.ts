@@ -4,6 +4,7 @@ import { missingCheckIns, weekStartOf } from '../my-work.js';
 import { loadExhaustedFloat, loadReconciliation } from './engine.js';
 import { blockerEvents, cutText, jiraDoneEvents, listed, rowRef, shiftEvents } from './templates.js';
 import { automationTimeZone, localMoment } from './time.js';
+import { previewWatchRule, WATCH_TEMPLATES } from './watch-preview.js';
 
 export const PREVIEW_DAYS = 28;
 const DAY_MS = 86_400_000;
@@ -92,6 +93,8 @@ export async function previewRule(project: { id: string; code: string }, templat
     const { rows: named, more } = listed(rows);
     return done('CURRENT_ONLY', [{ at: null, params: { kind: 'FLOAT_EXHAUSTED', projectCode: project.code, rows: named, more } }]);
   }
+
+  if (WATCH_TEMPLATES.includes(template)) return done('CURRENT_ONLY', await previewWatchRule(project, template, params, now, zone));
 
   const rows = jiraDoneEvents(await loadReconciliation(prisma, project, now)).map(({ row }) => rowRef(row));
   if (rows.length === 0) return done('CURRENT_ONLY', []);

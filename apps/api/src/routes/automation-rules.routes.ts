@@ -155,9 +155,14 @@ export function createAutomationRulesRouter() {
       res.status(400).json({ error: 'Некорректное правило' });
       return;
     }
-    const minDays = Number(req.query.minDays);
-    const params = template === 'MILESTONE_SHIFT' && Number.isInteger(minDays) && minDays >= 1 && minDays <= AUTOMATION_LIMITS.minDaysMax ? { minDays } : {};
-    res.json(await previewRule(project, template, params));
+    // The thresholds being tried on the page come as query numbers; anything out of range falls back to the defaults.
+    const asked = Object.fromEntries(
+      ['minDays', 'days', 'graceDays', 'minProgress'].flatMap((key) => (req.query[key] === undefined ? [] : [[key, Number(req.query[key])]])),
+    );
+    const shape = automationParamsSchemas[template] as unknown as { shape?: Record<string, unknown> };
+    const known = Object.fromEntries(Object.entries(asked).filter(([key]) => shape.shape && key in shape.shape));
+    const parsed = automationParamsSchemas[template].safeParse(known);
+    res.json(await previewRule(project, template, parsed.success ? parsed.data : {}));
   });
 
   router.get('/projects/:projectId/automation/firings', async (req, res) => {

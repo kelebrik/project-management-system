@@ -55,6 +55,20 @@ export function notificationText(params: NotificationParams, t: Translate, forma
       return t("ui.rules.note.FLOAT_EXHAUSTED", { rows: rowsText(params.rows, params.more, t) });
     case "JIRA_DONE":
       return t("ui.rules.note.JIRA_DONE", { rows: rowsText(params.rows, params.more, t) });
+    case "DECISION_WAITING":
+      return t("ui.rules.note.DECISION_WAITING", { title: params.item.title, days: params.days, approver: params.approver || t("ui.rules.noApprover") });
+    case "RISK_INCOMPLETE":
+      return t("ui.rules.note.RISK_INCOMPLETE", { items: params.items.map((item) => item.title).join("; ") + (params.more > 0 ? ` ${t("ui.rules.andMore", { count: params.more })}` : "") });
+    case "ISSUE_OVERDUE":
+      return t("ui.rules.note.ISSUE_OVERDUE", { title: params.item.title, days: params.days, date: formatDate(params.dueDate) });
+    case "WORK_DUE_SOON":
+      return t("ui.rules.note.WORK_DUE_SOON", { code: params.row.code, title: params.row.title, date: formatDate(params.dueDate) });
+    case "WORK_DUE_SOON_SUMMARY":
+      return t("ui.rules.note.WORK_DUE_SOON_SUMMARY", { rows: rowsText(params.rows, params.more, t) });
+    case "MILESTONE_AT_RISK":
+      return t("ui.rules.note.MILESTONE_AT_RISK", { code: params.row.code, title: params.row.title, date: formatDate(params.dueDate), lagging: params.lagging });
+    case "CHANGE_REQUEST_PENDING":
+      return t("ui.rules.note.CHANGE_REQUEST_PENDING", { title: params.item.title, days: params.days, status: params.status });
     default:
       return "";
   }

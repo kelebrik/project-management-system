@@ -1,14 +1,15 @@
+import { automationTemplates } from "@pms/shared";
 import { pathParam, securedOperation } from "./openapi-helpers.js";
 
 const tags = ["Automation"];
-const templateParam = { name: "template", in: "path", required: true, schema: { type: "string", enum: ["MILESTONE_SHIFT", "MISSING_CHECK_IN", "CHECK_IN_BLOCKER", "FLOAT_EXHAUSTED", "JIRA_DONE"] } };
+const templateParam = { name: "template", in: "path", required: true, schema: { type: "string", enum: [...automationTemplates] } };
 const proposalParam = pathParam("proposalId");
 const json = (schema: Record<string, unknown>) => ({ required: true, content: { "application/json": { schema } } });
 
 /** Project rules: five templates that tell people or prepare a change a person applies; and the signed-in user's bell. */
 export const openApiAutomationRulesPaths = {
   "/api/projects/{projectId}/automation-rules": {
-    get: securedOperation(tags, "The five rule templates of the project with their settings, users who can be told, and the number of proposals waiting", [pathParam("projectId")], "Rules"),
+    get: securedOperation(tags, "The rule templates of the project with their settings, users who can be told, and the number of proposals waiting", [pathParam("projectId")], "Rules"),
   },
   "/api/projects/{projectId}/automation-rules/{template}": {
     put: {
@@ -18,7 +19,7 @@ export const openApiAutomationRulesPaths = {
         required: ["enabled", "recipientIds"],
         properties: {
           enabled: { type: "boolean" },
-          params: { type: "object", description: "MILESTONE_SHIFT: { minDays: 1..90 }; other templates: {}" },
+          params: { type: "object", description: "MILESTONE_SHIFT { minDays 1..90 }, DECISION_WAITING { days 1..60 }, ISSUE_OVERDUE { graceDays 0..30 }, WORK_DUE_SOON { days 1..30 }, MILESTONE_AT_RISK { days 1..60, minProgress 1..100 }, CHANGE_REQUEST_PENDING { days 1..60 }; other templates: {}" },
           recipientIds: { type: "array", maxItems: 20, items: { type: "string" } },
           version: { type: "integer", description: "The version shown; required once the rule exists" },
         },

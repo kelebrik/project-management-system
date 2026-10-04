@@ -1,11 +1,27 @@
 import { AUTOMATION_LIMITS, type AutomationTemplate } from "@pms/shared";
+import type { SimpleTranslationKey } from "../../i18n/types";
 import { X } from "lucide-react";
 import { useState } from "react";
 import { apiClient } from "../../api/client";
 import { notificationText, type RulePreview, type RuleSettings, type RulesOverview } from "../../app/automationRules";
 import { useI18n } from "../../i18n/I18nProvider";
 
-/** One template of a project: on or off, its threshold, who is told, and what it would have said. */
+type ParamField = { key: string; label: SimpleTranslationKey; min: number; max: number; fallback: number };
+
+/** The thresholds a template takes, with the same bounds the server checks. */
+const PARAM_FIELDS: Partial<Record<AutomationTemplate, ParamField[]>> = {
+  MILESTONE_SHIFT: [{ key: "minDays", label: "ui.rules.minDays", min: 1, max: AUTOMATION_LIMITS.minDaysMax, fallback: 3 }],
+  DECISION_WAITING: [{ key: "days", label: "ui.rules.param.days", min: 1, max: 60, fallback: 3 }],
+  ISSUE_OVERDUE: [{ key: "graceDays", label: "ui.rules.param.graceDays", min: 0, max: 30, fallback: 0 }],
+  WORK_DUE_SOON: [{ key: "days", label: "ui.rules.param.days", min: 1, max: 30, fallback: 3 }],
+  MILESTONE_AT_RISK: [
+    { key: "days", label: "ui.rules.param.days", min: 1, max: 60, fallback: 7 },
+    { key: "minProgress", label: "ui.rules.param.minProgress", min: 1, max: 100, fallback: 50 },
+  ],
+  CHANGE_REQUEST_PENDING: [{ key: "days", label: "ui.rules.param.days", min: 1, max: 60, fallback: 5 }],
+};
+
+/** One template of a project: on or off, its thresholds, who is told, and what it would have said. */
 export function RuleCard({
   projectId,
   template,
@@ -23,7 +39,10 @@ export function RuleCard({
 }) {
   const { t, formatters } = useI18n();
   const [enabled, setEnabled] = useState(rule?.enabled ?? false);
-  const [minDays, setMinDays] = useState(Number(rule?.params.minDays ?? 3));
+  const fields = PARAM_FIELDS[template] ?? [];
+  const [params, setParams] = useState<Record<string, number>>(() =>
+    Object.fromEntries(fields.map((field) => [field.key, Number(rule?.params[field.key] ?? field.fallback)])),
+  );
   const [recipientIds, setRecipientIds] = useState<string[]>(rule?.recipientIds ?? []);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
@@ -39,7 +58,7 @@ export function RuleCard({
     try {
       const saved = await apiClient.put<RuleSettings>(
         `/api/projects/${projectId}/automation-rules/${template}`,
-        { enabled, params: template === "MILESTONE_SHIFT" ? { minDays } : {}, recipientIds, ...(rule ? { version: rule.version } : {}) },
+        { enabled, params, recipientIds, ...(rule ? { version: rule.version } : {}) },
         t("ui.rules.saveFailed"),
       );
       onSaved(saved);
@@ -54,7 +73,8 @@ export function RuleCard({
     setBusy(true);
     setError("");
     try {
-      setPreview(await apiClient.get<RulePreview>(`/api/projects/${projectId}/automation-rules/${template}/preview${template === "MILESTONE_SHIFT" ? `?minDays=${minDays}` : ""}`, t("ui.rules.failed")));
+      const query = new URLSearchParams(Object.entries(params).map(([key, value]) => [key, String(value)])).toString();
+      setPreview(await apiClient.get<RulePreview>(`/api/projects/${projectId}/automation-rules/${template}/preview${query ? `?${query}` : ""}`, t("ui.rules.failed")));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : t("ui.rules.failed"));
     } finally {
@@ -72,12 +92,22 @@ export function RuleCard({
         </label>
       </h3>
       <p>{t(`ui.rules.templateHint.${template}`)}</p>
-      {template === "MILESTONE_SHIFT" && (
-        <label>
-          {t("ui.rules.minDays")}
-          <input disabled={!canWrite || busy} max={AUTOMATION_LIMITS.minDaysMax} min={1} onChange={(event) => setMinDays(Math.max(1, Math.min(AUTOMATION_LIMITS.minDaysMax, Number(event.target.value) || 1)))} type="number" value={minDays} />
+      {fields.map((field) => (
+        <label key={field.key}>
+          {t(field.label)}
+          <input
+            disabled={!canWrite || busy}
+            max={field.max}
+            min={field.min}
+            onChange={(event) => {
+              const value = Math.max(field.min, Math.min(field.max, Number(event.target.value) || field.min));
+              setParams((current) => ({ ...current, [field.key]: value }));
+            }}
+            type="number"
+            value={params[field.key]}
+          />
         </label>
-      )}
+      ))}
       <div>
         <span className="rule-label">{t("ui.rules.recipients")}</span>
         <div className="rule-recipients">
