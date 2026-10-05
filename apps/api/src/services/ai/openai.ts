@@ -104,8 +104,9 @@ export function explainProviderError(status: number, detail: ProviderErrorDetail
   if (status === 404 || code === 'model_not_found') {
     return `Модель ${modelLabel(model)} не найдена у поставщика или недоступна для этого ключа. Проверьте название в AI_MODEL (оно должно совпадать с названием модели в API OpenAI).${said}`;
   }
-  if (code === 'insufficient_quota') {
-    return 'У поставщика закончились средства на счете или не подключена оплата API. Пополните баланс в кабинете OpenAI.';
+  if (code === 'insufficient_quota' || code === 'project_spend_limit_exceeded' || code === 'billing_hard_limit_reached') {
+    // Also what a spending limit set at the provider answers once reached.
+    return 'Бюджет помощи ИИ исчерпан: достигнут лимит расходов у поставщика модели. Функции ИИ снова заработают, когда лимит обновится или будет пополнен баланс OpenAI.';
   }
   if (status === 429) return `Поставщик модели ограничил частоту запросов. Повторите через минуту.${said}`;
   if (status === 403) return `Поставщик запретил доступ к модели для этого ключа, проекта или региона.${said}`;

@@ -91,7 +91,7 @@ The issue register can turn meeting notes into draft tasks, open issues and risk
 - `AI_REASONING_EFFORT` - optional, for reasoning models: a level such as `low`, `medium` or `high`; unset keeps the model's default. Put the level here, not in the model name.
 - `AI_BASE_URL` - optional, `https://api.openai.com/v1` by default. Only https, and only OpenAI's host or one listed in `AI_ALLOWED_HOSTS`, so the key cannot be sent elsewhere.
 - Budgets, stored in the `AiUsage` table so they hold across restarts: `AI_USER_HOURLY_LIMIT` (10), `AI_DAILY_LIMIT` (200 calls), `AI_DAILY_TOKEN_LIMIT` (2 000 000), `AI_MAX_CONCURRENT` (3), `AI_TIMEOUT_MS` (60000).
-- The public demo cannot call the model unless `AI_ALLOW_PUBLIC_DEMO=true`; then `AI_DEMO_IP_HOURLY_LIMIT` (3) and `AI_DEMO_DAILY_LIMIT` (30) apply.
+- The public demo calls the model unless `AI_ALLOW_PUBLIC_DEMO=false`; `AI_DEMO_IP_HOURLY_LIMIT` (5) and `AI_DEMO_DAILY_LIMIT` (15) apply, which at about 4 cents a call keeps within a $5 a week spending limit at the provider.
 - Calls need a user session and the right to change the project; API tokens are refused. The audit log keeps counters only, never the notes or the model's answer.
 - The notes leave the installation for the provider: use it only for text you may share with that provider.
 

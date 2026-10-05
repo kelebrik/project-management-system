@@ -14,8 +14,13 @@ test('AI stays off unless a provider, key and model are all set', () => {
   assert.equal(on.enabled, true);
   if (on.enabled) {
     assert.equal(on.baseUrl.href, 'https://api.openai.com/v1/');
-    assert.equal(on.allowPublicDemo, false);
+    assert.equal(on.allowPublicDemo, true, 'the demo has the helpers unless turned off');
     assert.equal(on.limits.userHourly, 10);
+    assert.deepEqual([on.limits.demoIpHourly, on.limits.demoDaily], [5, 15]);
+  }
+  const off = readAiConfig(env({ AI_PROVIDER: 'openai', AI_API_KEY: 'k', AI_MODEL: 'gpt-x', AI_ALLOW_PUBLIC_DEMO: 'false' })).config;
+  if (off.enabled) {
+    assert.equal(off.allowPublicDemo, false);
   }
 });
 
@@ -204,7 +209,7 @@ test('provider errors say which setting to check, without the key', async () => 
     assert.doesNotMatch(error.message, /abcdefgh/);
     return true;
   });
-  await assert.rejects(call(429, { code: 'insufficient_quota', message: 'You exceeded your current quota' }), /Пополните баланс/);
+  await assert.rejects(call(429, { code: 'insufficient_quota', message: 'You exceeded your current quota' }), /Бюджет помощи ИИ исчерпан/);
   await assert.rejects(call(400, { code: '', message: "Invalid parameter: 'response_format' of type 'json_schema' is not supported with this model." }), /structured outputs/);
   await assert.rejects(call(503, {}), /временно недоступен/);
   // An unusual code is not echoed, however long.
@@ -213,6 +218,7 @@ test('provider errors say which setting to check, without the key', async () => 
     return true;
   });
   // A key inside any provider message, or a secret typed as the model, is cut before it reaches the page.
+  assert.match(explainProviderError(429, { code: 'project_spend_limit_exceeded', type: '', message: '' }, 'm'), /Бюджет помощи ИИ исчерпан/);
   assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'bad key sk-live-1234567890' }, 'm'), /1234567890/);
   assert.doesNotMatch(explainProviderError(400, { code: '', type: '', message: 'key sk_x' }, 'm'), /sk_x/);
   assert.doesNotMatch(explainProviderError(404, { code: 'model_not_found', type: '', message: '' }, 'sk-proj-SECRET'), /SECRET/);

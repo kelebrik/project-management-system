@@ -33,8 +33,9 @@ const DEFAULT_LIMITS: AiLimits = {
   daily: 200,
   dailyTokens: 2_000_000,
   concurrent: 3,
-  demoIpHourly: 3,
-  demoDaily: 30,
+  // About 4 cents a call: 15 a day stays within a $5 a week spending limit at the provider.
+  demoIpHourly: 5,
+  demoDaily: 15,
 };
 
 function positive(env: NodeJS.ProcessEnv, name: string, fallback: number, warnings: string[]) {
@@ -107,7 +108,8 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env): { config: Ai
       apiKey,
       baseUrl,
       timeoutMs: positive(env, 'AI_TIMEOUT_MS', 60_000, warnings),
-      allowPublicDemo: env.AI_ALLOW_PUBLIC_DEMO === 'true',
+      // The public demo gets the AI helpers like everyone else; AI_ALLOW_PUBLIC_DEMO=false turns them off there.
+      allowPublicDemo: env.AI_ALLOW_PUBLIC_DEMO !== 'false',
       limits,
     },
     warnings,
