@@ -30,7 +30,9 @@ test('the extra fields are read from one search answer, whatever the Jira langua
     assigneeLogin: 'ivanov.i',
     custom: { customfield_20000: 'Высокий / Срочно', customfield_20001: ['Петров', 'Сидоров'] },
   });
-  assert.equal(JSON.stringify(attributes).includes('example.com'), false, 'no e-mail is kept');
+  // Nothing that looks like an address is kept anywhere in the attributes.
+  const kept = Object.values(attributes).flatMap((value) => (value && typeof value === 'object' ? Object.values(value).flat() : [value]));
+  assert.equal(kept.some((value) => typeof value === 'string' && value.includes('@')), false, 'no e-mail is kept');
 });
 
 test('an epic parent counts as the epic, and missing fields stay empty', () => {

@@ -1,4 +1,5 @@
-import { Router } from 'express';
+import { Router, type Request } from 'express';
+import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { prisma } from '../db.js';
 import { fetchJiraIssuesWithMeta, isJiraConfigured, jiraLoginFromEmail } from '../jira.js';
@@ -15,10 +16,22 @@ const loginSchema = z.object({ login: z.string().trim().max(100).nullable() });
  * open project. The login is the part of the e-mail before @ unless the user
  * set another one.
  */
+/** Each person asks Jira at most this often; changing the login does not get around it. */
+export const MY_JIRA_RATE_LIMIT_PER_MINUTE = 10;
+
 export function createMyJiraRouter() {
   const router = Router();
+  // Built per router so separate apps (tests) keep separate counters.
+  const perUser = rateLimit({
+    windowMs: 60_000,
+    limit: MY_JIRA_RATE_LIMIT_PER_MINUTE,
+    standardHeaders: 'draft-8',
+    legacyHeaders: false,
+    keyGenerator: (req: Request) => currentUser(req)?.id ?? ipKeyGenerator(req.ip ?? ''),
+    message: { error: 'Слишком много запросов задач Jira. Повторите через минуту.' },
+  });
 
-  router.get('/my-work/jira', async (req, res) => {
+  router.get('/my-work/jira', perUser, async (req, res) => {
     const user = currentUser(req);
     if (!user) {
       res.status(401).json({ error: 'Требуется вход в систему' });
@@ -72,7 +85,7 @@ export function createMyJiraRouter() {
   });
 
   /** One's own Jira login; empty goes back to the part of the e-mail before @. */
-  router.put('/my-work/jira-login', async (req, res) => {
+  router.put('/my-work/jira-login', perUser, async (req, res) => {
     const user = currentUser(req);
     if (!user) {
       res.status(401).json({ error: 'Требуется вход в систему' });

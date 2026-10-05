@@ -34,6 +34,10 @@ test('my Jira tasks: the login comes from the e-mail, can be set and reset, and 
     assert.deepEqual([custom.login, custom.customLogin], ['i.ivanov', true]);
     assert.equal((await call('/api/my-work/jira-login', 'PUT', { login: '' })).status, 200);
     assert.equal((await prisma.user.findUniqueOrThrow({ where: { id: user.id } })).jiraLogin, null);
+    // Each person asks at most 10 times a minute, login changes included (5 requests so far).
+    const statuses = [];
+    for (let attempt = 0; attempt < 6; attempt += 1) statuses.push((await call('/api/my-work/jira')).status);
+    assert.deepEqual(statuses, [200, 200, 200, 200, 200, 429]);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     Object.assign(process.env, Object.fromEntries(Object.entries(saved).filter(([, value]) => value !== undefined)));
