@@ -74,7 +74,7 @@ export function MeetingNotesContent() {
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<{ drafts: MeetingDraft[]; model: string }>(
+      const answer = await apiClient.postAi<{ drafts: MeetingDraft[]; model: string }>(
         `/api/projects/${project.id}/meeting-drafts`,
         { text },
         uiText("ui.automation.aiFailed"),

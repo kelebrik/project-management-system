@@ -57,7 +57,7 @@ export function WbsDraftDrawer({
     setNotice("");
     setCreated([]);
     try {
-      const answer = await apiClient.post<{ items: WbsDraftItem[]; droppedLinks: number; model: string }>(
+      const answer = await apiClient.postAi<{ items: WbsDraftItem[]; droppedLinks: number; model: string }>(
         `/api/projects/${projectId}/ai/wbs-draft`,
         { description },
         t("ui.ai.wbsFailed"),

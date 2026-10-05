@@ -56,6 +56,10 @@ export const openApiAiPaths = {
   "/api/ai/status": {
     get: securedOperation(tags, "Whether AI helpers are configured and allowed for the current user", [], "Provider, model and whether the user may call it"),
   },
+  "/api/ai/jobs/{jobId}": {
+    get: securedOperation(tags, "The answer of an AI call started with the header Prefer: respond-async (any AI helper then answers 202 with jobId and pollAfterMs): {status: running} while the model thinks, then the helper's own answer and status once; 404 when the job is not the user's, already picked up or lost in a restart. A job nobody polls for a minute is stopped", [pathParam("jobId")], "Running or the helper's answer"),
+    delete: securedOperation(tags, "Stop waiting for a background AI call of the user", [pathParam("jobId")], "Stopped"),
+  },
   "/api/projects/{projectId}/meeting-drafts": {
     post: {
       ...securedOperation(

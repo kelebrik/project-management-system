@@ -34,7 +34,7 @@ export function StatusReportDrawer({ projectId, projectName, ai, onClose }: { pr
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<{ report: StatusReport; model: string; periodDays: number }>(
+      const answer = await apiClient.postAi<{ report: StatusReport; model: string; periodDays: number }>(
         `/api/projects/${projectId}/ai/status-report`,
         { periodDays, locale },
         t("ui.ai.reportFailed"),

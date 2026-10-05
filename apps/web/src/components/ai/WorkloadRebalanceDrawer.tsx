@@ -42,7 +42,7 @@ export function WorkloadRebalanceDrawer({ ai, onApplied, onClose }: { ai: AiStat
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<{ suggestions: RebalanceSuggestion[]; items: Record<string, RebalanceItem>; droppedRefs: number; model?: string; nothingToMove?: boolean }>(
+      const answer = await apiClient.postAi<{ suggestions: RebalanceSuggestion[]; items: Record<string, RebalanceItem>; droppedRefs: number; model?: string; nothingToMove?: boolean }>(
         "/api/ai/workload-rebalance",
         { horizonDays, locale },
         t("ui.ai.rebalanceFailed"),

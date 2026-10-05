@@ -47,7 +47,7 @@ export function RiskAssistantDrawer({
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<RiskSuggestions & { droppedRefs: number; model: string }>(
+      const answer = await apiClient.postAi<RiskSuggestions & { droppedRefs: number; model: string }>(
         `/api/projects/${projectId}/ai/risk-suggestions`,
         { locale },
         t("ui.ai.riskFailed"),

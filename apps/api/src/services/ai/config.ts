@@ -107,7 +107,8 @@ export function readAiConfig(env: NodeJS.ProcessEnv = process.env): { config: Ai
       reasoningEffort,
       apiKey,
       baseUrl,
-      timeoutMs: positive(env, 'AI_TIMEOUT_MS', 60_000, warnings),
+      // Background calls wait past proxy limits, so a reasoning model gets three minutes.
+      timeoutMs: positive(env, 'AI_TIMEOUT_MS', 180_000, warnings),
       // The public demo gets the AI helpers like everyone else; AI_ALLOW_PUBLIC_DEMO=false turns them off there.
       allowPublicDemo: env.AI_ALLOW_PUBLIC_DEMO !== 'false',
       limits,

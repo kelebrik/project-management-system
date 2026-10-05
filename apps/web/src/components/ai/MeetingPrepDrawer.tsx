@@ -49,7 +49,7 @@ export function MeetingPrepDrawer({
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<MeetingPrep & { droppedRefs: number; model: string }>(
+      const answer = await apiClient.postAi<MeetingPrep & { droppedRefs: number; model: string }>(
         `/api/projects/${projectId}/ai/meeting-prep`,
         { horizonDays, locale },
         t("ui.ai.prepFailed"),

@@ -73,6 +73,10 @@ export function createAiRouter(dependencies: Dependencies = {}) {
   const allowedFor = (req: Request) =>
     config.enabled && Boolean(currentUser(req)) && !currentApiToken(req) && (!isDemoVisitor(req) || config.allowPublicDemo);
 
+  // Background calls: the page polls for the answer and may stop waiting.
+  router.get('/ai/jobs/:jobId', kit.pollJob);
+  router.delete('/ai/jobs/:jobId', kit.cancelJob);
+
   router.get('/ai/status', (req, res) => {
     res.json(
       config.enabled

@@ -117,3 +117,27 @@ for (const [name, status] of [
   await expect(page.locator("#wbs-item-wbs-1")).toBeVisible();
   await expect(page.getByRole("button", { name: "Черновик с ИИ" })).toHaveCount(0);
 });
+
+test("a long structure draft runs in the background: the page waits for the job", async ({ page }) => {
+  await mockAi(page);
+  const prefer: Array<string | undefined> = [];
+  await page.route("**/api/projects/project-1/ai/wbs-draft", (route) => {
+    prefer.push(route.request().headers()["prefer"]);
+    return route.fulfill({ status: 202, json: { jobId: "job-1", pollAfterMs: 100 } });
+  });
+  let polls = 0;
+  await page.route("**/api/ai/jobs/job-1", (route) => {
+    if (route.request().method() === "DELETE") return route.fulfill({ status: 204, body: "" });
+    polls += 1;
+    return route.fulfill(polls < 3 ? { json: { status: "running", pollAfterMs: 100 } } : { json: { items: DRAFT, droppedLinks: 0, model: "gpt-test", provider: "openai" } });
+  });
+  await page.goto("/TV-OVERVIEW/wbs");
+  await page.getByRole("button", { name: "Черновик с ИИ" }).click();
+  const drawer = page.getByRole("dialog", { name: "Черновик Структуры" });
+  await drawer.getByLabel("О чем проект").fill("Новый пульт: требования, прототип, испытания и выпуск партии к весне.");
+  await drawer.getByRole("button", { name: "Подготовить черновик" }).click();
+  await expect(drawer.getByText("Модель gpt-test предложила строк: 4. Удалите лишние и поправьте названия, затем добавьте черновик.")).toBeVisible();
+  await expect(drawer.getByLabel("Название строки 1.1")).toHaveValue("Собрать требования");
+  expect(prefer).toEqual(["respond-async"]);
+  expect(polls).toBe(3);
+});

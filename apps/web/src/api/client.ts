@@ -171,6 +171,42 @@ export const apiClient = {
   delete<T = null>(path: string, fallback?: string, body?: unknown) {
     return request<T>(path, body === undefined ? { method: "DELETE" } : { method: "DELETE", body: JSON.stringify(body) }, fallback);
   },
+  /**
+   * An AI call that may think longer than a proxy keeps a request open: the
+   * server starts it in the background and the page polls for the answer.
+   * Aborting stops the call on the server too.
+   */
+  async postAi<T>(path: string, body: unknown, fallback?: string, signal?: AbortSignal): Promise<T> {
+    const started = await request<T | { jobId: string; pollAfterMs?: number }>(
+      path,
+      { method: "POST", body: JSON.stringify(body), signal, headers: { Prefer: "respond-async" } },
+      fallback,
+    );
+    if (!started || typeof started !== "object" || !("jobId" in started) || typeof started.jobId !== "string") return started as T;
+    const jobPath = `/api/ai/jobs/${encodeURIComponent(started.jobId)}`;
+    const stop = () => void request(jobPath, { method: "DELETE" }).catch(() => undefined);
+    signal?.addEventListener("abort", stop, { once: true });
+    try {
+      let wait = started.pollAfterMs ?? 1500;
+      for (;;) {
+        await new Promise<void>((resolve, reject) => {
+          const timer = setTimeout(resolve, wait);
+          signal?.addEventListener("abort", () => {
+            clearTimeout(timer);
+            reject(new DOMException("Aborted", "AbortError"));
+          }, { once: true });
+        });
+        const answer = await request<T | { status: "running"; pollAfterMs?: number }>(jobPath, { signal }, fallback);
+        if (answer && typeof answer === "object" && (answer as { status?: unknown }).status === "running") {
+          wait = (answer as { pollAfterMs?: number }).pollAfterMs ?? wait;
+          continue;
+        }
+        return answer as T;
+      }
+    } finally {
+      signal?.removeEventListener("abort", stop);
+    }
+  },
   download,
   downloadPost(path: string, body: unknown, fallback = clientText()("ui.common.apiDownloadFailed")) {
     return downloadRequest(path, { method: "POST", body: JSON.stringify(body) }, fallback);

@@ -34,7 +34,7 @@ export function AskProjectDrawer({ projectId, ai, onClose }: { projectId: string
     setError("");
     setNotice("");
     try {
-      const answer = await apiClient.post<Omit<Answer, "question">>(
+      const answer = await apiClient.postAi<Omit<Answer, "question">>(
         `/api/projects/${projectId}/ai/ask`,
         { question: asked, locale },
         t("ui.ai.askFailed"),
