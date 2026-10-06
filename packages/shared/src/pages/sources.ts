@@ -80,7 +80,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
     label: t("Работы", "Work"),
     rowLabel: t("задача, результат или пакет работ без вложенных строк", "a task, deliverable or work package without child rows"),
     titleField: "title",
-    periodFields: ["dueDate", "startDate", "closedAt"],
+    periodFields: ["closedAt"],
     defaultColumns: ["project", "code", "title", "owner", "dueDate", "status"],
     fields: [
       ...project,
@@ -105,7 +105,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
     label: t("Вехи и цели", "Milestones and goals"),
     rowLabel: t("веха или цель", "a milestone or goal"),
     titleField: "title",
-    periodFields: ["forecastDate", "plannedDate"],
+    periodFields: [],
     defaultColumns: ["project", "title", "plannedDate", "forecastDate", "slipDays", "status"],
     fields: [
       ...project,
@@ -127,7 +127,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
     label: t("Риски и проблемы", "Risks and problems"),
     rowLabel: t("запись RAID: риск, допущение или проблема", "a RAID record: risk, assumption or problem"),
     titleField: "title",
-    periodFields: ["createdAt", "dueDate"],
+    periodFields: ["createdAt"],
     defaultColumns: ["project", "title", "owner", "riskScore", "status", "dueDate"],
     fields: [
       ...project,
@@ -175,7 +175,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
       { key: "checkpointTitle", label: t("Веха", "Checkpoint"), kind: "text", groupable: true },
       { key: "checkpointType", label: t("Тип", "Type"), kind: "enum", values: { MILESTONE: wbsTypeValues.MILESTONE, GOAL: wbsTypeValues.GOAL }, groupable: true },
       { key: "deltaDays", label: t("Сдвиг, дн.", "Shift, days"), kind: "number", format: "days" },
-      { key: "later", label: t("Позже", "Later"), kind: "boolean", groupable: true },
+      { key: "later", label: t("Направление", "Direction"), kind: "boolean", groupable: true, values: { true: t("Позже", "Later"), false: t("Раньше", "Earlier") } },
       { key: "reasonCategory", label: t("Причина", "Reason"), kind: "enum", values: PAGE_SHIFT_REASON_VALUES, groupable: true, emptyLabel: t("Причина не указана", "No reason given") },
       { key: "reasonText", label: t("Пояснение", "Explanation"), kind: "text" },
       { key: "actorName", label: t("Кто сдвинул", "Moved by"), kind: "text", groupable: true },
@@ -187,7 +187,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
     label: t("Вопросы", "Issues"),
     rowLabel: t("вопрос проекта (открытый или закрытый)", "an issue of a project, open or closed"),
     titleField: "title",
-    periodFields: ["createdAt", "dueDate"],
+    periodFields: ["createdAt"],
     defaultColumns: ["project", "title", "owner", "severity", "dueDate", "status"],
     fields: [
       ...project,
@@ -287,7 +287,7 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
     label: t("Задачи Jira", "Jira issues"),
     rowLabel: t("задача Jira из снимков проекта (отменённые не считаются)", "a Jira issue from the project's snapshots (cancelled ones do not count)"),
     titleField: "summary",
-    periodFields: ["createdAt", "resolvedAt", "dueDate"],
+    periodFields: ["createdAt", "resolvedAt"],
     defaultColumns: ["project", "issueKey", "summary", "status", "assignee", "priority"],
     fields: [
       ...project,

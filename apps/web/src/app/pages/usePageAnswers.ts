@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PageDocument } from "@pms/shared";
 import { apiClient } from "../../api/client";
+import { pageErrorText } from "./pageErrors";
 import { useI18n } from "../../i18n/I18nProvider";
 import { pageQueryFingerprint, type PageAnswer } from "./pageModel";
 
@@ -32,7 +33,7 @@ export function usePageAnswers(document: PageDocument | null, refreshKey: number
         })
         .catch((failure) => {
           if (controller.signal.aborted) return;
-          setError(failure instanceof Error ? failure.message : failedText);
+          setError(pageErrorText(failure, t, failedText));
         })
         .finally(() => {
           if (!controller.signal.aborted) setLoading(false);
@@ -42,7 +43,7 @@ export function usePageAnswers(document: PageDocument | null, refreshKey: number
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [failedText, fingerprint, refreshKey]);
+  }, [failedText, fingerprint, refreshKey, t]);
 
   return { answer, loading, error };
 }

@@ -6,6 +6,7 @@ import { pushHistory, redoHistory, startHistory, undoHistory, type PageHistory }
 import { changeFormat, duplicateWidget, placeNewWidget, scopeLabel, updateWidget, type SavedPage, type ScopeOptions } from "../../app/pages/pageModel";
 import { printDashboardPage } from "../../app/pages/pagePrint";
 import { usePageAnswers } from "../../app/pages/usePageAnswers";
+import { pageErrorText } from "../../app/pages/pageErrors";
 import { useI18n } from "../../i18n/I18nProvider";
 import { PageSettingsPanel } from "./editor/PageSettingsPanel";
 import { QuestionPalette } from "./editor/QuestionPalette";
@@ -77,7 +78,7 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
             setSaveState("conflict");
           } else {
             setSaveState("failed");
-            say(failure instanceof Error ? failure.message : t("ui.pages.saveFailed"));
+            say(pageErrorText(failure, t, t("ui.pages.saveFailed")));
           }
         }
       })();

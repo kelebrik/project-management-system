@@ -1,7 +1,7 @@
-import { isJiraCancelledStatus, isJiraCriticalPriority, isJiraUnresolvedResolution, readJiraIssueAttributes, type PageSourceKey } from '@pms/shared';
+import { isJiraCancelledStatus, isJiraCriticalPriority, isJiraUnresolvedResolution, readJiraIssueAttributes } from '@pms/shared';
 import { prisma } from '../../db.js';
 import { moscowToday } from '../jira-portfolio.js';
-import { PAGE_SOURCE_ROW_LIMIT, PageSourceLimitError, pageDay, type PageSourceAdapter, type PageSourceContext } from './sources.js';
+import { PAGE_SOURCE_ROW_LIMIT, pageDay, type PageSourceAdapter, type PageSourceContext } from './sources.js';
 
 /**
  * Adapters of "My page" beyond the first ones: issues, change requests,
@@ -30,11 +30,6 @@ function refs(context: PageSourceContext) {
   };
 }
 
-function limited<T>(rows: T[], source: PageSourceKey) {
-  if (rows.length > PAGE_SOURCE_ROW_LIMIT) throw new PageSourceLimitError(source);
-  return rows;
-}
-
 /** Issues of the projects ("Вопросы"); open until done, closed or resolved, as on the issues page. */
 export const issues: PageSourceAdapter = async (context) => {
   if (context.projects.length === 0) return [];
@@ -42,9 +37,10 @@ export const issues: PageSourceAdapter = async (context) => {
   const items = await prisma.issue.findMany({
     where: { projectId: { in: ref.ids } },
     select: { id: true, projectId: true, title: true, category: true, severity: true, readiness: true, status: true, owner: true, decisionRequired: true, dueDate: true, createdAt: true, phase: { select: { title: true } } },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  return limited(items, 'issues').map((item) => {
+  return items.map((item) => {
     const open = !CLOSED_ISSUE.has(item.status);
     const due = pageDay(item.dueDate);
     const overdue = open && due !== null && due < context.today;
@@ -68,9 +64,10 @@ export const changes: PageSourceAdapter = async (context) => {
   const items = await prisma.changeRequest.findMany({
     where: { projectId: { in: ref.ids } },
     select: { id: true, projectId: true, title: true, type: true, status: true, owner: true, scheduleImpactDays: true, budgetImpact: true, dueDate: true, createdAt: true, approvedAt: true },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  return limited(items, 'changes').map((item) => ({
+  return items.map((item) => ({
     id: item.id,
     projectId: item.projectId,
     href: ref.href(item.projectId, 'changes'),
@@ -88,9 +85,10 @@ export const lessons: PageSourceAdapter = async (context) => {
   const items = await prisma.lesson.findMany({
     where: { projectId: { in: ref.ids } },
     select: { id: true, projectId: true, title: true, category: true, sourceKind: true, recommendation: true, createdByName: true, createdAt: true },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  return limited(items, 'lessons').map((item) => ({
+  return items.map((item) => ({
     id: item.id,
     projectId: item.projectId,
     href: '/development/lessons',
@@ -115,7 +113,7 @@ export const workload: PageSourceAdapter = async (context) => {
     distinct: ['employeeId'],
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  const people = limited(inScope, 'workload').map((row) => row.employeeId);
+  const people = inScope.map((row) => row.employeeId);
   if (people.length === 0) return [];
   const [employees, shares, leaves] = await Promise.all([
     prisma.leaveEmployee.findMany({ where: { id: { in: people } }, select: { id: true, name: true, department: true, capacityPercent: true } }),
@@ -149,10 +147,10 @@ export const checkins: PageSourceAdapter = async (context) => {
   const items = await prisma.workCheckIn.findMany({
     where: { projectId: { in: ref.ids } },
     select: { id: true, projectId: true, personName: true, weekStart: true, confidence: true, done: true, blocker: true, wbsItem: { select: { code: true, title: true } } },
-    orderBy: { weekStart: 'desc' },
+    orderBy: [{ weekStart: 'desc' }, { id: 'asc' }],
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  return limited(items, 'checkins').map((item) => ({
+  return items.map((item) => ({
     id: item.id,
     projectId: item.projectId,
     href: '/development/my-work',
@@ -175,9 +173,10 @@ export const jira: PageSourceAdapter = async (context) => {
   const items = await prisma.jiraIssueSnapshot.findMany({
     where: { projectId: { in: ref.ids }, retiredAt: null },
     select: { id: true, projectId: true, issueKey: true, issueUrl: true, summary: true, status: true, priority: true, assignee: true, issueType: true, labels: true, sprint: true, resolution: true, resolutionAt: true, issueCreatedAt: true, attributes: true },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
-  return limited(items, 'jira').flatMap((item) => {
+  return items.flatMap((item) => {
     if (isJiraCancelledStatus(item.status)) return [];
     const attributes = readJiraIssueAttributes(item.attributes);
     const open = isJiraUnresolvedResolution(item.resolution);

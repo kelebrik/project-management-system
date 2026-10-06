@@ -248,7 +248,10 @@ export function evaluatePageQuery(rows: PageDatasetRow[], spec: PageQuerySpec, c
       const keptKeys = new Set(kept.map((group) => group.key));
       // The rest is one more group when it can be added up; rows already in a kept group are not counted twice.
       const rest = current.filter((row) => !groupKeys(groupField!, row.values[groupField!.key], bucket).some((key) => keptKeys.has(key)));
-      if (spec.measure.fn === "count" || spec.measure.fn === "sum") kept.push({ key: PAGE_OTHER_KEY, value: pageMeasureValue(rest, spec.measure), count: rest.length });
+      if (spec.measure.fn === "count" || spec.measure.fn === "sum") {
+        kept.push({ key: PAGE_OTHER_KEY, value: pageMeasureValue(rest, spec.measure), count: rest.length });
+        buckets.set(PAGE_OTHER_KEY, rest);
+      }
       else warnings.push(`Показаны первые ${limit} групп`);
       groups = kept;
     }
@@ -260,7 +263,7 @@ export function evaluatePageQuery(rows: PageDatasetRow[], spec: PageQuerySpec, c
     const subBucket = subField.kind === "date" ? "month" : null;
     const totals = new Map<string | null, number>();
     const parts = groups.map((group) => {
-      const members = group.key === PAGE_OTHER_KEY ? [] : buckets.get(group.key) ?? [];
+      const members = buckets.get(group.key) ?? [];
       const inner = new Map<string | null, PageDatasetRow[]>();
       for (const row of members) {
         for (const key of groupKeys(subField, row.values[subField.key], subBucket)) {

@@ -39,7 +39,8 @@ function answer(queries: Query[]) {
   return { today: "2026-10-07", generatedAt: "2026-10-07T09:30:00.000Z", projects: [{ id: "TV", code: "TV", name: "Телевизор" }], results };
 }
 
-async function mockPages(page: Page) {
+async function mockPages(page: Page, options: { conflictOnce?: boolean } = {}) {
+  let conflicts = options.conflictOnce ? 1 : 0;
   const saved: Array<{ title: string; document: unknown; expectedRevision?: number }> = [];
   const queries: Query[][] = [];
   let stored: { id: string; title: string; document: unknown; revision: number; createdAt: string; updatedAt: string } | null = null;
@@ -62,6 +63,16 @@ async function mockPages(page: Page) {
     if (route.request().method() === "PATCH") {
       const body = route.request().postDataJSON();
       saved.push(body);
+      if (conflicts > 0) {
+        conflicts -= 1;
+        stored = { ...stored!, title: "Из другой вкладки", revision: 7 };
+        await route.fulfill({ status: 409, json: { code: "PAGE_CONFLICT", error: "Страницу изменили в другой вкладке — обновите её", page: stored } });
+        return;
+      }
+      if (body.expectedRevision !== stored!.revision) {
+        await route.fulfill({ status: 409, json: { code: "PAGE_CONFLICT", error: "conflict", page: stored } });
+        return;
+      }
       stored = { ...stored!, title: body.title ?? stored!.title, document: body.document ?? stored!.document, revision: stored!.revision + 1, updatedAt: "2026-10-07T09:05:00.000Z" };
       await route.fulfill({ json: stored });
       return;
@@ -121,7 +132,7 @@ test("my page: a portfolio page from the template, moved, refused, undone, resty
   // The panel: the reasons as bars instead of a donut, then as a number.
   await sheet.locator('[data-widget-id="c-reasons"] .mp-widget-head').click();
   const panel = page.getByRole("complementary", { name: "Виджет" });
-  await expect(panel.getByRole("combobox", { name: "Что считаем" })).toHaveValue("shifts.count");
+  await expect(panel.getByRole("combobox", { name: "Что считаем" })).toHaveValue("shifts.delayDays");
   await panel.getByRole("radio", { name: "Полосы" }).click();
   await expect(panel.getByRole("radio", { name: "Полосы" })).toHaveAttribute("aria-checked", "true");
   await panel.getByRole("radio", { name: "Число" }).click();
@@ -182,4 +193,17 @@ test("my page: a project status page with a timeline, and a number turned into a
   await panel.getByRole("radio", { name: "Свои" }).click();
   await expect(sheet.locator('[data-widget-id="k-overdue"] .mp-own-scope')).toBeVisible();
   await page.screenshot({ path: test.info().outputPath("my-page-status.png") });
+});
+
+test("my page: a save refused by another tab can keep this tab's version", async ({ page }) => {
+  await mockAdminProject(page);
+  const { saved } = await mockPages(page, { conflictOnce: true });
+  await page.goto("/development/my-page");
+  await page.getByRole("button", { name: "Создать страницу" }).click();
+  await page.getByLabel("Название страницы").fill("Моя версия");
+  await expect(page.getByRole("alert").filter({ hasText: "Какую версию оставить" })).toBeVisible();
+  await page.getByRole("button", { name: "Оставить мою" }).click();
+  await expect.poll(() => saved.length).toBe(2);
+  expect(saved[1]).toMatchObject({ title: "Моя версия", expectedRevision: 7 });
+  await expect(page.locator(".mp-save")).toContainText("Сохранено");
 });

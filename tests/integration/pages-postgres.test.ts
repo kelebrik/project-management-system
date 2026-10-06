@@ -95,9 +95,23 @@ test('my page: sources mean what the portfolio report means, pages belong to the
     const table = answer.results['t-projects'];
     assert.equal(table.kind, 'rows');
     const reasons = answer.results['c-reasons'];
-    assert.deepEqual(reasons.kind === 'groups' && reasons.groups.map((group) => [group.key, group.value]), [['SUPPLIER', 1]]);
+    assert.deepEqual(reasons.kind === 'groups' && reasons.groups.map((group) => [group.key, group.value]), [['SUPPLIER', 4]]);
     const portfolio = await runPageQueries({ businessUnitId: unit.id }, { scope: { mode: 'portfolio', portfolios: ['AU'] }, periodDays: 30, queries: queries.slice(0, 1) }, now);
     assert.equal((portfolio.results['k-projects'] as { value: number }).value, 1);
+
+    // Past the row limit a number is refused, a table shows the first rows and says it is cut.
+    forgetPageQueryCache();
+    const limited = await runPageQueries({ businessUnitId: unit.id }, {
+      scope: { mode: 'all' }, periodDays: 30,
+      queries: [
+        { id: 'n', widget: { type: 'kpi', data: { metric: 'work.open', filters: [] } } },
+        { id: 't', widget: { type: 'table', data: { metric: 'work.open', filters: [], columns: ['code', 'title'] } } },
+      ],
+    }, now, 1);
+    assert.equal(limited.results.n.kind, 'error');
+    assert.equal(limited.results.t.kind, 'rows');
+    assert.equal((limited.results.t as { truncated: boolean }).truncated, true);
+    forgetPageQueryCache();
 
     // Over HTTP: owners only, revisions, viewers kept out.
     const asAdmin = await session(admin.email);
@@ -127,6 +141,14 @@ test('my page: sources mean what the portfolio report means, pages belong to the
     assert.equal((await asAdmin(`/api/pages/${page.id}`, 'DELETE')).status, 204);
     const options = await (await asAdmin('/api/pages/scope-options')).json();
     assert.deepEqual(options.portfolios, ['AU', 'TV']);
+
+    // The quota holds when several tabs create pages at once.
+    const have = await prisma.dashboardPage.count({ where: { ownerId: admin.id } });
+    await prisma.dashboardPage.createMany({ data: Array.from({ length: 49 - have }, (_, index) => ({ ownerId: admin.id, title: `Страница ${index}`, document: template.document })) });
+    const burst = await Promise.all([0, 1, 2, 3].map(() => asAdmin('/api/pages', 'POST', template)));
+    assert.deepEqual(burst.map((response) => response.status).sort(), [201, 409, 409, 409]);
+    assert.equal((await burst.find((response) => response.status === 409)!.json()).code, 'PAGES_LIMIT');
+    assert.equal(await prisma.dashboardPage.count({ where: { ownerId: admin.id } }), 50);
   } finally {
     server.close();
     process.env.DEPLOYMENT_PROFILE = previousProfile;

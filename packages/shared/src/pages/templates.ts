@@ -49,8 +49,8 @@ export const PAGE_TEMPLATES: readonly PageTemplate[] = [
         data: { metric: "decisions.waiting", filters: [], columns: ["approverName", "waitingDays"], sort: { by: "waitingDays", dir: "desc" }, limit: 8 },
       },
       { id: "c-risks", type: "chart", chart: "bars", showValues: true, x: 0, y: 10, w: 4, h: 4, title: t("Красные риски по проектам", "Red risks by project"), data: { metric: "risks.red", filters: [], groupBy: "project", limit: 8 } },
-      { id: "c-shifts", type: "chart", chart: "columns", x: 4, y: 10, w: 4, h: 4, title: t("Сдвиги вех по неделям", "Checkpoint shifts by week"), data: { metric: "shifts.count", filters: [], groupBy: "createdAt", bucket: "week" } },
-      { id: "c-reasons", type: "chart", chart: "donut", x: 8, y: 10, w: 4, h: 4, title: t("Причины сдвигов", "Reasons for shifts"), data: { metric: "shifts.count", filters: [], groupBy: "reasonCategory" } },
+      { id: "c-shifts", type: "chart", chart: "stacked", x: 4, y: 10, w: 4, h: 4, title: t("Сдвиги вех по неделям, дн.", "Checkpoint shifts by week, days"), data: { metric: "shifts.days", filters: [], groupBy: "createdAt", bucket: "week", groupBy2: "later" } },
+      { id: "c-reasons", type: "chart", chart: "donut", x: 8, y: 10, w: 4, h: 4, title: t("Задержка по причинам, дн.", "Delay by reason, days"), data: { metric: "shifts.delayDays", filters: [], groupBy: "reasonCategory" } },
     ],
   },
   {

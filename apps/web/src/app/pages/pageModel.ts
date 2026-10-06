@@ -113,7 +113,7 @@ export function groupLabel(key: string | null, field: PageFieldDef | null, bucke
   if (key === null) return field?.emptyLabel?.[locale] ?? (locale === "ru" ? "Не задано" : "Not set");
   if (key === PAGE_OTHER_KEY) return locale === "ru" ? "Остальные" : "Others";
   if (key === "__all__") return locale === "ru" ? "Все" : "All";
-  if (field?.kind === "boolean") return key === "true" ? (locale === "ru" ? "Да" : "Yes") : locale === "ru" ? "Нет" : "No";
+  if (field?.kind === "boolean") return field.values?.[key]?.[locale] ?? (key === "true" ? (locale === "ru" ? "Да" : "Yes") : locale === "ru" ? "Нет" : "No");
   if (field?.kind === "date") {
     const date = new Date(`${key}T00:00:00Z`);
     const tag = locale === "ru" ? "ru-RU" : "en-GB";

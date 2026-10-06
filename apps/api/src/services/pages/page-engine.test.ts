@@ -64,6 +64,21 @@ test('a second split gives every group the same sub keys', () => {
   assert.deepEqual(result.groups.find((group) => group.key === 'TV')!.sub!.map((part) => part.value), [1, 0, 1]);
 });
 
+test('the folded rest keeps its rows for the second split', () => {
+  const result = evaluatePageQuery(shifts, spec({ output: 'groups', groupBy: 'reasonCategory', groupBy2: 'project', limit: 1 }), ctx);
+  assert.equal(result.kind, 'groups');
+  if (result.kind !== 'groups') return;
+  const rest = result.groups.find((group) => group.key === '__other__')!;
+  assert.equal(rest.value, 2);
+  assert.deepEqual(rest.sub!.map((part) => [part.key, part.value]), [['AU', 1], ['TV', 1]]);
+});
+
+test('the page period applies to events only, never to plans or due dates', () => {
+  assert.match(pageQueryProblem({ source: 'work', filters: [], measure: { fn: 'count' }, periodField: 'dueDate', output: 'value' })!, /Период не применяется/);
+  assert.equal(pageQueryProblem({ source: 'work', filters: [], measure: { fn: 'count' }, periodField: 'closedAt', output: 'value' }), null);
+  assert.equal(PAGE_SOURCES.checkpoints.periodFields.length, 0);
+});
+
 test('rows are sorted by a field, cut at the limit and keep only the asked columns', () => {
   const result = evaluatePageQuery(shifts, spec({ output: 'rows', sort: { by: 'deltaDays', dir: 'desc' }, limit: 2, columns: ['deltaDays'] }), ctx);
   assert.equal(result.kind, 'rows');

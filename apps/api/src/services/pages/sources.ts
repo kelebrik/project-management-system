@@ -26,9 +26,10 @@ const CLOSED_RAID = ['CLOSED', 'VALIDATED'];
 export const PAGE_RED_RISK_SCORE = 15;
 export const PAGE_AMBER_RISK_SCORE = 8;
 
+/** Too many rows: numbers and groups are refused, a table may show the first rows it got (`partial`). */
 export class PageSourceLimitError extends Error {
-  constructor(readonly source: PageSourceKey) {
-    super(`В охвате страницы больше ${PAGE_SOURCE_ROW_LIMIT.toLocaleString('ru-RU')} строк источника — сузьте охват`);
+  constructor(readonly source: PageSourceKey, readonly partial: PageDatasetRow[] | null = null) {
+    super(`В охвате страницы больше ${(partial?.length ?? PAGE_SOURCE_ROW_LIMIT).toLocaleString('ru-RU')} строк источника — сузьте охват`);
   }
 }
 
@@ -146,7 +147,7 @@ const work: PageSourceAdapter = async (context) => {
       },
     };
   });
-  return limited(rows, 'work');
+  return rows;
 };
 
 /** Every milestone and goal, reached ones too, with plan, forecast and the journal's count of shifts. */
@@ -159,7 +160,7 @@ const checkpoints: PageSourceAdapter = async (context) => {
   ]);
   const shiftCount = new Map(shifts.map((row) => [row.checkpointId, row._count._all]));
   const project = lookup(context);
-  return limited(items, 'checkpoints').map((item) => {
+  return items.map((item) => {
     const planned = pageDay(item.baselineDueDate ?? item.dueDate);
     const forecast = pageDay(item.forecastDueDate ?? item.dueDate);
     const ref = project(item.projectId);
@@ -189,10 +190,11 @@ const risks: PageSourceAdapter = async (context) => {
   const items = await prisma.raidItem.findMany({
     where: { projectId: { in: context.projects.map((project) => project.id) } },
     select: { id: true, projectId: true, type: true, title: true, status: true, owner: true, riskScore: true, decisionRequired: true, scheduleImpactDays: true, dueDate: true, createdAt: true },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
   const project = lookup(context);
-  return limited(items, 'risks').map((item) => {
+  return items.map((item) => {
     const ref = project(item.projectId);
     return {
       id: item.id,
@@ -213,10 +215,11 @@ const decisions: PageSourceAdapter = async (context) => {
   const items = await prisma.decision.findMany({
     where: { projectId: { in: context.projects.map((project) => project.id) } },
     select: { id: true, projectId: true, title: true, status: true, approverName: true, requestedAt: true, decidedAt: true, createdAt: true },
+    orderBy: { id: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
   const project = lookup(context);
-  return limited(items, 'decisions').map((item) => {
+  return items.map((item) => {
     const ref = project(item.projectId);
     const waiting = item.status === 'PENDING_APPROVAL';
     const since = pageDay(item.requestedAt ?? item.createdAt)!;
@@ -244,7 +247,7 @@ const shifts: PageSourceAdapter = async (context) => {
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
   const project = lookup(context);
-  return limited(items, 'shifts').map((item) => {
+  return items.map((item) => {
     const ref = project(item.projectId);
     return {
       id: item.id,

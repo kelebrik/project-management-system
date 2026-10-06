@@ -5,6 +5,7 @@ import type { PagesList, SavedPage, ScopeOptions } from "../app/pages/pageModel"
 import { useConfirm } from "../hooks/useConfirm";
 import { PageEditor, type EditorPage } from "../components/pages/PageEditor";
 import { PagesGallery } from "../components/pages/PagesGallery";
+import { pageErrorText } from "../app/pages/pageErrors";
 import { useI18n } from "../i18n/I18nProvider";
 import "../styles/my-page.css";
 
@@ -37,7 +38,7 @@ export function MyPagePage() {
   const [error, setError] = useState("");
 
   const loadList = useCallback(() => {
-    apiClient.get<PagesList>("/api/pages", t("ui.pages.loadFailed")).then(setList).catch((failure) => setError(failure instanceof Error ? failure.message : t("ui.pages.loadFailed")));
+    apiClient.get<PagesList>("/api/pages", t("ui.pages.loadFailed")).then(setList).catch((failure) => setError(pageErrorText(failure, t, t("ui.pages.loadFailed"))));
   }, [t]);
   useEffect(loadList, [loadList]);
   useEffect(() => {
@@ -64,7 +65,7 @@ export function MyPagePage() {
       .then((page) => alive && setOpen({ id: page.id, title: page.title, document: page.document, revision: page.revision, updatedAt: page.updatedAt }))
       .catch((failure) => {
         if (!alive) return;
-        setError(failure instanceof Error ? failure.message : t("ui.pages.loadFailed"));
+        setError(pageErrorText(failure, t, t("ui.pages.loadFailed")));
         setOpenId(null);
         setPageInAddress(null);
       });
@@ -90,7 +91,7 @@ export function MyPagePage() {
       openPage(await apiClient.post<SavedPage>("/api/pages", draft, t("ui.pages.createFailed")));
       loadList();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t("ui.pages.createFailed"));
+      setError(pageErrorText(failure, t, t("ui.pages.createFailed")));
     } finally {
       setBusy(false);
     }
@@ -100,7 +101,7 @@ export function MyPagePage() {
       await apiClient.post(`/api/pages/${page.id}/duplicate`, undefined, t("ui.pages.createFailed"));
       loadList();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t("ui.pages.createFailed"));
+      setError(pageErrorText(failure, t, t("ui.pages.createFailed")));
     }
   };
   const remove = async (page: SavedPage) => {
@@ -109,7 +110,7 @@ export function MyPagePage() {
       await apiClient.delete(`/api/pages/${page.id}`, t("ui.pages.deleteFailed"));
       loadList();
     } catch (failure) {
-      setError(failure instanceof Error ? failure.message : t("ui.pages.deleteFailed"));
+      setError(pageErrorText(failure, t, t("ui.pages.deleteFailed")));
     }
   };
   const back = () => {

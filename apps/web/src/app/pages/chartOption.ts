@@ -26,6 +26,8 @@ export type ChartInput = {
 function colorFor(key: string | null, field: PageFieldDef | null, index: number, colors: ChartColors) {
   if (field?.format === "rag" && key && key in colors.rag) return colors.rag[key as keyof ChartColors["rag"]];
   if (key === null || key === PAGE_OTHER_KEY) return colors.muted;
+  // Yes/no splits here are mostly bad news when yes (overdue, later, critical).
+  if (field?.kind === "boolean") return key === "true" ? colors.rag.RED : colors.rag.GREEN;
   return colors.series[index % colors.series.length];
 }
 

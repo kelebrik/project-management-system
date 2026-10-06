@@ -274,4 +274,9 @@ a.mp-code:hover { text-decoration: underline; }
   body[data-print-target="dashboard-page"] .mp-scaler { width: auto !important; height: auto !important; }
   body[data-print-target="dashboard-page"] .mp-sheet { position: relative !important; transform: none !important; box-shadow: none !important; border-radius: 0 !important; break-inside: avoid; page-break-after: avoid; }
   body[data-print-target="dashboard-page"] .mp-selected { outline: none !important; }
+  /* Paper is white: a dark sheet prints in the light palette, so it stays readable and saves ink. */
+  body[data-print-target="dashboard-page"] .mp-sheet[data-theme="dark"] {
+    --mp-bg: #ffffff; --mp-surface: #ffffff; --mp-text: #17212b; --mp-muted: #4b5755; --mp-border: #c7d1cf; --mp-grid: #e1e7e6; --mp-accent: #0f766e; --mp-head: #0f766e;
+    --mp-green: #15803d; --mp-amber: #b45309; --mp-red: #dc2626; --mp-soft: #f1f4f3;
+  }
 }

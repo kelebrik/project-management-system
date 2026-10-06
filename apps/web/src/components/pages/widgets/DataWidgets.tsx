@@ -133,7 +133,7 @@ export function ListWidget({ widget, result }: { widget: PageWidget; result: Row
       <ul className="mp-list">
         {result.rows.slice(0, shown).map((row) => (
           <li key={row.id}>
-            <span className="mp-list-title">
+            <span className="mp-list-title" title={formatPageValue(row.values[titleField], null, locale)}>
               {row.href ? <a href={row.href}>{formatPageValue(row.values[titleField], null, locale)}</a> : formatPageValue(row.values[titleField], null, locale)}
             </span>
             <span className="mp-list-meta">
@@ -175,10 +175,10 @@ export function StatusGridWidget({ widget, result }: { widget: PageWidget; resul
               <header>
                 {rag && <Cell field={fields.find((field) => field.key === "rag") ?? null} locale={locale} value={rag} />}
                 {row.href ? <a href={row.href}>{formatPageValue(row.values[titleField], null, locale)}</a> : <b>{formatPageValue(row.values[titleField], null, locale)}</b>}
-                {source === "projects" && <span className="mp-tile-name">{String(row.values.projectName ?? "")}</span>}
+                {source === "projects" && <span className="mp-tile-name" title={String(row.values.projectName ?? "")}>{String(row.values.projectName ?? "")}</span>}
               </header>
               {details.map((field) => (
-                <div className="mp-tile-line" key={field.key}>
+                <div className="mp-tile-line" key={field.key} title={`${field.label[locale]}: ${formatPageValue(row.values[field.key], field, locale)}`}>
                   <span>{field.label[locale]}</span>
                   <Cell field={field} locale={locale} value={row.values[field.key]} />
                 </div>
