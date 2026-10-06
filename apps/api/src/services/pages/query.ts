@@ -101,7 +101,7 @@ export async function runPageQueries(readable: Prisma.ProjectWhereInput, request
       const resolved = resolvePageWidgetQuery(item.widget);
       if (!resolved) return;
       if ('error' in resolved) {
-        results[item.id] = { kind: 'error', error: resolved.error, warnings: [] };
+        results[item.id] = { kind: 'error', code: 'PAGE_METRIC_GONE', error: resolved.error, warnings: [] };
         return;
       }
       try {
@@ -114,8 +114,13 @@ export async function runPageQueries(readable: Prisma.ProjectWhereInput, request
           results[item.id] = partial.kind === 'rows' ? { ...partial, truncated: true, warnings: [...partial.warnings, error.message] } : partial;
           return;
         }
-        if (!(error instanceof PageSourceLimitError) && !(error instanceof PageScopeTooLargeError) && !(error instanceof Error && error.message.startsWith('Источник'))) throw error;
-        results[item.id] = { kind: 'error', error: error.message, warnings: [] };
+        // A scope too large is the request's fault, whichever widget names it: the whole request is refused.
+        if (error instanceof PageSourceLimitError) {
+          results[item.id] = { kind: 'error', code: 'PAGE_SOURCE_TOO_LARGE', error: error.message, warnings: [] };
+          return;
+        }
+        if (!(error instanceof Error && error.message.startsWith('Источник'))) throw error;
+        results[item.id] = { kind: 'error', code: 'PAGE_SOURCE_MISSING', error: error.message, warnings: [] };
       }
     }),
   );

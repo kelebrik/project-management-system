@@ -13,8 +13,10 @@ import {
   type PageFilter,
   type PageFilterOp,
   type PageWidget,
+  type PageQueryResult,
   type PageWidgetData,
 } from "@pms/shared";
+import { exportWidgetXlsx } from "../../../app/pages/pageExport";
 import { widgetFields, widgetSource, type ScopeOptions } from "../../../app/pages/pageModel";
 import { ScopePicker } from "./ScopePicker";
 import { PAGE_VIZ, applyViz, vizOf, vizProblem, type PageVizId } from "../../../app/pages/pageViz";
@@ -32,6 +34,8 @@ type Props = {
   onDelete: () => void;
   onDuplicate: () => void;
   options: ScopeOptions | null;
+  /** The widget's current answer, for the download. */
+  result?: PageQueryResult;
 };
 
 const VIZ_ICON: Record<PageVizId, ComponentType<{ size?: number }>> = { kpi: Hash, traffic: CircleDot, progress: Loader, grid: Grid2x2, timeline: CalendarRange, columns: ChartColumn, bars: ChartBar, line: ChartLine, area: ChartArea, donut: Donut, pie: ChartPie, stacked: ChartColumnStacked, table: Table2, list: List, tiles: LayoutGrid };
@@ -123,7 +127,7 @@ function filterText(filter: PageFilter, fields: readonly PageFieldDef[], locale:
   return `${name} ${opLabel(filter.op)} ${show(filter.value)}`;
 }
 
-export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options }: Props) {
+export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, result }: Props) {
   const { t, locale } = useI18n();
   const [adding, setAdding] = useState(false);
   const data = widget.data;
@@ -168,6 +172,7 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options }
       <div className="mp-panel-head">
         <b>{t("ui.pages.panel.widget")}</b>
         <span>
+          {result && result.kind !== "error" && <button onClick={() => exportWidgetXlsx(widget, result, locale)} title={t("ui.pages.panel.excelHint")} type="button">Excel</button>}
           <button onClick={onDuplicate} title={t("ui.pages.panel.duplicateHint")} type="button">{t("ui.pages.panel.duplicate")}</button>
           <button className="danger" onClick={onDelete} type="button">{t("ui.pages.panel.delete")}</button>
         </span>

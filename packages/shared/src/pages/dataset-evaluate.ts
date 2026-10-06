@@ -163,7 +163,7 @@ function windowOf(ctx: PageEvalContext, back: number) {
 
 export function evaluatePageQuery(rows: PageDatasetRow[], spec: PageQuerySpec, ctx: PageEvalContext): PageQueryResult {
   const problem = pageQueryProblem(spec);
-  if (problem) return { kind: "error", error: problem, warnings: [] };
+  if (problem) return { kind: "error", code: "PAGE_QUERY_INVALID", error: problem, warnings: [] };
   const source = PAGE_SOURCES[spec.source];
   const fieldOf = (key: string) => source.fields.find((field) => field.key === key)!;
   const warnings: string[] = [];

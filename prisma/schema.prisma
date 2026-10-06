@@ -1842,7 +1842,54 @@ model DashboardPage {
   revision  Int      @default(1)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  owner     User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  revisions DashboardPageRevision[]
+  releases  DashboardPageRelease[]
+  shares    DashboardPageShare[]
 
   @@index([ownerId, updatedAt])
+}
+
+/// A version of a page kept on purpose ("before the committee"), to go back to.
+model DashboardPageRevision {
+  id        String        @id @default(cuid())
+  pageId    String
+  title     String
+  document  Json
+  label     String        @default("")
+  createdAt DateTime      @default(now())
+  page      DashboardPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt])
+}
+
+/// A page as it was shown at a meeting: the document and the answers of that moment, frozen.
+model DashboardPageRelease {
+  id         String               @id @default(cuid())
+  pageId     String
+  title      String
+  label      String               @default("")
+  document   Json
+  answers    Json
+  projectIds String[]             @default([])
+  createdAt  DateTime             @default(now())
+  page       DashboardPage        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  shares     DashboardPageShare[]
+
+  @@index([pageId, createdAt])
+}
+
+/// A read-only link to a page (live) or to one of its releases; only the hash of the token is kept.
+model DashboardPageShare {
+  id        String                @id @default(cuid())
+  pageId    String
+  releaseId String?
+  tokenHash String                @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime              @default(now())
+  page      DashboardPage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  release   DashboardPageRelease? @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
 }

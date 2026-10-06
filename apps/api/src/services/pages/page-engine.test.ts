@@ -76,7 +76,11 @@ test('the folded rest keeps its rows for the second split', () => {
 test('the page period applies to events only, never to plans or due dates', () => {
   assert.match(pageQueryProblem({ source: 'work', filters: [], measure: { fn: 'count' }, periodField: 'dueDate', output: 'value' })!, /Период не применяется/);
   assert.equal(pageQueryProblem({ source: 'work', filters: [], measure: { fn: 'count' }, periodField: 'closedAt', output: 'value' }), null);
-  assert.equal(PAGE_SOURCES.checkpoints.periodFields.length, 0);
+  // The closed list: moments something happened, never a plan or a due date.
+  assert.deepEqual(Object.fromEntries(Object.values(PAGE_SOURCES).map((source) => [source.key, [...source.periodFields]])), {
+    projects: [], work: ['closedAt'], checkpoints: [], risks: ['createdAt'], decisions: ['requestedAt', 'decidedAt', 'createdAt'], shifts: ['createdAt'],
+    issues: ['createdAt'], changes: ['createdAt', 'approvedAt'], lessons: ['createdAt'], workload: [], checkins: ['weekStart'], jira: ['createdAt', 'resolvedAt'],
+  });
 });
 
 test('rows are sorted by a field, cut at the limit and keep only the asked columns', () => {

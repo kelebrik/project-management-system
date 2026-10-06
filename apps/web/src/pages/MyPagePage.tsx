@@ -5,6 +5,7 @@ import type { PagesList, SavedPage, ScopeOptions } from "../app/pages/pageModel"
 import { useConfirm } from "../hooks/useConfirm";
 import { PageEditor, type EditorPage } from "../components/pages/PageEditor";
 import { PagesGallery } from "../components/pages/PagesGallery";
+import { PageShow } from "../components/pages/PageShow";
 import { pageErrorText } from "../app/pages/pageErrors";
 import { useI18n } from "../i18n/I18nProvider";
 import "../styles/my-page.css";
@@ -36,6 +37,7 @@ export function MyPagePage() {
   const [openId, setOpenId] = useState<string | null>(() => pageIdFromAddress());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [showFrom, setShowFrom] = useState<number | null>(null);
 
   const loadList = useCallback(() => {
     apiClient.get<PagesList>("/api/pages", t("ui.pages.loadFailed")).then(setList).catch((failure) => setError(pageErrorText(failure, t, t("ui.pages.loadFailed"))));
@@ -133,7 +135,8 @@ export function MyPagePage() {
     <section className="v2-page mp-page">
       <p className="mp-lead">{t("ui.pages.description")}</p>
       {error && <p className="automation-error" role="alert">{error}</p>}
-      {openId && !shown ? <p className="mp-hint">{t("ui.pages.loading")}</p> : <PagesGallery busy={busy} list={list} onCreate={(template, scope) => void create(template, scope)} onDelete={(page) => void remove(page)} onDuplicate={(page) => void duplicate(page)} onOpen={openPage} options={options} />}
+      {openId && !shown ? <p className="mp-hint">{t("ui.pages.loading")}</p> : <PagesGallery busy={busy} list={list} onShow={setShowFrom} onCreate={(template, scope) => void create(template, scope)} onDelete={(page) => void remove(page)} onDuplicate={(page) => void duplicate(page)} onOpen={openPage} options={options} />}
+      {showFrom !== null && list && list.pages.length > 0 && <PageShow onExit={() => setShowFrom(null)} options={options} pages={list.pages} start={showFrom} />}
     </section>
   );
 }

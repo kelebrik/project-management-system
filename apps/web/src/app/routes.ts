@@ -103,6 +103,8 @@ export const writeProtectedViews = new Set<AppView>([
   "project-create",
   // Reports are for everyone signed in; the API shows each person only the projects they may read.
   "reports",
+  // A page opened by a link: anyone signed in, each with their own access to projects.
+  "shared-page",
   ...adminSectionViews,
   ...developmentSectionViews,
   ...operationsSectionViews,
@@ -184,6 +186,7 @@ export const appViewPaths: Record<AppView, string> = {
   "raci-matrix": "/development/raci",
   "my-work": "/development/my-work",
   "my-page": "/development/my-page",
+  "shared-page": "/shared-page",
   "automation-rules": "/development/rules",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
@@ -268,6 +271,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/raci": "raci-matrix",
   "/development/my-work": "my-work",
   "/development/my-page": "my-page",
+  "/shared-page": "shared-page",
   "/development/rules": "automation-rules",
   "/development/jira-reconciliation": "jira-reconciliation",
   // Addresses of retired pages lead to the nearest page that still exists.

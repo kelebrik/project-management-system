@@ -32,6 +32,8 @@ export type CanvasProps = {
   onRefuse?: (message: string) => void;
   onDelete?: (id: string) => void;
   onDuplicate?: (id: string) => void;
+  /** The id of the sheet element; the printed and exported sheet is "dashboard-page". */
+  sheetId?: string;
 };
 
 export function PageCanvas(props: CanvasProps) {
@@ -128,7 +130,7 @@ export function PageCanvas(props: CanvasProps) {
           className={`mp-sheet ${editable ? "mp-sheet-editing" : ""}`}
           data-format={document.format}
           data-theme={document.theme}
-          id="dashboard-page"
+          id={props.sheetId ?? "dashboard-page"}
           onKeyDown={onKeyDown}
           onPointerDown={(event) => {
             if (event.target === event.currentTarget) props.onSelect?.(null);

@@ -111,12 +111,13 @@ export const workload: PageSourceAdapter = async (context) => {
     where: { projectId: { in: ref.ids }, employee: { isActive: true }, ...active },
     select: { employeeId: true },
     distinct: ['employeeId'],
+    orderBy: { employeeId: 'asc' },
     take: PAGE_SOURCE_ROW_LIMIT + 1,
   });
   const people = inScope.map((row) => row.employeeId);
   if (people.length === 0) return [];
   const [employees, shares, leaves] = await Promise.all([
-    prisma.leaveEmployee.findMany({ where: { id: { in: people } }, select: { id: true, name: true, department: true, capacityPercent: true } }),
+    prisma.leaveEmployee.findMany({ where: { id: { in: people } }, select: { id: true, name: true, department: true, capacityPercent: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] }),
     prisma.projectAllocation.findMany({ where: { employeeId: { in: people }, project: { status: { not: 'CLOSED' } }, ...active }, select: { employeeId: true, projectId: true, percent: true, project: { select: { code: true } } } }),
     prisma.leave.findMany({ where: { employeeId: { in: people }, startDate: { lte: today }, endDate: { gte: today } }, select: { employeeId: true } }),
   ]);

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import type { PageDocument, PageFormat, PageQuestion, PageWidget } from "@pms/shared";
-import { ArrowLeft, Play, Plus, Printer, Redo2, RefreshCw, Undo2 } from "lucide-react";
+import { ArrowLeft, History, ImageDown, Play, Plus, Printer, Redo2, RefreshCw, Undo2 } from "lucide-react";
 import { ApiError, apiClient } from "../../api/client";
 import { pushHistory, redoHistory, startHistory, undoHistory, type PageHistory } from "../../app/pages/pageHistory";
 import { changeFormat, duplicateWidget, placeNewWidget, scopeLabel, updateWidget, type SavedPage, type ScopeOptions } from "../../app/pages/pageModel";
+import { exportPagePng } from "../../app/pages/pageExport";
 import { printDashboardPage } from "../../app/pages/pagePrint";
 import { usePageAnswers } from "../../app/pages/usePageAnswers";
 import { pageErrorText } from "../../app/pages/pageErrors";
@@ -11,7 +12,9 @@ import { useI18n } from "../../i18n/I18nProvider";
 import { PageSettingsPanel } from "./editor/PageSettingsPanel";
 import { QuestionPalette } from "./editor/QuestionPalette";
 import { WidgetPanel } from "./editor/WidgetPanel";
+import { VersionsDialog, type OpenedRelease } from "./editor/VersionsDialog";
 import { PageCanvas } from "./PageCanvas";
+import { PageShow } from "./PageShow";
 
 /**
  * The editor of one page: the toolbar, the sheet and the panel of the chosen
@@ -25,7 +28,7 @@ type SaveState = "saved" | "pending" | "saving" | "failed" | "conflict" | "local
 
 export type EditorPage = { id: string | null; title: string; document: PageDocument; revision: number; updatedAt: string | null };
 
-export function PageEditor({ page, canSave, options, onBack, onPresent }: { page: EditorPage; canSave: boolean; options: ScopeOptions | null; onBack: () => void; onPresent?: (draft: Draft) => void }) {
+export function PageEditor({ page, canSave, options, onBack }: { page: EditorPage; canSave: boolean; options: ScopeOptions | null; onBack: () => void }) {
   const { t, locale, formatters } = useI18n();
   const [history, setHistory] = useState<PageHistory<Draft>>(() => startHistory({ title: page.title, document: page.document }));
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -35,6 +38,8 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
   const [saveState, setSaveState] = useState<SaveState>(page.id && canSave ? "saved" : "local");
   const [savedAt, setSavedAt] = useState<string | null>(page.updatedAt);
   const [conflict, setConflict] = useState<SavedPage | null>(null);
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [show, setShow] = useState<{ release: OpenedRelease | null } | null>(null);
   const revision = useRef(page.revision);
   const lastSaved = useRef<Draft>(history.present);
   const draft = history.present;
@@ -149,6 +154,28 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
     setConflict(null);
   };
 
+  const restored = (saved: SavedPage) => {
+    const next = { title: saved.title, document: saved.document };
+    revision.current = saved.revision;
+    lastSaved.current = next;
+    setHistory(startHistory(next));
+    setSelectedId(null);
+    setSavedAt(saved.updatedAt);
+    setSaveState("saved");
+    setVersionsOpen(false);
+    say(t("ui.pages.versions.restored"));
+  };
+  const exportPng = async () => {
+    const sheet = document.getElementById("dashboard-page");
+    if (!sheet) return;
+    setSelectedId(null);
+    try {
+      await exportPagePng(sheet, draft.document.format, draft.title);
+    } catch {
+      say(t("ui.pages.exportFailed"));
+    }
+  };
+
   const generated = answer ? formatters.dateTime(answer.generatedAt) : null;
   const meta = (
     <>
@@ -178,8 +205,10 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
         <button onClick={() => setRefreshKey((key) => key + 1)} title={t("ui.pages.refreshHint")} type="button"><RefreshCw aria-hidden="true" size={15} /> {t("ui.pages.refresh")}</button>
         <span className={`mp-save mp-save-${saveState}`} role="status">{status}</span>
         <span className="mp-toolbar-gap" />
+        {page.id && canSave && <button onClick={() => setVersionsOpen(true)} type="button"><History aria-hidden="true" size={15} /> {t("ui.pages.versions.button")}</button>}
+        <button onClick={() => void exportPng()} title={t("ui.pages.pngHint")} type="button"><ImageDown aria-hidden="true" size={15} /> PNG</button>
         <button onClick={() => printDashboardPage(draft.document.format, draft.title)} type="button"><Printer aria-hidden="true" size={15} /> {t("ui.pages.print")}</button>
-        {onPresent && <button className="primary" onClick={() => onPresent(draft)} type="button"><Play aria-hidden="true" size={15} /> {t("ui.pages.present")}</button>}
+        <button className="primary" onClick={() => setShow({ release: null })} type="button"><Play aria-hidden="true" size={15} /> {t("ui.pages.present")}</button>
       </div>
       {conflict && (
         <div className="mp-banner mp-banner-warn" role="alert">
@@ -215,6 +244,7 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
             onDelete={() => removeWidget(selected.id)}
             onDuplicate={() => copyWidget(selected.id)}
             options={options}
+            result={answer?.results[selected.id]}
             widget={selected}
           />
         ) : (
@@ -222,6 +252,28 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
         )}
       </div>
       {palette && <QuestionPalette onClose={() => setPalette(false)} onPick={addQuestion} />}
+      {versionsOpen && page.id && (
+        <VersionsDialog
+          onClose={() => setVersionsOpen(false)}
+          onOpenRelease={(release) => {
+            setVersionsOpen(false);
+            setShow({ release });
+          }}
+          onRestored={restored}
+          pageId={page.id}
+          currentRevision={() => revision.current}
+          saved={saveState === "saved"}
+        />
+      )}
+      {show && (
+        <PageShow
+          frozen={show.release?.answer ?? null}
+          frozenLabel={show.release ? t("ui.pages.show.release", { label: show.release.label || show.release.title, when: formatters.dateTime(show.release.createdAt) }) : null}
+          onExit={() => setShow(null)}
+          options={options}
+          pages={[show.release ? { title: show.release.title, document: show.release.document } : draft]}
+        />
+      )}
     </div>
   );
 }

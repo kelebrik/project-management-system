@@ -14,6 +14,7 @@ import { createRisksRouter } from '../routes/risks.routes.js';
 import { createSavedViewsRouter } from '../routes/saved-views.routes.js';
 import { createReportsRouter } from '../routes/reports.routes.js';
 import { createPagesRouter } from '../routes/pages.routes.js';
+import { createPageVersionsRouter } from '../routes/pages-versions.routes.js';
 import { createProjectViewRouter } from '../routes/project-view.routes.js';
 import { createLeaveScheduleRouter } from '../routes/leave-schedule.routes.js';
 import { createAiRouter } from '../routes/ai.routes.js';
@@ -206,6 +207,7 @@ export function createApp() {
   app.use('/api', createNotificationsRouter());
   app.use('/api', createReportsRouter());
   app.use('/api', createPagesRouter());
+  app.use('/api', createPageVersionsRouter());
 
   registerClosedProjectWriteGuards(app);
 

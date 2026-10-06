@@ -107,7 +107,7 @@ async function loadWbs(context: PageSourceContext, source: PageSourceKey, types?
   const rows = await prisma.wbsItem.findMany({
     where: { projectId: { in: context.projects.map((project) => project.id) }, ...(types ? { type: { in: types as never } } : {}) },
     select: { id: true, projectId: true, parentId: true, code: true, title: true, type: true, status: true, owner: true, startDate: true, dueDate: true, baselineDueDate: true, forecastDueDate: true, closedAt: true, progress: true },
-    orderBy: [{ projectId: 'asc' }, { sortOrder: 'asc' }],
+    orderBy: [{ projectId: 'asc' }, { sortOrder: 'asc' }, { id: 'asc' }],
     take: WBS_LOAD_LIMIT + 1,
   });
   return limited(rows as WbsRow[], source, WBS_LOAD_LIMIT);

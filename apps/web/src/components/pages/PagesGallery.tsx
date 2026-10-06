@@ -65,13 +65,13 @@ function TemplatePreview({ template, scope }: { template: PageTemplate; scope: P
       </div>
       {empty.length > 0 && <p className="mp-hint">{t("ui.pages.preview.empty", { widgets: empty.map((widget) => widget.title).join(", ") })}</p>}
       <div className="mp-preview-sheet">
-        <PageCanvas document={draft.document} editable={false} fit="width" loading={loading} meta={null} results={answer?.results ?? {}} selectedId={null} title={draft.title} today={answer?.today ?? new Date().toISOString().slice(0, 10)} />
+        <PageCanvas document={draft.document} editable={false} fit="width" sheetId="dashboard-preview" loading={loading} meta={null} results={answer?.results ?? {}} selectedId={null} title={draft.title} today={answer?.today ?? new Date().toISOString().slice(0, 10)} />
       </div>
     </section>
   );
 }
 
-export function PagesGallery({ list, options, busy, onOpen, onCreate, onDuplicate, onDelete }: {
+export function PagesGallery({ list, options, busy, onOpen, onCreate, onDuplicate, onDelete, onShow }: {
   list: PagesList | null;
   options: ScopeOptions | null;
   busy: boolean;
@@ -79,6 +79,7 @@ export function PagesGallery({ list, options, busy, onOpen, onCreate, onDuplicat
   onCreate: (template: PageTemplate, scope: PageScope) => void;
   onDuplicate: (page: SavedPage) => void;
   onDelete: (page: SavedPage) => void;
+  onShow: (index: number) => void;
 }) {
   const { t, locale } = useI18n();
   const [templateId, setTemplateId] = useState(PAGE_TEMPLATES[0].id);
@@ -93,6 +94,7 @@ export function PagesGallery({ list, options, busy, onOpen, onCreate, onDuplicat
         <section aria-labelledby="mp-my-pages">
           <div className="mp-gallery-head">
             <h3 id="mp-my-pages">{t("ui.pages.gallery.mine", { count: list?.pages.length ?? 0 })}</h3>
+            {(list?.pages.length ?? 0) > 0 && <button className="mp-show-all" onClick={() => onShow(0)} type="button">▶ {t("ui.pages.gallery.showAll")}</button>}
             {(list?.pages.length ?? 0) > 6 && <input aria-label={t("ui.pages.gallery.search")} onChange={(event) => setSearch(event.target.value)} placeholder={t("ui.pages.gallery.search")} type="search" value={search} />}
           </div>
           {list && list.pages.length === 0 && <p className="mp-hint">{t("ui.pages.gallery.empty")}</p>}

@@ -1,7 +1,7 @@
 import { ApiError } from "../../api/client";
 import type { Translator } from "../../i18n/types";
 
-const CODES = ["PAGES_ADMIN_ONLY", "PAGES_DEMO_READ_ONLY", "PAGES_LIMIT", "PAGE_NOT_FOUND", "PAGE_TOO_LARGE", "PAGE_CONFLICT", "PAGE_SCOPE_TOO_LARGE"] as const;
+const CODES = ["PAGES_ADMIN_ONLY", "PAGES_DEMO_READ_ONLY", "PAGES_LIMIT", "PAGE_NOT_FOUND", "PAGE_TOO_LARGE", "PAGE_CONFLICT", "PAGE_SCOPE_TOO_LARGE", "PAGE_LINK_GONE", "PAGE_LINK_FORBIDDEN"] as const;
 type Code = (typeof CODES)[number];
 
 /** The words for a failed page request in the person's language: by the server's code, else its message, else the fallback. */

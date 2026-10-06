@@ -101,4 +101,7 @@ export type PageQueryResult =
   | { kind: "value"; value: number | null; previous?: number | null; rowCount: number; warnings: string[] }
   | { kind: "groups"; groups: PageGroup[]; subKeys: Array<string | null>; total: number | null; rowCount: number; multiValued: boolean; bucket: PageBucket | null; warnings: string[] }
   | { kind: "rows"; columns: string[]; rows: PageDatasetRow[]; total: number; truncated: boolean; warnings: string[] }
-  | { kind: "error"; error: string; warnings: string[] };
+  | { kind: "error"; error: string; code?: PageQueryErrorCode; warnings: string[] };
+
+/** Why a widget got no answer, for the page to say in the person's language; `error` is the Russian text. */
+export type PageQueryErrorCode = "PAGE_QUERY_INVALID" | "PAGE_METRIC_GONE" | "PAGE_SOURCE_TOO_LARGE" | "PAGE_SOURCE_MISSING";

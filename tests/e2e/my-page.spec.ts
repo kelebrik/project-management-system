@@ -15,7 +15,7 @@ function answer(queries: Query[]) {
   const results: Record<string, unknown> = {};
   for (const query of queries) {
     const type = query.widget.type;
-    if (type === "kpi") results[query.id] = { kind: "value", value: 7, ...(query.widget.data?.compare ? { previous: 5 } : {}), rowCount: 7, warnings: [] };
+    if (type === "kpi" || type === "traffic-light" || type === "progress") results[query.id] = { kind: "value", value: 7, ...(query.widget.data?.compare ? { previous: 5 } : {}), rowCount: 7, warnings: [] };
     else if (type === "chart" || (type === "table" && query.widget.data?.groupBy)) {
       const weekly = query.widget.data?.groupBy === "createdAt";
       results[query.id] = {
@@ -206,4 +206,60 @@ test("my page: a save refused by another tab can keep this tab's version", async
   await expect.poll(() => saved.length).toBe(2);
   expect(saved[1]).toMatchObject({ title: "Моя версия", expectedRevision: 7 });
   await expect(page.locator(".mp-save")).toContainText("Сохранено");
+});
+
+test("my page: the show, a frozen release and a page opened by a link", async ({ page }) => {
+  page.on("pageerror", (error) => console.error(error.stack));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await mockAdminProject(page);
+  await mockPages(page);
+  const releaseAnswer = answer([{ id: "k-red", widget: { type: "kpi", data: { metric: "projects.red" } } }]);
+  (releaseAnswer.results["k-red"] as { value: number }).value = 3;
+  const shares: Array<{ releaseId: string | null }> = [];
+  let releaseDocument: unknown = null;
+  await page.route(/\/api\/pages\/page-1\/(revisions|releases|shares)(\/.*)?$/, async (route) => {
+    const url = route.request().url();
+    const method = route.request().method();
+    if (url.includes("/releases/rel-1")) {
+      await route.fulfill({ json: { id: "rel-1", title: "Портфель", label: "Комитет 10.10", createdAt: "2026-10-07T09:00:00.000Z", document: releaseDocument, answer: releaseAnswer } });
+    } else if (url.endsWith("/shares") && method === "POST") {
+      shares.push(route.request().postDataJSON());
+      await route.fulfill({ status: 201, json: { id: "s1", token: "token-1", expiresAt: null } });
+    } else if (url.endsWith("/releases")) {
+      await route.fulfill({ json: [{ id: "rel-1", title: "Портфель", label: "Комитет 10.10", createdAt: "2026-10-07T09:00:00.000Z" }] });
+    } else {
+      await route.fulfill({ json: [] });
+    }
+  });
+  await page.goto("/development/my-page");
+  await page.getByRole("button", { name: "Создать страницу" }).click();
+  await expect(page.locator("#dashboard-page .mp-widget")).toHaveCount(9);
+
+  // The show: full window, Esc leaves.
+  await page.getByRole("button", { name: "Показ", exact: true }).click();
+  const show = page.getByRole("dialog", { name: /Показ/ });
+  await expect(show.locator(".mp-widget")).toHaveCount(9);
+  await page.keyboard.press("Escape");
+  await expect(show).toHaveCount(0);
+
+  // A release opens frozen; a link to it is made.
+  releaseDocument = await page.evaluate(async () => (await (await fetch("/api/pages/page-1")).json()).document);
+  await page.getByRole("button", { name: "Версии и ссылки" }).click();
+  const dialog = page.getByRole("dialog", { name: "Версии, выпуски и ссылки" });
+  await expect(dialog.getByText("Комитет 10.10")).toBeVisible();
+  await dialog.getByRole("button", { name: "Ссылка", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "Ссылка" })).toHaveValue(/\/shared-page\?token=token-1$/);
+  expect(shares).toEqual([{ releaseId: "rel-1", days: 30 }]);
+  await dialog.getByRole("button", { name: "Открыть" }).click();
+  const frozen = page.getByRole("dialog", { name: /Показ/ });
+  await expect(frozen.locator('[data-widget-id="k-red"] .mp-kpi-value')).toHaveText("3");
+  await expect(frozen).toContainText("данные зафиксированы");
+  await frozen.getByRole("button", { name: "Выйти" }).click();
+
+  // The link, as a reader opens it.
+  await page.route("**/api/page-links/token-1", (route) => route.fulfill({ json: { title: "Портфель", document: releaseDocument, release: { label: "Комитет 10.10", createdAt: "2026-10-07T09:00:00.000Z" }, answer: releaseAnswer } }));
+  await page.goto("/shared-page?token=token-1");
+  await expect(page.locator("#dashboard-page .mp-widget")).toHaveCount(9, { timeout: 15_000 });
+  await expect(page.locator('#dashboard-page [data-widget-id="k-red"] .mp-kpi-value')).toHaveText("3");
+  await expect(page.getByRole("toolbar")).toContainText("Выпуск «Комитет 10.10»");
 });

@@ -174,7 +174,7 @@ export function StatusGridWidget({ widget, result }: { widget: PageWidget; resul
             <article className={`mp-tile ${rag ? `mp-tile-${rag}` : ""}`} key={row.id} style={{ height: tileHeight }}>
               <header>
                 {rag && <Cell field={fields.find((field) => field.key === "rag") ?? null} locale={locale} value={rag} />}
-                {row.href ? <a href={row.href}>{formatPageValue(row.values[titleField], null, locale)}</a> : <b>{formatPageValue(row.values[titleField], null, locale)}</b>}
+                {row.href ? <a href={row.href} title={formatPageValue(row.values[titleField], null, locale)}>{formatPageValue(row.values[titleField], null, locale)}</a> : <b title={formatPageValue(row.values[titleField], null, locale)}>{formatPageValue(row.values[titleField], null, locale)}</b>}
                 {source === "projects" && <span className="mp-tile-name" title={String(row.values.projectName ?? "")}>{String(row.values.projectName ?? "")}</span>}
               </header>
               {details.map((field) => (

@@ -57,7 +57,7 @@ function RichText({ value }: { value: string }) {
 }
 
 export function WidgetBody({ widget, result, colors, periodDays, loading, today, drillable = false }: { widget: PageWidget; result: PageQueryResult | undefined; colors: ChartColors; periodDays: number; loading: boolean; today: string; drillable?: boolean }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   if (widget.type === "heading") return <div className="mp-heading">{widget.text || widget.title}</div>;
   if (widget.type === "divider") return <hr className="mp-divider" />;
   if (widget.type === "text" || widget.type === "callout") {
@@ -65,7 +65,7 @@ export function WidgetBody({ widget, result, colors, periodDays, loading, today,
   }
   const note = (message: ReactNode, kind = "") => <div className={`mp-note ${kind}`}>{message}</div>;
   if (!result) return loading ? <div aria-label={t("ui.pages.loading")} className="mp-skeleton" /> : note(t("ui.pages.noAnswer"));
-  if (result.kind === "error") return note(result.error, "mp-note-error");
+  if (result.kind === "error") return note(locale === "ru" || !result.code ? result.error : t(`ui.pages.error.${result.code}` as "ui.pages.error.PAGE_QUERY_INVALID"), "mp-note-error");
   if (result.kind === "value") {
     if (widget.type === "kpi") return <KpiWidget periodDays={periodDays} result={result} widget={widget} />;
     if (widget.type === "traffic-light") return <TrafficLightWidget result={result} widget={widget} />;

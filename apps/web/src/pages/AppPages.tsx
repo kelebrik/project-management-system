@@ -54,6 +54,11 @@ const MyPagePage = lazy(() =>
     default: module.MyPagePage,
   })),
 );
+const SharedPagePage = lazy(() =>
+  import("./SharedPagePage").then((module) => ({
+    default: module.SharedPagePage,
+  })),
+);
 const RaciMatrixPage = lazy(() =>
   import("./RaciMatrixPage").then((module) => ({
     default: module.RaciMatrixPage,
@@ -91,7 +96,7 @@ export function AppPages() {
     return null;
   }
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView || isOperationsSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "shared-page" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView || isOperationsSectionView)) {
     return null;
   }
 
@@ -116,6 +121,11 @@ export function AppPages() {
       {activeView === "my-page" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <MyPagePage />
+        </Suspense>
+      )}
+      {activeView === "shared-page" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <SharedPagePage />
         </Suspense>
       )}
       {activeView === "automation-rules" && (
