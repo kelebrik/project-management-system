@@ -80,8 +80,9 @@ export function WidgetBody({ widget, result, colors, periodDays, loading, today,
   }
   if (result.kind === "groups") {
     if (result.groups.length === 0 || result.rowCount === 0) return note(t("ui.pages.noData"));
-    if (widget.type === "table") return <TableWidget result={result} widget={widget} />;
-    if (widget.type === "metric-grid") return <MetricGridWidget result={result} widget={widget} />;
+    const multiNote = result.multiValued ? <div className="mp-multi-note">{t("ui.pages.multiValued")}</div> : null;
+    if (widget.type === "table") return <><TableWidget result={result} widget={widget} />{multiNote}</>;
+    if (widget.type === "metric-grid") return <><MetricGridWidget result={result} widget={widget} />{multiNote}</>;
     return <ChartWidget colors={colors} drillable={drillable} result={result} widget={widget} />;
   }
   if (result.total === 0) return note(t("ui.pages.noRows"));

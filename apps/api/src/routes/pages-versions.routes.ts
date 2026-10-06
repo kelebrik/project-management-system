@@ -82,7 +82,7 @@ export function createPageVersionsRouter() {
   router.get('/pages/:pageId/revisions', async (req, res) => {
     const page = await ownPage(req, res);
     if (!page) return;
-    const rows = await prisma.dashboardPageRevision.findMany({ where: { pageId: page.id }, orderBy: { createdAt: 'desc' }, select: { id: true, title: true, label: true, createdAt: true } });
+    const rows = await prisma.dashboardPageRevision.findMany({ where: { pageId: page.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, title: true, label: true, createdAt: true } });
     res.json(rows.map(revisionResponse));
   });
 
@@ -138,7 +138,7 @@ export function createPageVersionsRouter() {
   router.get('/pages/:pageId/releases', async (req, res) => {
     const page = await ownPage(req, res);
     if (!page) return;
-    const rows = await prisma.dashboardPageRelease.findMany({ where: { pageId: page.id }, orderBy: { createdAt: 'desc' }, select: { id: true, title: true, label: true, createdAt: true } });
+    const rows = await prisma.dashboardPageRelease.findMany({ where: { pageId: page.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, title: true, label: true, createdAt: true } });
     res.json(rows.map(revisionResponse));
   });
 
@@ -192,7 +192,7 @@ export function createPageVersionsRouter() {
   router.get('/pages/:pageId/shares', async (req, res) => {
     const page = await ownPage(req, res);
     if (!page) return;
-    const rows = await prisma.dashboardPageShare.findMany({ where: { pageId: page.id }, orderBy: { createdAt: 'desc' }, select: { id: true, releaseId: true, expiresAt: true, revokedAt: true, createdAt: true, release: { select: { label: true, createdAt: true } } } });
+    const rows = await prisma.dashboardPageShare.findMany({ where: { pageId: page.id }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true, releaseId: true, expiresAt: true, revokedAt: true, createdAt: true, release: { select: { label: true, createdAt: true } } } });
     res.json(rows.map((row) => ({
       id: row.id,
       releaseId: row.releaseId,

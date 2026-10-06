@@ -72,9 +72,9 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
   }
 
   const horizontal = kind === "bars";
-  const category = { type: "category", data: labels, axisLabel: { ...axisLabel, ...(horizontal ? { width: 110, overflow: "truncate" } : { interval: "auto" }) }, axisTick: { show: false }, axisLine: { lineStyle: { color: colors.grid } }, ...(horizontal ? { inverse: true } : {}) };
+  const category = { type: "category", data: labels, axisLabel: { ...axisLabel, ...(horizontal ? { width: 104, overflow: "truncate", margin: 6 } : { interval: "auto" }) }, axisTick: { show: false }, axisLine: { lineStyle: { color: colors.grid } }, ...(horizontal ? { inverse: true } : {}) };
   const value = { type: "value", axisLabel: { ...axisLabel, formatter: (number: number) => formatNumber(number, unit === "days" ? "plain" : unit, locale) }, splitLine, minInterval: unit === "count" ? 1 : undefined };
-  const grid = { left: 4, right: horizontal ? 28 : 8, top: kind === "stacked" ? 26 : 10, bottom: 4, containLabel: true };
+  const grid = { left: horizontal ? 12 : 4, right: horizontal ? 28 : 8, top: kind === "stacked" ? 26 : 10, bottom: 4, containLabel: true };
 
   if (kind === "stacked") {
     return {

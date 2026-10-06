@@ -197,7 +197,7 @@ export function evaluatePageQuery(rows: PageDatasetRow[], spec: PageQuerySpec, c
         })
       : current;
     const limit = Math.min(spec.limit ?? PAGE_ROW_LIMIT, PAGE_ROW_LIMIT_MAX);
-    const keep = new Set([...columns, source.titleField, "project"]);
+    const keep = new Set([...columns, source.titleField, "project", "projectName"]);
     return {
       kind: "rows",
       columns,

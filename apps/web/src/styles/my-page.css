@@ -168,20 +168,22 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-progress-bar { width: 48px; height: 6px; background: var(--mp-soft); border-radius: 3px; overflow: hidden; display: inline-block; }
 .mp-progress-bar i { display: block; height: 100%; background: var(--mp-accent); }
 .mp-list { list-style: none; margin: 0; padding: 0; display: grid; }
-.mp-list li { display: grid; gap: 1px; padding: 3px 0; border-bottom: 1px solid var(--mp-grid); min-height: 27px; font-size: 12px; }
+.mp-list li { display: grid; gap: 1px; padding: 3px 0; border-bottom: 1px solid var(--mp-grid); height: 33px; box-sizing: border-box; font-size: 12px; overflow: hidden; }
+.mp-list li.mp-more { height: auto; border-bottom: 0; }
 .mp-list-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 500; }
 .mp-list-title a { color: var(--mp-text); text-decoration: none; }
 .mp-list-meta { display: flex; gap: 8px; color: var(--mp-muted); font-size: 11px; white-space: nowrap; overflow: hidden; }
 .mp-tiles { display: grid; gap: 8px; }
-.mp-tile { border: 1px solid var(--mp-border); border-left: 4px solid var(--mp-border); border-radius: 6px; padding: 6px 8px; box-sizing: border-box; display: grid; align-content: start; gap: 2px; overflow: hidden; background: var(--mp-surface); }
+.mp-tile { border: 1px solid var(--mp-border); border-left: 4px solid var(--mp-border); border-radius: 6px; padding: 6px 8px; box-sizing: border-box; display: grid; grid-template-columns: minmax(0, 1fr); align-content: start; gap: 2px; overflow: hidden; background: var(--mp-surface); min-width: 0; }
 .mp-tile-GREEN { border-left-color: var(--mp-green); }
 .mp-tile-AMBER { border-left-color: var(--mp-amber); }
 .mp-tile-RED { border-left-color: var(--mp-red); }
 .mp-tile header { display: flex; gap: 6px; align-items: center; font-size: 12px; white-space: nowrap; overflow: hidden; }
 .mp-tile header a { color: var(--mp-text); font-weight: 700; text-decoration: none; }
 .mp-tile-name { color: var(--mp-muted); overflow: hidden; text-overflow: ellipsis; }
-.mp-tile-line { display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--mp-muted); white-space: nowrap; }
-.mp-tile-line > :last-child { color: var(--mp-text); overflow: hidden; text-overflow: ellipsis; }
+.mp-tile-line { min-width: 0; display: flex; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--mp-muted); white-space: nowrap; }
+.mp-tile-line > :first-child { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mp-tile-line > :last-child { flex: 0 0 auto; max-width: 62%; color: var(--mp-text); overflow: hidden; text-overflow: ellipsis; }
 .mp-tile-more { display: grid; place-items: center; color: var(--mp-muted); font-style: italic; }
 .mp-text { font-size: 13px; line-height: 1.45; overflow: hidden; }
 .mp-text p, .mp-text ul { margin: 0 0 6px; }

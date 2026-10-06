@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { pageBuckets, pageFilterSchema, pageMeasureSchema, pageSourceKeys, type PageOutput, type PageQuerySpec } from "./dataset-types.js";
 import { pageMetric } from "./metrics.js";
+import { PAGE_SOURCES } from "./sources.js";
 import { pageLayoutProblem } from "./page-layout.js";
 
 /**
@@ -149,7 +150,8 @@ export function resolvePageWidgetQuery(widget: Pick<PageWidget, "type" | "data">
       bucket: data.bucket ?? null,
       sort: data.sort ?? null,
       limit: data.limit ?? null,
-      columns: data.columns ?? null,
+      // Tiles are coloured by the RAG of their row, so they always read it when the source has one.
+      columns: widget.type === "status-grid" && data.columns?.length && PAGE_SOURCES[source].fields.some((field) => field.key === "rag") && !data.columns.includes("rag") ? [...data.columns, "rag"] : data.columns ?? null,
       compare: output === "value" ? Boolean(data.compare) : false,
       output,
     },
