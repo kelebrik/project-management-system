@@ -75,6 +75,10 @@ export const pageWidgetSchema = z.object({
   showValues: z.boolean().optional(),
   text: z.string().max(4000).optional(),
   tone: z.enum(pageTones).optional(),
+  /** A traffic light: from which value it turns amber and red (or below which, when less is worse). */
+  thresholds: z.object({ amber: z.number(), red: z.number() }).optional(),
+  /** A progress bar: the value that fills it. */
+  target: z.number().positive().max(1_000_000_000).optional(),
   /** Another scope than the page's, marked on the widget. */
   scope: pageScopeSchema.optional(),
 });

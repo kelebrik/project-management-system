@@ -28,6 +28,9 @@ function answer(queries: Query[]) {
         bucket: weekly ? "week" : null,
         warnings: [],
       };
+    } else if (type === "timeline") {
+      const rows = ["2026-10-10", "2026-10-21", "2026-11-04"].map((day, index) => ({ id: `m${index}`, projectId: "TV", href: "/TV/schedule", values: { project: "TV", title: `Веха ${index + 1}`, plannedDate: "2026-10-14", forecastDate: day } }));
+      results[query.id] = { kind: "rows", columns: ["project", "title", "plannedDate", "forecastDate"], rows, total: 3, truncated: false, warnings: [] };
     } else {
       const rows = Array.from({ length: 30 }, (_, index) => projectRow(`P${index + 1}`, index % 3 === 0 ? "RED" : "GREEN", 40 + index));
       results[query.id] = { kind: "rows", columns: ["project", "rag", "progress", "targetDate", "nextCheckpoint", "overdueWork"], rows, total: 42, truncated: true, warnings: [] };
@@ -155,4 +158,28 @@ test("my page: the address opens a saved page again after a reload", async ({ pa
   await expect(page.locator("#dashboard-page .mp-widget")).toHaveCount(9, { timeout: 15_000 });
   await page.getByRole("button", { name: "Мои страницы" }).click();
   await expect(page.getByRole("button", { name: /Открыть страницу Портфель/ })).toBeVisible();
+});
+
+test("my page: a project status page with a timeline, and a number turned into a traffic light", async ({ page }) => {
+  page.on("pageerror", (error) => console.error(error.stack));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await mockAdminProject(page);
+  await mockPages(page);
+  await page.goto("/development/my-page");
+  await page.getByRole("button", { name: /Статус проекта/ }).click();
+  await expect(page.getByRole("region", { name: "Предпросмотр на ваших данных" })).toContainText("Виджетов с данными");
+  await page.getByRole("button", { name: "Создать страницу" }).click();
+  const sheet = page.locator("#dashboard-page");
+  await expect(sheet.locator('[data-widget-id="tl-checkpoints"] .mp-timeline-dot')).toHaveCount(3);
+  await expect(sheet.locator('[data-widget-id="tl-checkpoints"] .mp-timeline-late')).toHaveCount(2);
+  await expect(sheet.locator('[data-widget-id="n-takeaway"]')).toContainText("Что главное");
+  await sheet.locator('[data-widget-id="k-overdue"]').click();
+  const panel = page.getByRole("complementary", { name: "Виджет" });
+  await panel.getByRole("radio", { name: "Светофор" }).click();
+  await expect(sheet.locator('[data-widget-id="k-overdue"] .mp-light-RED')).toBeVisible();
+  await panel.getByLabel("Красный").fill("10");
+  await expect(sheet.locator('[data-widget-id="k-overdue"] .mp-light-AMBER')).toBeVisible();
+  await panel.getByRole("radio", { name: "Свои" }).click();
+  await expect(sheet.locator('[data-widget-id="k-overdue"] .mp-own-scope')).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("my-page-status.png") });
 });

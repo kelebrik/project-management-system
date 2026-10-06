@@ -21,6 +21,8 @@ export type CanvasProps = {
   title: string;
   meta: ReactNode;
   results: Record<string, PageQueryResult>;
+  /** The day the answers were counted for. */
+  today: string;
   loading: boolean;
   editable: boolean;
   fit: "width" | "screen";
@@ -164,12 +166,13 @@ export function PageCanvas(props: CanvasProps) {
                 {!plain && (
                   <header className="mp-widget-head" onPointerCancel={() => setDrag(null)} onPointerDown={(event) => begin(event, widget, "move")} onPointerMove={move} onPointerUp={end}>
                     <h2>{widget.title}</h2>
+                    {widget.scope && <span className="mp-own-scope" title={t("ui.pages.widget.ownScope")}>{t("ui.pages.widget.ownScope")}</span>}
                     {widget.data && <span aria-label={t("ui.pages.widget.passport")} className="mp-passport" role="img" title={widgetPassport(widget, locale, document.periodDays)}>ⓘ</span>}
                   </header>
                 )}
                 {plain && editable && <div aria-hidden="true" className="mp-plain-handle" onPointerCancel={() => setDrag(null)} onPointerDown={(event) => begin(event, widget, "move")} onPointerMove={move} onPointerUp={end} />}
                 <div className="mp-widget-body">
-                  <WidgetBody colors={colors} loading={props.loading} periodDays={document.periodDays} result={props.results[widget.id]} widget={widget} />
+                  <WidgetBody colors={colors} loading={props.loading} periodDays={document.periodDays} result={props.results[widget.id]} today={props.today} drillable={!editable} widget={widget} />
                 </div>
                 {editable && selected && (
                   <span aria-label={t("ui.pages.widget.resize")} className="mp-resize" onPointerCancel={() => setDrag(null)} onPointerDown={(event) => begin(event, widget, "resize")} onPointerMove={move} onPointerUp={end} role="button" tabIndex={-1} />

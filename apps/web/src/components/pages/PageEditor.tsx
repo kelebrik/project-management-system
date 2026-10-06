@@ -203,6 +203,7 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
           onRefuse={say}
           onSelect={setSelectedId}
           results={answer?.results ?? {}}
+          today={answer?.today ?? new Date().toISOString().slice(0, 10)}
           selectedId={selectedId}
           title={draft.title}
         />
@@ -212,6 +213,7 @@ export function PageEditor({ page, canSave, options, onBack, onPresent }: { page
             onChange={(next, mergeKey) => setDocument(updateWidget(draft.document, selected.id, next), mergeKey)}
             onDelete={() => removeWidget(selected.id)}
             onDuplicate={() => copyWidget(selected.id)}
+            options={options}
             widget={selected}
           />
         ) : (

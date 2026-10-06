@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from "react";
-import { ChartArea, ChartBar, ChartColumn, ChartColumnStacked, ChartLine, ChartPie, Donut, Hash, LayoutGrid, List, Table2 } from "lucide-react";
+import { CalendarRange, ChartArea, ChartBar, ChartColumn, ChartColumnStacked, ChartLine, ChartPie, CircleDot, Donut, Grid2x2, Hash, LayoutGrid, List, Loader, Table2 } from "lucide-react";
 import {
   PAGE_METRIC_GROUPS,
   PAGE_METRICS,
@@ -15,7 +15,8 @@ import {
   type PageWidget,
   type PageWidgetData,
 } from "@pms/shared";
-import { widgetFields, widgetSource } from "../../../app/pages/pageModel";
+import { widgetFields, widgetSource, type ScopeOptions } from "../../../app/pages/pageModel";
+import { ScopePicker } from "./ScopePicker";
 import { PAGE_VIZ, applyViz, vizOf, vizProblem, type PageVizId } from "../../../app/pages/pageViz";
 import { useI18n } from "../../../i18n/I18nProvider";
 
@@ -30,9 +31,10 @@ type Props = {
   onChange: (next: PageWidget, mergeKey?: string) => void;
   onDelete: () => void;
   onDuplicate: () => void;
+  options: ScopeOptions | null;
 };
 
-const VIZ_ICON: Record<PageVizId, ComponentType<{ size?: number }>> = { kpi: Hash, columns: ChartColumn, bars: ChartBar, line: ChartLine, area: ChartArea, donut: Donut, pie: ChartPie, stacked: ChartColumnStacked, table: Table2, list: List, tiles: LayoutGrid };
+const VIZ_ICON: Record<PageVizId, ComponentType<{ size?: number }>> = { kpi: Hash, traffic: CircleDot, progress: Loader, grid: Grid2x2, timeline: CalendarRange, columns: ChartColumn, bars: ChartBar, line: ChartLine, area: ChartArea, donut: Donut, pie: ChartPie, stacked: ChartColumnStacked, table: Table2, list: List, tiles: LayoutGrid };
 
 const OPS_BY_KIND: Record<PageFieldDef["kind"], PageFilterOp[]> = {
   number: ["gt", "gte", "lt", "lte", "eq", "between", "empty", "notEmpty"],
@@ -121,7 +123,7 @@ function filterText(filter: PageFilter, fields: readonly PageFieldDef[], locale:
   return `${name} ${opLabel(filter.op)} ${show(filter.value)}`;
 }
 
-export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) {
+export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options }: Props) {
   const { t, locale } = useI18n();
   const [adding, setAdding] = useState(false);
   const data = widget.data;
@@ -132,7 +134,8 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) 
   const setData = (patch: Partial<PageWidgetData>, mergeKey?: string) => data && onChange({ ...widget, data: { ...data, ...patch } }, mergeKey);
   const groupable = fields.filter((field) => field.groupable);
   const groupField = fields.find((field) => field.key === data?.groupBy) ?? null;
-  const rowsShown = widget.type === "list" || widget.type === "status-grid" || (widget.type === "table" && !data?.groupBy);
+  const rowsShown = widget.type === "list" || widget.type === "status-grid" || widget.type === "timeline" || (widget.type === "table" && !data?.groupBy);
+  const valueShown = viz === "kpi" || viz === "traffic" || viz === "progress";
   const opLabel = (op: PageFilterOp) => t(`ui.pages.op.${op}` as "ui.pages.op.eq");
 
   const changeMetric = (id: string) => {
@@ -207,7 +210,7 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) 
             <p className="mp-hint">{metric?.periodField ? t("ui.pages.step.periodApplies") : t("ui.pages.step.periodNotApplies")}</p>
           </section>
 
-          {viz !== "kpi" && !rowsShown && (
+          {!valueShown && !rowsShown && (
             <section className="mp-step">
               <h3><span className="mp-step-n">2</span>{t("ui.pages.step.split")}</h3>
               <select aria-label={t("ui.pages.step.split")} onChange={(event) => setData({ groupBy: event.target.value || null, ...(event.target.value === data.groupBy2 ? { groupBy2: null } : {}) })} value={data.groupBy ?? ""}>
@@ -230,10 +233,10 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) 
               )}
             </section>
           )}
-          {(viz === "kpi" || rowsShown) && (
+          {(valueShown || rowsShown) && (
             <section className="mp-step mp-step-muted">
               <h3><span className="mp-step-n">2</span>{t("ui.pages.step.split")}</h3>
-              <p className="mp-hint">{viz === "kpi" ? t("ui.pages.step.splitKpi") : t("ui.pages.step.splitRows")}</p>
+              <p className="mp-hint">{valueShown ? t("ui.pages.step.splitKpi") : t("ui.pages.step.splitRows")}</p>
             </section>
           )}
 
@@ -279,6 +282,21 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) 
                 );
               })}
             </div>
+            {viz === "traffic" && (
+              <div className="mp-field">
+                <span>{metric?.higherIsWorse === false ? t("ui.pages.option.thresholdsLower") : t("ui.pages.option.thresholds")}</span>
+                <span className="mp-inline">
+                  <input aria-label={t("ui.pages.option.amber")} onChange={(event) => onChange({ ...widget, thresholds: { amber: Number(event.target.value), red: widget.thresholds?.red ?? 5 } }, `thresholds:${widget.id}`)} type="number" value={widget.thresholds?.amber ?? 1} />
+                  <input aria-label={t("ui.pages.option.red")} onChange={(event) => onChange({ ...widget, thresholds: { amber: widget.thresholds?.amber ?? 1, red: Number(event.target.value) } }, `thresholds:${widget.id}`)} type="number" value={widget.thresholds?.red ?? 5} />
+                </span>
+              </div>
+            )}
+            {viz === "progress" && (
+              <label className="mp-field">
+                <span>{t("ui.pages.option.target")}</span>
+                <input min={1} onChange={(event) => onChange({ ...widget, target: Math.max(1, Number(event.target.value) || 1) }, `target:${widget.id}`)} type="number" value={widget.target ?? 100} />
+              </label>
+            )}
             {viz === "kpi" && metric?.periodField && (
               <label className="mp-check"><input checked={Boolean(data.compare)} onChange={(event) => setData({ compare: event.target.checked })} type="checkbox" />{t("ui.pages.option.compare")}</label>
             )}
@@ -322,7 +340,15 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate }: Props) 
               </fieldset>
             </details>
           )}
-          {!rowsShown && viz !== "kpi" && (
+          <section className="mp-step">
+            <h3>{t("ui.pages.option.scope")}</h3>
+            <div className="mp-scope-modes" role="radiogroup" aria-label={t("ui.pages.option.scope")}>
+              <label><input checked={!widget.scope} name={`scope-${widget.id}`} onChange={() => onChange({ ...widget, scope: undefined })} type="radio" />{t("ui.pages.option.scopePage")}</label>
+              <label><input checked={Boolean(widget.scope)} name={`scope-${widget.id}`} onChange={() => onChange({ ...widget, scope: { mode: "all" } })} type="radio" />{t("ui.pages.option.scopeOwn")}</label>
+            </div>
+            {widget.scope && <ScopePicker onChange={(scope) => onChange({ ...widget, scope })} options={options} scope={widget.scope} />}
+          </section>
+          {!rowsShown && !valueShown && (
             <label className="mp-field">
               <span>{t("ui.pages.option.groupLimit")}</span>
               <input max={50} min={1} onChange={(event) => setData({ limit: Math.max(1, Math.min(50, Number(event.target.value) || 1)) }, `limit:${widget.id}`)} type="number" value={data.limit ?? 20} />

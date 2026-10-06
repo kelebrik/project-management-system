@@ -8,7 +8,7 @@ import { widgetFields, widgetSource } from "./pageModel";
  * with a sensible choice, so a switch never ends in an empty widget.
  */
 
-export const PAGE_VIZ = ["kpi", "columns", "bars", "line", "area", "donut", "pie", "stacked", "table", "list", "tiles"] as const;
+export const PAGE_VIZ = ["kpi", "traffic", "progress", "columns", "bars", "line", "area", "donut", "pie", "stacked", "grid", "table", "list", "tiles", "timeline"] as const;
 export type PageVizId = (typeof PAGE_VIZ)[number];
 
 const CHARTS = new Set<string>(["columns", "bars", "line", "area", "donut", "pie", "stacked"]);
@@ -19,6 +19,10 @@ export function vizOf(widget: Pick<PageWidget, "type" | "chart">): PageVizId | n
   if (widget.type === "table") return "table";
   if (widget.type === "list") return "list";
   if (widget.type === "status-grid") return "tiles";
+  if (widget.type === "traffic-light") return "traffic";
+  if (widget.type === "progress") return "progress";
+  if (widget.type === "metric-grid") return "grid";
+  if (widget.type === "timeline") return "timeline";
   return null;
 }
 
@@ -26,8 +30,9 @@ const groupable = (fields: readonly PageFieldDef[]) => fields.filter((field) => 
 const timeFields = (fields: readonly PageFieldDef[]) => groupable(fields).filter((field) => field.kind === "date");
 
 /** Why a look is not available for this widget, or null when it is. */
-export function vizProblem(widget: Pick<PageWidget, "data">, viz: PageVizId): "needsTime" | "needsTwo" | null {
+export function vizProblem(widget: Pick<PageWidget, "data">, viz: PageVizId): "needsTime" | "needsTwo" | "needsDates" | null {
   const fields = widgetFields(widget);
+  if (viz === "timeline" && !fields.some((field) => field.kind === "date")) return "needsDates";
   if ((viz === "line" || viz === "area") && timeFields(fields).length === 0) return "needsTime";
   if (viz === "stacked" && groupable(fields).length < 2) return "needsTwo";
   return null;
@@ -43,9 +48,20 @@ export function applyViz(widget: PageWidget, viz: PageVizId): PageWidget | null 
   let data = { ...widget.data };
   let type: PageWidgetType;
   let chart: PageChartKind | undefined;
-  if (viz === "kpi") {
-    type = "kpi";
+  if (viz === "kpi" || viz === "traffic" || viz === "progress") {
+    type = viz === "kpi" ? "kpi" : viz === "traffic" ? "traffic-light" : "progress";
     data = { ...data, groupBy: null, groupBy2: null };
+  } else if (viz === "grid") {
+    type = "metric-grid";
+    if (!data.groupBy) data = { ...data, groupBy: field("project")?.groupable ? "project" : groupable(fields)[0]?.key ?? null };
+    data = { ...data, groupBy2: null };
+  } else if (viz === "timeline") {
+    type = "timeline";
+    const dates = fields.filter((entry) => entry.kind === "date");
+    const columns = data.columns?.length ? data.columns : source ? [...PAGE_SOURCES[source].defaultColumns] : [];
+    const dated = columns.some((key) => dates.some((entry) => entry.key === key)) ? columns : [...columns, (dates.find((entry) => entry.key === metric?.periodField) ?? dates[0]).key];
+    const firstDate = dated.find((key) => dates.some((entry) => entry.key === key))!;
+    data = { ...data, groupBy: null, groupBy2: null, columns: dated.slice(0, 12), sort: data.sort ?? { by: firstDate, dir: "asc" } };
   } else if (CHARTS.has(viz)) {
     type = "chart";
     chart = viz as PageChartKind;
@@ -68,6 +84,6 @@ export function applyViz(widget: PageWidget, viz: PageVizId): PageWidget | null 
   if ((type === "list" || type === "status-grid" || (type === "table" && !data.groupBy)) && !data.columns?.length && source) {
     data = { ...data, columns: [...PAGE_SOURCES[source].defaultColumns] };
   }
-  if (type !== "kpi") data = { ...data, compare: undefined };
+  if (type !== "kpi" && type !== "traffic-light") data = { ...data, compare: undefined };
   return { ...widget, type, chart, data };
 }

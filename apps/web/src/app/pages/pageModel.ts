@@ -217,3 +217,18 @@ export function scopeProjectCount(scope: PageScope, options: ScopeOptions | null
   if (scope.mode === "portfolio") return options.projects.filter((project) => scope.portfolios.includes(project.portfolio)).length;
   return options.projects.filter((project) => scope.projectIds.includes(project.id)).length;
 }
+
+/** The colour of a traffic light: thresholds from the widget, else a default for its unit. */
+export function trafficLevel(value: number | null, thresholds: { amber: number; red: number } | undefined, higherIsWorse: boolean, unit: PageFieldFormat): "GREEN" | "AMBER" | "RED" | null {
+  if (value === null) return null;
+  const limits = thresholds ?? (higherIsWorse ? (unit === "days" ? { amber: 1, red: 10 } : { amber: 1, red: 5 }) : unit === "percent" ? { amber: 70, red: 40 } : { amber: 1, red: 0 });
+  if (higherIsWorse) return value >= limits.red ? "RED" : value >= limits.amber ? "AMBER" : "GREEN";
+  return value <= limits.red ? "RED" : value <= limits.amber ? "AMBER" : "GREEN";
+}
+
+/** Where a date sits between two others, from 0 to 1. */
+export function dayPosition(day: string, from: string, to: string) {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const span = Date.parse(`${to}T00:00:00Z`) - start;
+  return span <= 0 ? 0.5 : (Date.parse(`${day.slice(0, 10)}T00:00:00Z`) - start) / span;
+}

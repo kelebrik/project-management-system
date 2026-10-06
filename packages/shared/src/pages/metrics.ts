@@ -9,7 +9,7 @@ import type { PageFieldFormat, PageFilter, PageMeasure, PageSourceKey, PageText 
 
 const t = (ru: string, en: string): PageText => ({ ru, en });
 
-export type PageMetricGroup = "projects" | "work" | "checkpoints" | "risks" | "decisions" | "shifts";
+export type PageMetricGroup = "projects" | "work" | "checkpoints" | "risks" | "decisions" | "shifts" | "issues" | "changes" | "people" | "jira" | "lessons";
 
 export type PageMetric = {
   id: string;
@@ -34,6 +34,11 @@ export const PAGE_METRIC_GROUPS: Record<PageMetricGroup, PageText> = {
   risks: t("Риски и проблемы", "Risks and problems"),
   decisions: t("Решения", "Decisions"),
   shifts: t("Сдвиги вех", "Milestone shifts"),
+  issues: t("Вопросы", "Issues"),
+  changes: t("Изменения", "Changes"),
+  people: t("Люди", "People"),
+  jira: t("Jira", "Jira"),
+  lessons: t("Уроки", "Lessons"),
 };
 
 const count: PageMeasure = { fn: "count" };
@@ -68,6 +73,31 @@ export const PAGE_METRICS: readonly PageMetric[] = [
   { id: "shifts.count", group: "shifts", label: t("Сдвиги вех за период", "Shifts in the period"), definition: t("Записи журнала сдвигов вех и целей за период страницы", "Records of the milestone shift journal in the page's period"), source: "shifts", filters: [], measure: count, periodField: "createdAt", unit: "count", higherIsWorse: true },
   { id: "shifts.days", group: "shifts", label: t("На сколько сдвинулись, дн.", "Days shifted"), definition: t("Сумма сдвигов вех и целей за период (позже — плюс, раньше — минус)", "Sum of the shifts in the period (later is plus, earlier is minus)"), source: "shifts", filters: [], measure: { fn: "sum", field: "deltaDays" }, periodField: "createdAt", unit: "days", higherIsWorse: true },
   { id: "shifts.later", group: "shifts", label: t("Сдвиги позже", "Shifts later"), definition: t("Сдвиги вех и целей на более позднюю дату за период", "Shifts of milestones and goals to a later date in the period"), source: "shifts", filters: [{ field: "later", op: "isTrue" }], measure: count, periodField: "createdAt", unit: "count", higherIsWorse: true },
+
+  { id: "issues.open", group: "issues", label: t("Открытые вопросы", "Open issues"), definition: t("Вопросы проектов, кроме сделанных, закрытых и решённых — как на странице «Вопросы»", "Issues of the projects except done, closed and resolved ones — as on the Issues page"), source: "issues", filters: [open], measure: count, unit: "count", higherIsWorse: true },
+  { id: "issues.noOwner", group: "issues", label: t("Вопросы без ответственного", "Issues without an owner"), definition: t("Открытые вопросы, у которых не указан ответственный", "Open issues with no owner"), source: "issues", filters: [open, { field: "owner", op: "empty" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "issues.overdue", group: "issues", label: t("Просроченные вопросы", "Overdue issues"), definition: t("Открытые вопросы со сроком раньше сегодня", "Open issues due before today"), source: "issues", filters: [{ field: "overdue", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "issues.critical", group: "issues", label: t("Критичные вопросы", "Critical issues"), definition: t("Открытые вопросы с приоритетом «Критичный» или «Высокий»", "Open issues of critical or high priority"), source: "issues", filters: [open, { field: "severity", op: "in", value: ["CRITICAL", "HIGH"] }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "issues.new", group: "issues", label: t("Новые вопросы за период", "New issues in the period"), definition: t("Вопросы, заведённые за период страницы", "Issues recorded in the page's period"), source: "issues", filters: [], measure: count, periodField: "createdAt", unit: "count", higherIsWorse: true },
+
+  { id: "changes.waiting", group: "changes", label: t("Изменения ждут решения", "Changes waiting"), definition: t("Запросы на изменение, поданные или на рассмотрении", "Change requests submitted or in review"), source: "changes", filters: [{ field: "waiting", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "changes.scheduleImpact", group: "changes", label: t("Влияние изменений на срок, дн.", "Schedule impact of changes, days"), definition: t("Сумма влияния на срок у запросов, ждущих решения", "Sum of the schedule impact of change requests waiting for a decision"), source: "changes", filters: [{ field: "waiting", op: "isTrue" }], measure: { fn: "sum", field: "scheduleImpactDays" }, unit: "days", higherIsWorse: true },
+  { id: "changes.approved", group: "changes", label: t("Одобрено изменений за период", "Changes approved in the period"), definition: t("Запросы на изменение, одобренные за период страницы", "Change requests approved in the page's period"), source: "changes", filters: [], measure: count, periodField: "approvedAt", unit: "count" },
+
+  { id: "people.overloaded", group: "people", label: t("Перегруженные люди", "Overloaded people"), definition: t("Люди проектов страницы, у которых сумма долей во всех открытых проектах больше их ёмкости — как на странице «Загрузка»", "People of the page's projects whose shares in all open projects add up to more than their capacity — as on the Workload page"), source: "workload", filters: [{ field: "overloaded", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "people.count", group: "people", label: t("Люди в проектах", "People on the projects"), definition: t("Люди с долей в проектах страницы на сегодня", "People with a share in the page's projects today"), source: "workload", filters: [], measure: count, unit: "count" },
+  { id: "people.onLeave", group: "people", label: t("В отпуске сегодня", "On leave today"), definition: t("Люди проектов страницы, у которых сегодня отпуск", "People of the page's projects on leave today"), source: "workload", filters: [{ field: "onLeave", op: "isTrue" }], measure: count, unit: "count" },
+  { id: "people.atRisk", group: "people", label: t("Работы под вопросом", "Work at risk"), definition: t("Отметки за период страницы: «Под вопросом» или «Не успеваю»", "Check-ins of the page's period: at risk or off track"), source: "checkins", filters: [{ field: "confidence", op: "in", value: ["AT_RISK", "OFF_TRACK"] }], measure: count, periodField: "weekStart", unit: "count", higherIsWorse: true },
+  { id: "people.blockers", group: "people", label: t("Препятствия в отметках", "Blockers in check-ins"), definition: t("Отметки за период, где человек написал, что мешает", "Check-ins of the period that say what is in the way"), source: "checkins", filters: [{ field: "hasBlocker", op: "isTrue" }], measure: count, periodField: "weekStart", unit: "count", higherIsWorse: true },
+
+  { id: "jira.open", group: "jira", label: t("Открытые задачи Jira", "Open Jira issues"), definition: t("Задачи без резолюции и не отменённые, из снимков проектов — как в виджетах Jira", "Issues without a resolution and not cancelled, from the projects' snapshots — as in the Jira widgets"), source: "jira", filters: [open], measure: count, unit: "count" },
+  { id: "jira.created", group: "jira", label: t("Создано задач Jira за период", "Jira issues created in the period"), definition: t("Задачи, созданные за период страницы (отменённые не считаются)", "Issues created in the page's period (cancelled ones do not count)"), source: "jira", filters: [], measure: count, periodField: "createdAt", unit: "count" },
+  { id: "jira.resolved", group: "jira", label: t("Решено задач Jira за период", "Jira issues resolved in the period"), definition: t("Задачи, решённые за период страницы по сегодняшним снимкам", "Issues resolved in the page's period, by today's snapshots"), source: "jira", filters: [], measure: count, periodField: "resolvedAt", unit: "count" },
+  { id: "jira.critical", group: "jira", label: t("Открытые Critical и Blocker", "Open Critical and Blocker"), definition: t("Открытые задачи с приоритетом Critical или Blocker", "Open issues of Critical or Blocker priority"), source: "jira", filters: [open, { field: "critical", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "jira.overdue", group: "jira", label: t("Просроченные задачи Jira", "Overdue Jira issues"), definition: t("Открытые задачи со сроком (due date) раньше сегодня", "Open issues due before today"), source: "jira", filters: [{ field: "overdue", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
+  { id: "jira.storyPoints", group: "jira", label: t("Story points в работе", "Open story points"), definition: t("Сумма story points открытых задач", "Sum of the story points of open issues"), source: "jira", filters: [open], measure: { fn: "sum", field: "storyPoints" }, unit: "count" },
+
+  { id: "lessons.new", group: "lessons", label: t("Уроки за период", "Lessons in the period"), definition: t("Уроки, записанные за период страницы", "Lessons recorded in the page's period"), source: "lessons", filters: [], measure: count, periodField: "createdAt", unit: "count" },
 ];
 
 const metricsById = new Map(PAGE_METRICS.map((metric) => [metric.id, metric]));

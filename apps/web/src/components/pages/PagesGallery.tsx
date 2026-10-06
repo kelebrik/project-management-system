@@ -1,8 +1,10 @@
-import { useState } from "react";
-import { PAGE_FORMATS, PAGE_TEMPLATES, type PageScope, type PageTemplate, type PageWidget } from "@pms/shared";
+import { useMemo, useState } from "react";
+import { PAGE_FORMATS, PAGE_TEMPLATES, pageFromTemplate, type PageQueryResult, type PageScope, type PageTemplate, type PageWidget } from "@pms/shared";
 import { scopeProjectCount, type PagesList, type SavedPage, type ScopeOptions } from "../../app/pages/pageModel";
 import { useI18n } from "../../i18n/I18nProvider";
+import { usePageAnswers } from "../../app/pages/usePageAnswers";
 import { ScopePicker } from "./editor/ScopePicker";
+import { PageCanvas } from "./PageCanvas";
 
 /**
  * The way in: my pages as little pictures of their layout (no data is asked
@@ -35,6 +37,37 @@ function PageCard({ page, onOpen, onDuplicate, onDelete }: { page: SavedPage; on
         <button className="danger" onClick={onDelete} type="button">{t("ui.pages.gallery.delete")}</button>
       </div>
     </article>
+  );
+}
+
+/** A result with nothing to show: an error, no groups or no rows. */
+function emptyResult(result: PageQueryResult | undefined) {
+  if (!result) return true;
+  if (result.kind === "error") return true;
+  if (result.kind === "groups") return result.rowCount === 0;
+  if (result.kind === "rows") return result.total === 0;
+  return false;
+}
+
+/** The chosen template drawn on the person's own data, and which of its widgets would be empty. */
+function TemplatePreview({ template, scope }: { template: PageTemplate; scope: PageScope }) {
+  const { t, locale } = useI18n();
+  const draft = useMemo(() => pageFromTemplate(template, scope, locale), [locale, scope, template]);
+  const { answer, loading } = usePageAnswers(draft.document.widgets.length ? draft.document : null, 0);
+  const dataWidgets = draft.document.widgets.filter((widget) => widget.data);
+  const empty = answer ? dataWidgets.filter((widget) => emptyResult(answer.results[widget.id])) : [];
+  if (dataWidgets.length === 0) return null;
+  return (
+    <section aria-label={t("ui.pages.preview.title")} className="mp-preview">
+      <div className="mp-preview-head">
+        <b>{t("ui.pages.preview.title")}</b>
+        {answer && <span className={empty.length ? "mp-warn" : "mp-ok"}>{t("ui.pages.preview.fit", { with: dataWidgets.length - empty.length, all: dataWidgets.length })}</span>}
+      </div>
+      {empty.length > 0 && <p className="mp-hint">{t("ui.pages.preview.empty", { widgets: empty.map((widget) => widget.title).join(", ") })}</p>}
+      <div className="mp-preview-sheet">
+        <PageCanvas document={draft.document} editable={false} fit="width" loading={loading} meta={null} results={answer?.results ?? {}} selectedId={null} title={draft.title} today={answer?.today ?? new Date().toISOString().slice(0, 10)} />
+      </div>
+    </section>
   );
 }
 
@@ -89,6 +122,7 @@ export function PagesGallery({ list, options, busy, onOpen, onCreate, onDuplicat
           {list?.canSave === false && <p className="mp-hint">{t("ui.pages.demoNote")}</p>}
         </div>
       </section>
+      <TemplatePreview scope={scope} template={template} />
     </div>
   );
 }

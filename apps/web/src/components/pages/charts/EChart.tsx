@@ -5,7 +5,7 @@ import { echarts } from "./echartsSetup";
  * One ECharts picture that follows its box: drawn as SVG, redrawn when the
  * option changes, resized with the widget, released when it goes away.
  */
-export function EChart({ option, label }: { option: Record<string, unknown>; label: string }) {
+export function EChart({ option, label, onPick }: { option: Record<string, unknown>; label: string; onPick?: (index: number) => void }) {
   const box = useRef<HTMLDivElement | null>(null);
   const chart = useRef<ReturnType<typeof echarts.init> | null>(null);
 
@@ -27,5 +27,17 @@ export function EChart({ option, label }: { option: Record<string, unknown>; lab
     chart.current?.setOption(option, { notMerge: true });
   }, [option]);
 
-  return <div aria-label={label} className="mp-echart" ref={box} role="img" />;
+  useEffect(() => {
+    const instance = chart.current;
+    if (!instance || !onPick) return;
+    const handler = (params: { dataIndex?: number }) => {
+      if (typeof params.dataIndex === "number") onPick(params.dataIndex);
+    };
+    instance.on("click", handler);
+    return () => {
+      instance.off("click", handler);
+    };
+  }, [onPick]);
+
+  return <div aria-label={label} className={`mp-echart ${onPick ? "mp-echart-drill" : ""}`} ref={box} role="img" />;
 }

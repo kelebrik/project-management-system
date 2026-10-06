@@ -7,7 +7,7 @@ import { createApp } from '../../apps/api/src/server/app.js';
 import { hashPassword } from '../../apps/api/src/server/auth.js';
 import { loadPortfolioReport } from '../../apps/api/src/services/portfolio-reports.js';
 import { forgetPageQueryCache, runPageQueries } from '../../apps/api/src/services/pages/query.js';
-import { PAGE_SOURCE_ADAPTERS } from '../../apps/api/src/services/pages/sources.js';
+import { PAGE_SOURCE_ADAPTERS } from '../../apps/api/src/services/pages/registry.js';
 
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);

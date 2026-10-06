@@ -71,7 +71,7 @@
 .mp-step summary { font-size: var(--fs-xs); font-weight: 600; color: var(--text-secondary); cursor: pointer; }
 .mp-step-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); color: var(--on-brand); font-size: 11px; margin-right: 6px; }
 .mp-step-muted .mp-step-n { background: var(--text-faint); }
-.mp-viz { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+.mp-viz { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
 .mp-viz button { padding: 6px 0; font-size: 15px; line-height: 1; }
 .mp-viz button.active { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
 .mp-viz button:disabled { opacity: 0.35; cursor: not-allowed; }
@@ -197,6 +197,47 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-tone-success { background: color-mix(in srgb, var(--mp-green) 10%, var(--mp-surface)); border-left-color: var(--mp-green); }
 .mp-tone-warning { background: color-mix(in srgb, var(--mp-amber) 12%, var(--mp-surface)); border-left-color: var(--mp-amber); }
 .mp-tone-danger { background: color-mix(in srgb, var(--mp-red) 10%, var(--mp-surface)); border-left-color: var(--mp-red); }
+
+/* Stage 2 looks */
+.mp-own-scope { font-size: 10px; color: var(--mp-accent); border: 1px solid var(--mp-accent); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.mp-widget-traffic-light .mp-widget-body, .mp-widget-progress .mp-widget-body { container-type: size; }
+.mp-light { flex: 1; display: flex; align-items: center; gap: 12px; min-height: 0; }
+.mp-light-lamp { width: clamp(22px, 60cqh, 64px); aspect-ratio: 1; border-radius: 50%; background: var(--mp-soft); border: 3px solid var(--mp-border); flex: none; }
+.mp-light-GREEN { background: var(--mp-green); border-color: color-mix(in srgb, var(--mp-green) 70%, #000); }
+.mp-light-AMBER { background: var(--mp-amber); border-color: color-mix(in srgb, var(--mp-amber) 70%, #000); }
+.mp-light-RED { background: var(--mp-red); border-color: color-mix(in srgb, var(--mp-red) 70%, #000); }
+.mp-light-text { display: grid; }
+.mp-light-text b { font-size: clamp(18px, 40cqh, 44px); line-height: 1.05; font-variant-numeric: tabular-nums; }
+.mp-light-text span { color: var(--mp-muted); font-size: 12px; }
+.mp-progress-widget { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
+.mp-progress-figures { display: flex; align-items: baseline; gap: 8px; }
+.mp-progress-figures b { font-size: clamp(16px, 34cqh, 36px); font-variant-numeric: tabular-nums; }
+.mp-progress-figures span { color: var(--mp-muted); font-size: 12px; }
+.mp-progress-track { height: clamp(8px, 18cqh, 18px); background: var(--mp-soft); border-radius: 999px; overflow: hidden; }
+.mp-progress-track i { display: block; height: 100%; background: var(--mp-accent); border-radius: 999px; }
+.mp-figures { display: grid; gap: 6px; }
+.mp-figure { border: 1px solid var(--mp-border); border-radius: 6px; padding: 4px 8px; display: grid; height: 50px; box-sizing: border-box; align-content: center; overflow: hidden; }
+.mp-figure b { font-size: 18px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.mp-figure span { font-size: 11px; color: var(--mp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-figure-attention b { color: var(--mp-red); }
+.mp-figure-more { color: var(--mp-muted); font-style: italic; place-items: center; }
+.mp-timeline { display: block; overflow: visible; font-size: 11px; }
+.mp-timeline-label { fill: var(--mp-text); }
+.mp-timeline-axis { fill: var(--mp-muted); font-size: 10px; }
+.mp-timeline-grid { stroke: var(--mp-grid); }
+.mp-timeline-today { stroke: var(--mp-accent); stroke-dasharray: 3 3; }
+.mp-timeline-dot { fill: var(--mp-accent); }
+.mp-timeline-late { fill: var(--mp-red); }
+.mp-timeline-plan { fill: var(--mp-surface); stroke: var(--mp-muted); stroke-width: 1.5; }
+.mp-timeline-slip { stroke: var(--mp-red); stroke-width: 2; }
+.mp-timeline-gain { stroke: var(--mp-green); stroke-width: 2; }
+.mp-timeline-more { font-size: 11px; padding-top: 2px; }
+.mp-echart-drill { cursor: pointer; }
+.mp-preview { display: grid; gap: var(--space-2); }
+.mp-preview-head { display: flex; gap: var(--space-3); align-items: baseline; }
+.mp-preview-sheet { max-width: 980px; }
+.mp-ok { color: var(--success-800); font-size: var(--fs-xs); }
+.mp-preview-head .mp-warn { font-size: var(--fs-xs); }
 
 @media (max-width: 1100px) {
   .mp-workspace { grid-template-columns: minmax(0, 1fr); }

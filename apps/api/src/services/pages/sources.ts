@@ -259,4 +259,4 @@ const shifts: PageSourceAdapter = async (context) => {
   });
 };
 
-export const PAGE_SOURCE_ADAPTERS: Partial<Record<PageSourceKey, PageSourceAdapter>> = { projects, work, checkpoints, risks, decisions, shifts };
+export const PAGE_CORE_SOURCE_ADAPTERS = { projects, work, checkpoints, risks, decisions, shifts } satisfies Partial<Record<PageSourceKey, PageSourceAdapter>>;

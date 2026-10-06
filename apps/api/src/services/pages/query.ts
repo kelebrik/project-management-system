@@ -10,7 +10,8 @@ import {
   type PageWidget,
 } from '@pms/shared';
 import { prisma } from '../../db.js';
-import { PAGE_SOURCE_ADAPTERS, PageSourceLimitError, pageDay, type PageProjectRef } from './sources.js';
+import { PAGE_SOURCE_ADAPTERS } from './registry.js';
+import { PageSourceLimitError, pageDay, type PageProjectRef } from './sources.js';
 
 /**
  * Answers all widgets of a page in one go. The scope is narrowed to the open
