@@ -28,7 +28,9 @@ ENV PORT=3000
 ENV HOME=/tmp
 ENV NPM_CONFIG_CACHE=/tmp/.npm
 
+# The base image lags behind Debian security fixes (perl-base among them): take them when building.
 RUN apt-get update \
+  && apt-get upgrade -y --no-install-recommends \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
   && rm -rf /var/lib/apt/lists/* \
   && mkdir -p /tmp/.npm \
