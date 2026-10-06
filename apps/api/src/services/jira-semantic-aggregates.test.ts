@@ -209,7 +209,7 @@ test("default semantic dashboard contains the requested operational and retrospe
   const dashboard = jiraDefaultSemanticDashboard(references);
   assert.equal(dashboard.widgets.length, 11);
   assert.deepEqual(dashboard.widgets.map((widget) => [widget.placement, widget.title]), [
-    ["active", "Создано Critical/Blocker по неделям"],
+    ["retro", "Создано Critical/Blocker по неделям"],
     ["active", "Коммиты ветки без упоминания Jira"],
     ["active", "Цель: Релиз заводской прошивки"],
     ["active", "Цель: Первая ОТА готова"],
@@ -338,8 +338,20 @@ test("widget seed v7 adds only the weekly chart of created Critical/Blocker issu
   const upgraded = jiraDashboardWithDefaultWidgetsForSeedVersion(current, defaults, 6);
   assert.deepEqual(upgraded.widgets.map((widget) => widget.id), ["custom-widget", "active-critical-blocker-created-weekly"]);
   const chart = upgraded.widgets[1]!;
-  assert.deepEqual([chart.groupBy, chart.dateField, chart.visualization, chart.filters[0]?.value], ["week", "issueCreatedAt", "columns", "Critical,Blocker"]);
-  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 7), upgraded, "nothing more once seeded");
+  assert.deepEqual([chart.placement, chart.groupBy, chart.dateField, chart.visualization, chart.filters[0]?.value], ["retro", "week", "issueCreatedAt", "columns", "Critical,Blocker"]);
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(upgraded, defaults, 8), upgraded, "nothing more once seeded");
+});
+
+test("widget seed v8 moves the weekly chart to Retro unless a user moved it", () => {
+  const references = JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate, index) => ({ id: `aggregate-${index + 1}`, aggregateKey: aggregate.key, publishedVersion: 1 }));
+  const defaults = jiraDefaultSemanticDashboard(references);
+  const chart = defaults.widgets.find((widget) => widget.id === "active-critical-blocker-created-weekly")!;
+  const seededInActive = { ...defaults, widgets: [{ ...chart, placement: "active" as const }, { ...defaults.widgets[1]!, id: "custom-active" }] };
+  const moved = jiraDashboardWithDefaultWidgetsForSeedVersion(seededInActive, defaults, 7);
+  assert.deepEqual(moved.widgets.map((widget) => [widget.id, widget.placement]), [["active-critical-blocker-created-weekly", "retro"], ["custom-active", defaults.widgets[1]!.placement]]);
+  assert.equal(moved.widgets.length, 2, "nothing added again");
+  const alreadyRetro = { ...defaults, widgets: [chart] };
+  assert.equal(jiraDashboardWithDefaultWidgetsForSeedVersion(alreadyRetro, defaults, 8), alreadyRetro);
 });
 
 test("widget seed v6 repairs goal filters without recreating deleted widgets or replacing presentation", () => {

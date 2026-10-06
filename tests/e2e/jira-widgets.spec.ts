@@ -104,3 +104,19 @@ test("a columns chart shows every week of the period and drills into a week's is
   await expect.poll(() => singles.at(-1)?.groupKey).toBe("2026-W39");
   await expect(page.getByRole("link", { name: "TV-2" })).toBeVisible();
 });
+
+test("a widget moves to the Retro tab from its editor", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  const analytics = await mockManagedJiraAnalytics(page, project);
+  analytics.getSemanticDashboard().widgets.push({ ...base, id: "weekly", title: "Создано Critical/Blocker по неделям", dateField: "issueCreatedAt", metric: "count", groupBy: "week", visualization: "columns", width: "full" });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Настроить для всех" }).click();
+  const card = page.locator(".jira-analytics-widget", { hasText: "Создано Critical/Blocker по неделям" });
+  await card.getByRole("button", { name: "Настроить" }).click();
+  await page.locator("select").filter({ has: page.locator("option[value=\"retro\"]") }).selectOption("retro");
+  await expect(page.locator(".jira-analytics-widget", { hasText: "Создано Critical/Blocker по неделям" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Сохранить" }).click();
+  await expect.poll(() => (analytics.getSemanticDashboard().widgets.find((widget) => widget.id === "weekly") as { placement?: string } | undefined)?.placement).toBe("retro");
+  await page.getByRole("button", { name: "Ретро" }).click();
+  await expect(page.locator(".jira-analytics-widget", { hasText: "Создано Critical/Blocker по неделям" })).toHaveCount(1);
+});

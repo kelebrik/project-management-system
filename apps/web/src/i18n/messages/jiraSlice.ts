@@ -79,6 +79,7 @@ export const jiraSliceMessages = {
   "ui.jira.page": { en: "Rows {from}–{to} of {total}", ru: "Строки {from}–{to} из {total}" },
   "ui.jira.pagePrevious": { en: "Previous", ru: "Назад" },
   "ui.jira.pageNext": { en: "Next", ru: "Далее" },
+  "ui.jira.section": { en: "Tab", ru: "Раздел" },
   "ui.jira.visualization": { en: "Show as", ru: "Вид" },
   "ui.jira.visualization.number": { en: "Number", ru: "Число" },
   "ui.jira.visualization.kpi": { en: "Number against the previous period", ru: "Число к прошлому периоду" },

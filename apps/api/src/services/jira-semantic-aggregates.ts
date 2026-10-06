@@ -30,6 +30,7 @@ import {
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_4,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_7,
+  JIRA_SEMANTIC_WIDGET_IDS_MOVED_TO_RETRO_IN_VERSION_8,
   JIRA_SEMANTIC_WIDGET_IDS_REPAIRED_IN_VERSION_6,
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
 } from "./jira-semantic-system-aggregates.js";
@@ -74,10 +75,11 @@ export function jiraDefaultSemanticDashboard(references: readonly SystemAggregat
     widgets: [
       {
         // Critical and Blocker issues of the project by the week they were created, over the dashboard period (six months by default).
+        // The id keeps its first name so dashboards seeded before do not get it twice; it lives in Retro since version 8.
         id: "active-critical-blocker-created-weekly",
         title: "Создано Critical/Blocker по неделям",
         ...issues,
-        placement: "active",
+        placement: "retro",
         selectedFields: ["issueKey", "summary", "priority", "status", "assignee", "issueCreatedAt"],
         filterLogic: "and",
         filters: [filter("critical-blocker-created-priority", "priority", "oneOf", "Critical,Blocker")],
@@ -295,6 +297,21 @@ export function jiraDashboardWithDefaultWidgets(
 }
 
 export function jiraDashboardWithDefaultWidgetsForSeedVersion(
+  current: JiraSemanticDashboard,
+  defaults: JiraSemanticDashboard,
+  currentSeedVersion: number,
+): JiraSemanticDashboard {
+  const seeded = seedDefaultWidgets(current, defaults, currentSeedVersion);
+  if (currentSeedVersion >= 8) return seeded;
+  // Version 8 moves the weekly chart of created Critical/Blocker issues to Retro, where a user has not moved it already.
+  return {
+    ...seeded,
+    widgets: seeded.widgets.map((widget) =>
+      JIRA_SEMANTIC_WIDGET_IDS_MOVED_TO_RETRO_IN_VERSION_8.has(widget.id) && widget.placement === "active" ? { ...widget, placement: "retro" as const } : widget),
+  };
+}
+
+function seedDefaultWidgets(
   current: JiraSemanticDashboard,
   defaults: JiraSemanticDashboard,
   currentSeedVersion: number,

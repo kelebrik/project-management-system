@@ -13,7 +13,7 @@ const qualityRules = {
   maximumRowsPerIssue: 500,
 };
 
-export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 7;
+export const JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION = 8;
 export const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2 = new Set([
   "active-critical-blocker-risk",
   "retro-critical-blocker-task-sla-45-days",
@@ -27,6 +27,9 @@ export const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_5 = new Set([
   "active-gitlab-unlinked-branch-commits",
 ]);
 export const JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_7 = new Set([
+  "active-critical-blocker-created-weekly",
+]);
+export const JIRA_SEMANTIC_WIDGET_IDS_MOVED_TO_RETRO_IN_VERSION_8 = new Set([
   "active-critical-blocker-created-weekly",
 ]);
 export const JIRA_SEMANTIC_WIDGET_IDS_REPAIRED_IN_VERSION_6 = new Set([
