@@ -45,6 +45,7 @@ export type DevelopmentSectionView = Extract<
   | "lessons-register"
   | "raci-matrix"
   | "my-work"
+  | "my-page"
   | "automation-rules"
 >;
 
@@ -92,6 +93,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "lessons-register",
   "raci-matrix",
   "my-work",
+  "my-page",
   "automation-rules",
 ];
 
@@ -181,6 +183,7 @@ export const appViewPaths: Record<AppView, string> = {
   "lessons-register": "/development/lessons",
   "raci-matrix": "/development/raci",
   "my-work": "/development/my-work",
+  "my-page": "/development/my-page",
   "automation-rules": "/development/rules",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
@@ -264,6 +267,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/lessons": "lessons-register",
   "/development/raci": "raci-matrix",
   "/development/my-work": "my-work",
+  "/development/my-page": "my-page",
   "/development/rules": "automation-rules",
   "/development/jira-reconciliation": "jira-reconciliation",
   // Addresses of retired pages lead to the nearest page that still exists.

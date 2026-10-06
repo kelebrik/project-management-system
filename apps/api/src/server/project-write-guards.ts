@@ -11,6 +11,11 @@ export function isProjectAnalyticsRead(req: Pick<Request, 'method' | 'path'>) {
   return req.method === 'POST' && /^\/jira\/semantic-aggregates\/(?:query-batch|[^/]+\/query)\/?$/.test(req.path);
 }
 
+/** "My page" asks for the answers of its widgets with a POST; it changes nothing. */
+export function isPageQueryRead(req: Pick<Request, 'method' | 'path'>) {
+  return req.method === 'POST' && /^\/pages\/query\/?$/.test(req.path);
+}
+
 /** Narrow view of a project: only what the closed-project guards need to decide. */
 type GuardedProject = { id: string; status: string };
 type ProjectLookup = (projectId: string) => Promise<GuardedProject | null>;

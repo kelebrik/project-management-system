@@ -6,6 +6,7 @@ export * from "./wbs-predecessors.js";
 export * from "./wbs-import.js";
 export * from "./automation-rules.js";
 export * from "./project-view.js";
+export * from "./pages/index.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.
@@ -22,6 +23,7 @@ export const appViewKeys = [
   "lessons-register",
   "raci-matrix",
   "my-work",
+  "my-page",
   "automation-rules",
   "jira-reconciliation",
   "projects",
@@ -85,6 +87,7 @@ export const appViewLabels: Record<AppViewKey, string> = {
   "lessons-register": "Уроки проектов",
   "raci-matrix": "RACI",
   "my-work": "Мои задачи",
+  "my-page": "Моя страница",
   "automation-rules": "Правила",
   "jira-reconciliation": "Сверка Jira и WBS",
   projects: "Проекты",

@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Моя страница — макеты</title>
+<!--
+  Static mockups of "My page" (C1), stage 0. Three screens on the project's
+  design tokens: the gallery, the editor with the widget panel, and the
+  "Portfolio for an executive" template as it prints. No data, no scripts.
+-->
+<style>
+  :root {
+    --bg: #f4f6f7; --surface: #fff; --surface-2: #f8faf9; --surface-3: #eef2f1;
+    --border: #dfe5e4; --border-strong: #c7d1cf; --text: #17212b; --text-muted: #64716f; --text-faint: #8b9694;
+    --brand: #0f766e; --brand-soft: #e5f4f1; --brand-border: #a9d8d1;
+    --danger: #dc2626; --danger-soft: #fee2e2; --success: #16a34a; --success-soft: #dcfce7; --warning: #d97706; --warning-soft: #fef3c7;
+    --radius: 8px; --radius-lg: 12px; --shadow-sm: 0 1px 2px rgba(15,23,42,.06); --shadow: 0 8px 18px rgba(15,23,42,.14);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.4 Inter, system-ui, sans-serif; color: var(--text); background: var(--bg); }
+  h1 { font-size: 18px; margin: 32px 32px 8px; }
+  .screen { margin: 0 32px 48px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
+  .bar { display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); flex-wrap: wrap; }
+  .bar .grow { flex: 1; }
+  button, .chip, select { font: inherit; border: 1px solid var(--border-strong); background: var(--surface); border-radius: var(--radius); padding: 5px 10px; color: var(--text); }
+  .primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .chip { border-radius: 999px; padding: 3px 10px; background: var(--brand-soft); border-color: var(--brand-border); }
+  .muted { color: var(--text-muted); }
+  /* Gallery */
+  .gallery { padding: 20px; display: grid; gap: 20px; }
+  .thumbs { display: grid; grid-template-columns: repeat(auto-fill, 200px); gap: 14px; }
+  .thumb { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; background: var(--surface-2); }
+  .mini { aspect-ratio: 16/9; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(14, 1fr); gap: 2px; background: var(--surface); border-radius: 4px; padding: 4px; }
+  .mini i { background: var(--brand-border); border-radius: 2px; }
+  .mini i.k { background: var(--brand); } .mini i.c { background: #93c5fd; } .mini i.t { background: var(--surface-3); border: 1px solid var(--border); }
+  .meetings { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  .meeting { border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; cursor: pointer; }
+  .meeting.on { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft); }
+  .meeting b { display: block; margin-bottom: 4px; }
+  .fitness { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; }
+  .ok { color: var(--success); } .warn { color: var(--warning); }
+  /* Editor */
+  .editor { display: grid; grid-template-columns: 1fr 300px; min-height: 640px; }
+  .stage { background: var(--surface-3); padding: 20px; display: grid; place-items: start center; }
+  .page { width: 880px; aspect-ratio: 16/9; background: var(--surface); box-shadow: var(--shadow); border-radius: 4px; padding: 14px; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(14, 1fr); gap: 8px;
+    background-image: linear-gradient(to right, rgba(15,118,110,.06) 1px, transparent 1px); background-size: calc((100% - 28px) / 12) 100%; background-position: 14px 0; }
+  .w { border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 10px; background: var(--surface); overflow: hidden; position: relative; font-size: 12px; }
+  .w h4 { margin: 0 0 4px; font-size: 12px; color: var(--text-muted); font-weight: 600; }
+  .w.sel { outline: 2px solid var(--brand); outline-offset: 1px; }
+  .w.sel::after { content: ""; position: absolute; right: 2px; bottom: 2px; width: 10px; height: 10px; border-right: 2px solid var(--brand); border-bottom: 2px solid var(--brand); }
+  .kpi b { font-size: 28px; display: block; line-height: 1.1; }
+  .delta-up { color: var(--danger); font-size: 12px; } .delta-down { color: var(--success); font-size: 12px; }
+  .bars { display: flex; align-items: end; gap: 4px; height: 70%; }
+  .bars span { flex: 1; background: #60a5fa; border-radius: 2px 2px 0 0; }
+  .hbar { display: grid; grid-template-columns: 70px 1fr 24px; gap: 6px; align-items: center; margin: 3px 0; }
+  .hbar span { height: 10px; background: var(--brand); border-radius: 3px; }
+  .callout { background: var(--warning-soft); border-color: #fcd34d; }
+  .panel { border-left: 1px solid var(--border); padding: 16px; display: grid; gap: 14px; align-content: start; }
+  .step { display: grid; gap: 6px; } .step > b { font-size: 12px; text-transform: uppercase; color: var(--text-muted); letter-spacing: .03em; }
+  .step .n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--brand); color: #fff; font-size: 11px; margin-right: 6px; }
+  .vizes { display: flex; gap: 6px; } .vizes button { width: 36px; } .vizes .on { background: var(--brand-soft); border-color: var(--brand); }
+  .vizes button:disabled { opacity: .35; }
+  .hint { font-size: 12px; color: var(--text-muted); background: var(--surface-2); border-radius: var(--radius); padding: 6px 8px; }
+  /* Portfolio */
+  .pf { width: 1000px; margin: 20px auto; aspect-ratio: 16/9; padding: 18px; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(14, 1fr); gap: 10px; background: var(--surface); box-shadow: var(--shadow); }
+  .pf .title { grid-column: 1 / 13; grid-row: 1 / 2; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid var(--brand); }
+  .pf .title b { font-size: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+  th { text-align: left; color: var(--text-muted); font-weight: 600; border-bottom: 1px solid var(--border); padding: 3px 4px; }
+  td { padding: 3px 4px; border-bottom: 1px solid var(--surface-3); }
+  .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+  .r { background: var(--danger); } .a { background: var(--warning); } .g { background: var(--success); }
+  .prog { display: inline-block; width: 50px; height: 6px; background: var(--surface-3); border-radius: 3px; vertical-align: middle; }
+  .prog i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+  .donut { width: 90px; height: 90px; border-radius: 50%; background: conic-gradient(#f97316 0 46%, #60a5fa 46% 70%, #a78bfa 70% 88%, #cbd5e1 88%); mask: radial-gradient(circle, transparent 52%, #000 53%); margin: 6px auto; }
+</style>
+</head>
+<body>
+
+<h1>1. Вход — «Мои страницы»</h1>
+<section class="screen">
+  <div class="bar"><b>Разработка › Моя страница</b><span class="grow"></span><button class="primary">+ Новая страница</button></div>
+  <div class="gallery">
+    <div>
+      <b>Мои страницы (3)</b> <span class="muted">— миниатюра собрана из расположения виджетов, данные не запрашиваются</span>
+      <div class="thumbs" style="margin-top:10px">
+        <div class="thumb"><div class="mini"><i class="k" style="grid-area:1/1/4/4"></i><i class="k" style="grid-area:1/4/4/7"></i><i class="k" style="grid-area:1/7/4/10"></i><i class="k" style="grid-area:1/10/4/13"></i><i class="t" style="grid-area:4/1/11/9"></i><i style="grid-area:4/9/11/13"></i><i class="c" style="grid-area:11/1/15/7"></i><i class="c" style="grid-area:11/7/15/13"></i></div><b>Портфель TV</b><div class="muted">6 проектов · изменена сегодня</div></div>
+        <div class="thumb"><div class="mini"><i class="k" style="grid-area:1/1/4/5"></i><i class="k" style="grid-area:1/5/4/9"></i><i style="grid-area:1/9/4/13"></i><i class="c" style="grid-area:4/1/10/7"></i><i class="t" style="grid-area:4/7/10/13"></i><i style="grid-area:10/1/15/13"></i></div><b>CVTE968 — статус</b><div class="muted">1 проект · вчера</div></div>
+        <div class="thumb"><div class="mini"><i class="t" style="grid-area:1/1/15/7"></i><i class="c" style="grid-area:1/7/8/13"></i><i style="grid-area:8/7/15/13"></i></div><b>Риски недели</b><div class="muted">все мои · 3 дня назад</div></div>
+      </div>
+    </div>
+    <div>
+      <b>Для какой встречи нужна страница?</b>
+      <div class="meetings" style="margin-top:10px">
+        <div class="meeting on"><b>Портфель для руководителя</b><span class="muted">Светофоры, сдвиги целей, решения и красные риски по всем проектам</span></div>
+        <div class="meeting"><b>Статус проекта</b><span class="muted">Ближайшая веха, просрочки, Jira по неделям, вывод</span></div>
+        <div class="meeting"><b>Риски и решения</b><span class="muted">Красные риски, вопросы без ответственного, решения ждут</span></div>
+        <div class="meeting"><b>Комитет</b><span class="muted">Цели и baseline, запросы на изменение, причины сдвигов</span></div>
+        <div class="meeting"><b>Пустая</b><span class="muted">Чистый лист 16:9</span></div>
+      </div>
+    </div>
+    <div class="bar" style="border:1px solid var(--border); border-radius: var(--radius)">
+      <b>Для:</b>
+      <label><input type="radio" name="s"> один проект</label>
+      <label><input type="radio" name="s"> несколько</label>
+      <label><input type="radio" name="s" checked> портфель <select><option>TV</option></select></label>
+      <label><input type="radio" name="s"> все доступные</label>
+      <span class="grow"></span>
+      <div class="fitness"><span class="ok">✓ 6 проектов</span><span class="ok">✓ вехи и baseline</span><span class="warn">⚠ журнал сдвигов пуст у 2 проектов</span></div>
+      <button class="primary">Создать страницу</button>
+    </div>
+  </div>
+</section>
+
+<h1>2. Редактор — сетка 12 × 14, панель виджета в четыре шага</h1>
+<section class="screen">
+  <div class="bar">
+    <button>← Мои страницы</button><b>Портфель TV ✎</b>
+    <span class="chip">Портфель: TV ×</span><span class="chip">+ проект</span>
+    <select><option>Период 90 дн.</option></select><select><option>16:9</option></select><select><option>Светлая</option></select>
+    <span class="grow"></span>
+    <button>+ Виджет</button><button title="Отменить">↶</button><button title="Повторить">↷</button>
+    <span class="muted">Сохранено 12:40 ✓</span><button>Печать</button><button class="primary">▶ Показ</button>
+  </div>
+  <div class="editor">
+    <div class="stage">
+      <div class="page">
+        <div class="w kpi" style="grid-area:1/1/4/4"><h4>Проектов</h4><b>6</b><span class="muted">в портфеле TV</span></div>
+        <div class="w kpi" style="grid-area:1/4/4/7"><h4>Красных</h4><b style="color:var(--danger)">2</b><span class="delta-up">▲ +1 к прошлому периоду</span></div>
+        <div class="w kpi" style="grid-area:1/7/4/10"><h4>Сдвиг целей</h4><b>+9 дн</b><span class="muted">сумма за 90 дн.</span></div>
+        <div class="w kpi sel" style="grid-area:1/10/4/13"><h4>Просрочено работ</h4><b>23</b><span class="delta-down">▼ −4</span></div>
+        <div class="w" style="grid-area:4/1/11/9"><h4>Проекты</h4>
+          <table><tr><th>Проект</th><th></th><th>Прогресс</th><th>Цель</th><th>Ближайшая веха</th><th>Риски</th></tr>
+          <tr><td>CVTE968</td><td><span class="dot a"></span></td><td><span class="prog"><i style="width:82%"></i></span> 82%</td><td>01.11</td><td>Beta 18.10 (+4)</td><td>3</td></tr>
+          <tr><td>CVTE963</td><td><span class="dot g"></span></td><td><span class="prog"><i style="width:54%"></i></span> 54%</td><td>20.11</td><td>Design 12.10</td><td>5</td></tr>
+          <tr><td>AURA-NPU</td><td><span class="dot r"></span></td><td><span class="prog"><i style="width:31%"></i></span> 31%</td><td>05.12</td><td>Scope 09.10 (+9)</td><td>8</td></tr></table></div>
+        <div class="w" style="grid-area:4/9/11/13"><h4>Решения ждут ответа</h4><div>● Поставщик плат · 5 дн</div><div>● SLA с партнёром · 3 дн</div><div>● Бюджет Q4 · 1 дн</div></div>
+        <div class="w" style="grid-area:11/1/15/7"><h4>Сдвиги вех по неделям</h4><div class="bars"><span style="height:20%"></span><span style="height:45%"></span><span style="height:10%"></span><span style="height:70%"></span><span style="height:35%"></span><span style="height:55%"></span><span style="height:15%"></span><span style="height:80%"></span></div></div>
+        <div class="w" style="grid-area:11/7/15/10"><h4>Причины сдвигов</h4><div class="donut"></div></div>
+        <div class="w callout" style="grid-area:11/10/15/13"><h4>Вывод для встречи</h4>Beta CVTE968 сдвигается на 4 дня из-за плат; нужно решение по поставщику до пятницы.</div>
+      </div>
+    </div>
+    <aside class="panel">
+      <b>Виджет «Просрочено работ»</b>
+      <div class="step"><b><span class="n">1</span>Что считаем</b><select><option>Просроченные работы</option></select><div class="hint">Работы без вложенных строк, не сделаны и не отменены, срок раньше сегодня — как в отчётах по портфелю.</div></div>
+      <div class="step"><b><span class="n">2</span>Разбить по</b><select><option>не разбивать</option><option>проекту</option><option>ответственному</option><option>фазе</option></select></div>
+      <div class="step"><b><span class="n">3</span>Фильтр</b><div><span class="chip">Тип: задача ×</span> <button>+ условие</button></div></div>
+      <div class="step"><b><span class="n">4</span>Показать как</b><div class="vizes"><button class="on" title="Число">#</button><button title="Столбцы">▮▮</button><button title="Линия" disabled>∿</button><button title="Круг">◔</button><button title="Таблица">▤</button><button title="Список">≡</button></div><div class="hint">Линия недоступна: нет разбиения по времени.</div></div>
+      <label><input type="checkbox" checked> Сравнить с прошлым периодом</label>
+      <details><summary>Эксперт</summary><div class="hint">Второе разбиение, сортировка, предел строк, свои колонки таблицы.</div></details>
+      <div class="hint">Перетаскивание — за заголовок; размер — за угол ◢; стрелки двигают, Shift+стрелки меняют размер; Delete, Ctrl+D, Ctrl+Z / Ctrl+Y. Если виджет не помещается на страницу, действие не выполняется.</div>
+    </aside>
+  </div>
+</section>
+
+<h1>3. «Портфель для руководителя» — как печатается (ровно одна страница)</h1>
+<section class="screen" style="background:var(--surface-3)">
+  <div class="pf">
+    <div class="title"><b>Портфель TV</b><span class="muted">6 проектов · период 90 дн. · данные на 06.10 09:30</span></div>
+    <div class="w kpi" style="grid-area:2/1/5/4"><h4>Проектов</h4><b>6</b></div>
+    <div class="w kpi" style="grid-area:2/4/5/7"><h4>Красных проектов</h4><b style="color:var(--danger)">2</b></div>
+    <div class="w kpi" style="grid-area:2/7/5/10"><h4>Красных рисков</h4><b>9</b><span class="delta-up">▲ +2</span></div>
+    <div class="w kpi" style="grid-area:2/10/5/13"><h4>Просрочено работ</h4><b>23</b></div>
+    <div class="w" style="grid-area:5/1/11/9"><h4>Проекты</h4><table><tr><th>Проект</th><th></th><th>Прогресс</th><th>Цель</th><th>Сдвиг цели</th><th>Ближайшая веха</th><th>Просрочено</th><th>Красные риски</th></tr>
+      <tr><td>CVTE968</td><td><span class="dot a"></span></td><td><span class="prog"><i style="width:82%"></i></span></td><td>01.11</td><td>+4</td><td>Beta 18.10</td><td>6</td><td>3</td></tr>
+      <tr><td>CVTE963</td><td><span class="dot g"></span></td><td><span class="prog"><i style="width:54%"></i></span></td><td>20.11</td><td>0</td><td>Design 12.10</td><td>2</td><td>1</td></tr>
+      <tr><td>AURA-NPU</td><td><span class="dot r"></span></td><td><span class="prog"><i style="width:31%"></i></span></td><td>05.12</td><td>+9</td><td>Scope 09.10</td><td>11</td><td>4</td></tr></table></div>
+    <div class="w" style="grid-area:5/9/11/13"><h4>Решения ждут ответа</h4><div>● Поставщик плат — CVTE968 · 5 дн</div><div>● SLA — AURA-NPU · 3 дн</div><div>● Бюджет Q4 — TV · 1 дн</div></div>
+    <div class="w" style="grid-area:11/1/15/5"><h4>Красные риски по проектам</h4><div class="hbar">AURA-NPU<span style="width:100%"></span>4</div><div class="hbar">CVTE968<span style="width:75%"></span>3</div><div class="hbar">CVTE963<span style="width:25%"></span>1</div></div>
+    <div class="w" style="grid-area:11/5/15/9"><h4>Сдвиги вех по неделям</h4><div class="bars"><span style="height:20%"></span><span style="height:45%"></span><span style="height:10%"></span><span style="height:70%"></span><span style="height:35%"></span><span style="height:55%"></span></div></div>
+    <div class="w" style="grid-area:11/9/15/13"><h4>Причины сдвигов</h4><div class="donut"></div></div>
+  </div>
+</section>
+</body>
+</html>

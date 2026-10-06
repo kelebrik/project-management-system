@@ -348,6 +348,7 @@ model User {
   pageVisits              PageVisit[]
   notifications           Notification[]
   projectViewStates       UserProjectViewState[]
+  dashboardPages          DashboardPage[]
 
   @@index([role, isActive])
 }
@@ -1826,4 +1827,22 @@ model ProjectAllocation {
 
   @@index([employeeId])
   @@index([projectId])
+}
+
+/**
+ * A page of "My page": one sheet of widgets over live project data, owned by
+ * one person. The document holds the format, scope, period and widgets; the
+ * revision guards against two tabs saving over each other.
+ */
+model DashboardPage {
+  id        String   @id @default(cuid())
+  ownerId   String
+  title     String
+  document  Json
+  revision  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt])
 }

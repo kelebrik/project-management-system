@@ -134,6 +134,7 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     "lessons-register": t("view.lessons-register"),
     "raci-matrix": t("view.raci-matrix"),
     "my-work": t("view.my-work"),
+    "my-page": t("view.my-page"),
     "automation-rules": t("view.automation-rules"),
     "jira-reconciliation": t("view.jira-reconciliation"),
     projects: t("view.projects"),

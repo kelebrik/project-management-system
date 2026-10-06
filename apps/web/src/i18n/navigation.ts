@@ -144,6 +144,10 @@ export const navigation = {
     "en": "Jira / WBS reconciliation",
     "ru": "Сверка Jira и WBS"
   },
+  "view.my-page": {
+    "en": "My page",
+    "ru": "Моя страница"
+  },
   "view.my-work": {
     "en": "My work",
     "ru": "Мои задачи"

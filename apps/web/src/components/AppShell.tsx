@@ -274,6 +274,11 @@ const developmentNavItems: AdminNavItem[] = [
     icon: <ClipboardCheck size={15} />,
   },
   {
+    view: "my-page",
+    label: "view.my-page",
+    icon: <LayoutDashboard size={15} />,
+  },
+  {
     view: "automation-rules",
     label: "view.automation-rules",
     icon: <Workflow size={15} />,

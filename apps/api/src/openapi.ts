@@ -9,6 +9,7 @@ import { openApiScheduleShiftPaths } from "./openapi-schedule-shift-paths.js";
 import { openApiDecisionPaths } from "./openapi-decision-paths.js";
 import { openApiAutomationRulesPaths } from "./openapi-automation-rules-paths.js";
 import { openApiViewsReportsPaths } from "./openapi-views-reports-paths.js";
+import { openApiPagesPaths } from "./openapi-pages-paths.js";
 
 export const openApiDocument = {
   openapi: "3.1.0",
@@ -43,6 +44,7 @@ export const openApiDocument = {
     { name: "LeaveSchedule" },
     { name: "AI" },
     { name: "Decisions" },
+    { name: "Pages" },
   ],
   components: openApiComponents,
   paths: {
@@ -56,5 +58,6 @@ export const openApiDocument = {
     ...openApiDecisionPaths,
     ...openApiAutomationRulesPaths,
     ...openApiViewsReportsPaths,
+    ...openApiPagesPaths,
   },
 } as const;

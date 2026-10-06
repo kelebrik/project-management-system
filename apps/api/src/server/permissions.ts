@@ -11,7 +11,7 @@ import {
   isPublicDemoMode,
 } from './auth.js';
 import { projectIdForWritePath, userCanWriteProject } from './project-access.js';
-import { isReadRequest } from './project-write-guards.js';
+import { isPageQueryRead, isReadRequest } from './project-write-guards.js';
 
 export function writePermissionForPath(pathname: string, method: string): PermissionName | null {
   // Project access routes enforce system-admin vs business-unit-admin scope themselves.
@@ -203,7 +203,7 @@ export function isDemoLookOnlyWrite(req: Request) {
 }
 
 export async function writePermissionMiddleware(req: Request, res: Response, next: NextFunction) {
-  if (isReadRequest(req)) {
+  if (isReadRequest(req) || isPageQueryRead(req)) {
     next();
     return;
   }
