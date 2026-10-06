@@ -475,7 +475,8 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   await expect(editor.getByLabel("Группировка")).toBeVisible();
   await expect(editor.getByRole("group", { name: "Поля" })).toBeVisible();
   await expect(editor.getByRole("group", { name: "Ширина колонок" })).toHaveCount(0);
-  await expect(editor.getByLabel("Раздел")).toHaveCount(0);
+  // A widget may move between the In progress and Retro tabs.
+  await expect(editor.getByLabel("Раздел")).toBeVisible();
 
   await editor.getByLabel("Агрегат").selectOption("semantic-status-transitions");
   await expect(editor.getByLabel("Агрегат")).toHaveValue("semantic-status-transitions");

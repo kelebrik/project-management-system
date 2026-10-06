@@ -137,10 +137,9 @@ test("my page: a portfolio page from the template, moved, refused, undone, resty
   await expect(panel.getByRole("radio", { name: "Полосы" })).toHaveAttribute("aria-checked", "true");
   await panel.getByRole("radio", { name: "Число" }).click();
   await expect(sheet.locator('[data-widget-id="c-reasons"] .mp-kpi-value')).toBeVisible();
-  await expect.poll(() => saved.length).toBeGreaterThan(0);
+  // The autosave catches up with the last change.
+  await expect.poll(() => (saved.at(-1)?.document as { widgets: Array<{ id: string; type: string }> } | undefined)?.widgets.find((widget) => widget.id === "c-reasons")?.type, { timeout: 10_000 }).toBe("kpi");
   expect(saved.at(-1)!.expectedRevision).toBeGreaterThanOrEqual(1);
-  const lastDocument = saved.at(-1)!.document as { widgets: Array<{ id: string; type: string }> };
-  expect(lastDocument.widgets.find((widget) => widget.id === "c-reasons")!.type).toBe("kpi");
 
   // A question from the palette lands in a free spot... there is none, so it says so.
   await page.getByRole("button", { name: "Виджет", exact: true }).click();
