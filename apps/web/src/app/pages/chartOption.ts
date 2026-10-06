@@ -1,5 +1,5 @@
 import { PAGE_OTHER_KEY, type PageChartKind, type PageFieldDef, type PageFieldFormat, type PageQueryResult } from "@pms/shared";
-import { formatNumber, groupLabel, type Locale } from "./pageModel";
+import { beyondAlert, formatNumber, groupLabel, type Locale } from "./pageModel";
 
 /**
  * The ECharts option of a chart widget, built from the server's groups. Pure
@@ -21,6 +21,8 @@ export type ChartInput = {
   colors: ChartColors;
   locale: Locale;
   title: string;
+  /** Values past these limits are drawn red. */
+  alert?: { above?: number; below?: number };
 };
 
 function colorFor(key: string | null, field: PageFieldDef | null, index: number, colors: ChartColors) {
@@ -100,10 +102,11 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
     yAxis: horizontal ? category : value,
     series: [{
       type: line ? "line" : "bar",
-      data: line ? values : result.groups.map((group, index) => ({ value: group.value ?? 0, itemStyle: { color: colorFor(group.key, field, field?.format === "rag" ? index : 0, colors) } })),
+      data: line ? values : result.groups.map((group, index) => ({ value: group.value ?? 0, itemStyle: { color: beyondAlert(group.value, input.alert) ? colors.rag.RED : colorFor(group.key, field, field?.format === "rag" ? index : 0, colors) } })),
       barMaxWidth: 36,
       label: { ...valueLabel, position: horizontal ? "right" : "top" },
       ...(line ? { smooth: false, symbolSize: 5, lineStyle: { width: 2, color: colors.series[0] }, itemStyle: { color: colors.series[0] }, ...(kind === "area" ? { areaStyle: { color: colors.series[0], opacity: 0.18 } } : {}) } : {}),
+      ...(line && input.alert ? { markLine: { silent: true, symbol: "none", lineStyle: { color: colors.rag.RED, type: "dashed" }, label: { show: false }, data: [input.alert.above, input.alert.below].filter((limit) => limit !== undefined).map((limit) => ({ yAxis: limit })) } } : {}),
     }],
   };
 }

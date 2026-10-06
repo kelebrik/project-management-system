@@ -38,6 +38,17 @@ export const pageTones = ["neutral", "info", "success", "warning", "danger"] as 
 
 const fieldKey = z.string().max(60);
 
+export const pageFormulaOps = ["percent", "ratio", "difference"] as const;
+export type PageFormulaOp = (typeof pageFormulaOps)[number];
+
+/** Two numbers into one: a share in percent, a ratio, or a difference; nothing when dividing by nothing. */
+export function combinePageValues(value: number | null, other: number | null, op: PageFormulaOp) {
+  if (value === null || other === null) return null;
+  if (op === "difference") return Math.round((value - other) * 10) / 10;
+  if (other === 0) return null;
+  return op === "percent" ? Math.round((value / other) * 1000) / 10 : Math.round((value / other) * 100) / 100;
+}
+
 export const pageWidgetDataSchema = z.object({
   /** A named metric, or "custom" for a question built by hand. */
   metric: z.string().min(1).max(60),
@@ -81,6 +92,10 @@ export const pageWidgetSchema = z.object({
   target: z.number().positive().max(1_000_000_000).optional(),
   /** Another scope than the page's, marked on the widget. */
   scope: pageScopeSchema.optional(),
+  /** A number made of two: this widget's value as a share of, against or minus another metric's. */
+  formula: z.object({ op: z.enum(pageFormulaOps), data: pageWidgetDataSchema }).optional(),
+  /** Values past these are marked red: above for bad news that grows, below for figures that should stay high. */
+  alert: z.object({ above: z.number().optional(), below: z.number().optional() }).optional(),
 });
 export type PageWidget = z.infer<typeof pageWidgetSchema>;
 

@@ -63,6 +63,16 @@ test('my page: versions to go back to, frozen releases and read-only links', { s
     forgetPageQueryCache();
     assert.equal((await (await asAdmin(`/api/pages/${page.id}/releases/${release.id}`)).json()).answer.results['k-red'].value, 1);
 
+    // A widget with its own scope: the release remembers every project read, not only the page's.
+    const second = await prisma.project.create({ data: { ...base, businessUnitId: unit.id, code: `PV2-${suffix}`, name: 'Второй' } });
+    const wide = { ...template.document, widgets: template.document.widgets.map((widget) => (widget.id === 'k-projects' ? { ...widget, scope: { mode: 'all' as const } } : widget)) };
+    const current = await (await asAdmin(`/api/pages/${page.id}`)).json();
+    assert.equal((await asAdmin(`/api/pages/${page.id}`, 'PATCH', { document: wide, expectedRevision: current.revision })).status, 200);
+    const wideRelease = await (await asAdmin(`/api/pages/${page.id}/releases`, 'POST', { label: 'Шире' })).json();
+    const stored = await prisma.dashboardPageRelease.findUniqueOrThrow({ where: { id: wideRelease.id } });
+    assert.deepEqual([...stored.projectIds].sort(), [project.id, second.id].sort());
+    assert.equal(JSON.stringify(stored.answers).includes('usedProjectIds'), false);
+
     // Links: live answers by the reader's own access, releases only with all their projects readable.
     const live = await (await asAdmin(`/api/pages/${page.id}/shares`, 'POST', { days: 7 })).json();
     const toRelease = await (await asAdmin(`/api/pages/${page.id}/shares`, 'POST', { releaseId: release.id })).json();
@@ -87,7 +97,7 @@ test('my page: versions to go back to, frozen releases and read-only links', { s
     server.close();
     process.env.DEPLOYMENT_PROFILE = previousProfile;
     await prisma.dashboardPage.deleteMany({ where: { ownerId: admin.id } }).catch(() => undefined);
-    await prisma.project.deleteMany({ where: { id: project.id } }).catch(() => undefined);
+    await prisma.project.deleteMany({ where: { businessUnitId: unit.id } }).catch(() => undefined);
     await prisma.user.deleteMany({ where: { id: { in: [admin.id, reader.id] } } }).catch(() => undefined);
     await prisma.businessUnit.deleteMany({ where: { id: { in: [unit.id, otherUnit.id] } } }).catch(() => undefined);
   }

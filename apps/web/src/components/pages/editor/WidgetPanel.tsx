@@ -13,7 +13,12 @@ import {
   type PageFilter,
   type PageFilterOp,
   type PageWidget,
+  pageFormulaOps,
+  pageSourceKeys,
+  type PageFormulaOp,
+  type PageMeasureFn,
   type PageQueryResult,
+  type PageSourceKey,
   type PageWidgetData,
 } from "@pms/shared";
 import { exportWidgetXlsx } from "../../../app/pages/pageExport";
@@ -127,6 +132,55 @@ function filterText(filter: PageFilter, fields: readonly PageFieldDef[], locale:
   return `${name} ${opLabel(filter.op)} ${show(filter.value)}`;
 }
 
+/** The alert with one limit set or cleared; no limits left is no alert. */
+function alertWith(alert: PageWidget["alert"], side: "above" | "below", raw: string) {
+  const next = { ...alert, [side]: raw === "" ? undefined : Number(raw) };
+  return next.above === undefined && next.below === undefined ? undefined : next;
+}
+
+const MEASURES: PageMeasureFn[] = ["count", "sum", "avg", "min", "max", "distinct"];
+
+/** A question built by hand: a source, what to count in it, and the event date the page period applies to. */
+function CustomQuery({ data, onChange }: { data: PageWidgetData; onChange: (patch: Partial<PageWidgetData>) => void }) {
+  const { t, locale } = useI18n();
+  const source = data.source ?? "work";
+  const fields = PAGE_SOURCES[source].fields;
+  const fn = data.measure?.fn ?? "count";
+  const measurable = fields.filter((field) => (fn === "distinct" ? field.kind !== "boolean" : field.kind === "number" && !(fn === "sum" && field.format === "percent")));
+  return (
+    <div className="mp-custom">
+      <label className="mp-field">
+        <span>{t("ui.pages.expert.source")}</span>
+        <select onChange={(event) => onChange({ source: event.target.value as PageSourceKey, measure: { fn: "count" }, periodField: null, filters: [], groupBy: null, groupBy2: null, columns: undefined, sort: null })} value={source}>
+          {pageSourceKeys.map((key) => <option key={key} value={key}>{PAGE_SOURCES[key].label[locale]}</option>)}
+        </select>
+        <small>{t("ui.pages.expert.row", { row: PAGE_SOURCES[source].rowLabel[locale] })}</small>
+      </label>
+      <label className="mp-field">
+        <span>{t("ui.pages.expert.measure")}</span>
+        <span className="mp-inline">
+          <select aria-label={t("ui.pages.expert.measure")} onChange={(event) => { const next = event.target.value as PageMeasureFn; onChange({ measure: next === "count" ? { fn: next } : { fn: next, field: undefined } }); }} value={fn}>
+            {MEASURES.map((entry) => <option key={entry} value={entry}>{t(`ui.pages.expert.fn.${entry}` as "ui.pages.expert.fn.count")}</option>)}
+          </select>
+          {fn !== "count" && (
+            <select aria-label={t("ui.pages.expert.field")} onChange={(event) => onChange({ measure: { fn, field: event.target.value || undefined } })} value={data.measure?.field ?? ""}>
+              <option value="">{t("ui.pages.expert.chooseField")}</option>
+              {measurable.map((field) => <option key={field.key} value={field.key}>{field.label[locale]}</option>)}
+            </select>
+          )}
+        </span>
+      </label>
+      <label className="mp-field">
+        <span>{t("ui.pages.expert.period")}</span>
+        <select onChange={(event) => onChange({ periodField: event.target.value || null, ...(event.target.value ? {} : { compare: undefined }) })} value={data.periodField ?? ""}>
+          <option value="">{t("ui.pages.expert.noPeriod")}</option>
+          {PAGE_SOURCES[source].periodFields.map((key) => <option key={key} value={key}>{fields.find((field) => field.key === key)?.label[locale] ?? key}</option>)}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, result }: Props) {
   const { t, locale } = useI18n();
   const [adding, setAdding] = useState(false);
@@ -144,6 +198,11 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
 
   const changeMetric = (id: string) => {
     if (!data) return;
+    if (id === "custom") {
+      // A question built by hand starts from the source of the metric it replaces, counting its rows.
+      onChange({ ...widget, data: { ...data, metric: "custom", source: source ?? "work", measure: { fn: "count" }, periodField: null, filters: data.filters } });
+      return;
+    }
     const next = pageMetric(id);
     if (!next) return;
     const nextFields = PAGE_SOURCES[next.source].fields;
@@ -210,9 +269,13 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
                   {PAGE_METRICS.filter((entry) => entry.group === group).map((entry) => <option key={entry.id} value={entry.id}>{entry.label[locale]}</option>)}
                 </optgroup>
               ))}
+              <optgroup label={t("ui.pages.expert.group")}>
+                <option value="custom">{t("ui.pages.expert.custom")}</option>
+              </optgroup>
             </select>
             {metric && <p className="mp-hint">{metric.definition[locale]}</p>}
-            <p className="mp-hint">{metric?.periodField ? t("ui.pages.step.periodApplies") : t("ui.pages.step.periodNotApplies")}</p>
+            {data.metric === "custom" && <CustomQuery data={data} onChange={(patch) => setData(patch)} />}
+            <p className="mp-hint">{metric?.periodField || (data.metric === "custom" && data.periodField) ? t("ui.pages.step.periodApplies") : t("ui.pages.step.periodNotApplies")}</p>
           </section>
 
           {!valueShown && !rowsShown && (
@@ -309,6 +372,35 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
               <label className="mp-check"><input checked={Boolean(widget.showValues)} onChange={(event) => onChange({ ...widget, showValues: event.target.checked })} type="checkbox" />{t("ui.pages.option.showValues")}</label>
             )}
           </section>
+
+          <details className="mp-step">
+            <summary>{t("ui.pages.expert.title")}</summary>
+            {valueShown && (
+              <div className="mp-field">
+                <span>{t("ui.pages.expert.formula")}</span>
+                <span className="mp-inline">
+                  <select aria-label={t("ui.pages.expert.formula")} onChange={(event) => onChange({ ...widget, formula: event.target.value ? { op: event.target.value as PageFormulaOp, data: widget.formula?.data ?? { metric: "work.open", filters: [] } } : undefined })} value={widget.formula?.op ?? ""}>
+                    <option value="">{t("ui.pages.expert.formulaNone")}</option>
+                    {pageFormulaOps.map((op) => <option key={op} value={op}>{t(`ui.pages.expert.op.${op}` as "ui.pages.expert.op.percent")}</option>)}
+                  </select>
+                  {widget.formula && (
+                    <select aria-label={t("ui.pages.expert.other")} onChange={(event) => onChange({ ...widget, formula: { op: widget.formula!.op, data: { metric: event.target.value, filters: [] } } })} value={widget.formula.data.metric}>
+                      {PAGE_METRICS.map((entry) => <option key={entry.id} value={entry.id}>{entry.label[locale]}</option>)}
+                    </select>
+                  )}
+                </span>
+                <small>{t("ui.pages.expert.formulaHint")}</small>
+              </div>
+            )}
+            <div className="mp-field">
+              <span>{t("ui.pages.expert.alert")}</span>
+              <span className="mp-inline">
+                <input aria-label={t("ui.pages.expert.above")} onChange={(event) => onChange({ ...widget, alert: alertWith(widget.alert, "above", event.target.value) }, `alert:${widget.id}`)} placeholder={t("ui.pages.expert.above")} type="number" value={widget.alert?.above ?? ""} />
+                <input aria-label={t("ui.pages.expert.below")} onChange={(event) => onChange({ ...widget, alert: alertWith(widget.alert, "below", event.target.value) }, `alert:${widget.id}`)} placeholder={t("ui.pages.expert.below")} type="number" value={widget.alert?.below ?? ""} />
+              </span>
+              <small>{t("ui.pages.expert.alertHint")}</small>
+            </div>
+          </details>
 
           {rowsShown && source && (
             <details className="mp-step" open>

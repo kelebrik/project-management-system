@@ -32,7 +32,7 @@ export type PagesList = { canSave: boolean; limit: number; pages: SavedPage[] };
 export type ScopeProject = { id: string; code: string; name: string; portfolio: string };
 export type ScopeOptions = { projects: ScopeProject[]; portfolios: string[] };
 export type PageAnswer = { today: string; generatedAt: string; projects: Array<{ id: string; code: string; name: string }>; results: Record<string, PageQueryResult> };
-export type PageQueryItem = { id: string; widget: Pick<PageWidget, "type" | "data">; scope?: PageScope };
+export type PageQueryItem = { id: string; widget: Pick<PageWidget, "type" | "data" | "formula">; scope?: PageScope };
 
 export const text = (value: PageText, locale: Locale) => value[locale];
 
@@ -53,7 +53,7 @@ export function widgetFields(widget: Pick<PageWidget, "data">): readonly PageFie
 export function pageQueries(document: PageDocument): PageQueryItem[] {
   return document.widgets
     .filter((widget) => !PAGE_TEXT_WIDGETS.has(widget.type) && widget.data && pageWidgetOutput(widget))
-    .map((widget) => ({ id: widget.id, widget: { type: widget.type, data: widget.data }, ...(widget.scope ? { scope: widget.scope } : {}) }));
+    .map((widget) => ({ id: widget.id, widget: { type: widget.type, data: widget.data, ...(widget.formula && pageWidgetOutput(widget) === "value" ? { formula: widget.formula } : {}) }, ...(widget.scope ? { scope: widget.scope } : {}) }));
 }
 
 /** A key that changes only when the answers would: scope, period and the questions, not positions or titles. */
@@ -153,7 +153,9 @@ export function scopeLabel(scope: PageScope, options: ScopeOptions | null, local
 }
 
 /** The field a widget's value is measured by, for the unit of a number. */
-export function widgetUnit(widget: Pick<PageWidget, "data">): PageFieldFormat {
+export function widgetUnit(widget: Pick<PageWidget, "data"> & { formula?: PageWidget["formula"] }): PageFieldFormat {
+  if (widget.formula?.op === "percent") return "percent";
+  if (widget.formula?.op === "ratio") return "plain";
   const data = widget.data;
   if (!data) return "plain";
   const metric = data.metric === "custom" ? null : pageMetric(data.metric);
@@ -231,4 +233,10 @@ export function dayPosition(day: string, from: string, to: string) {
   const start = Date.parse(`${from}T00:00:00Z`);
   const span = Date.parse(`${to}T00:00:00Z`) - start;
   return span <= 0 ? 0.5 : (Date.parse(`${day.slice(0, 10)}T00:00:00Z`) - start) / span;
+}
+
+/** Whether a value is past the widget's alert: above its upper or below its lower limit. */
+export function beyondAlert(value: number | null | undefined, alert: PageWidget["alert"]) {
+  if (value === null || value === undefined || !alert) return false;
+  return (alert.above !== undefined && value > alert.above) || (alert.below !== undefined && value < alert.below);
 }

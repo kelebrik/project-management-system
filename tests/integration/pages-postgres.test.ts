@@ -99,6 +99,13 @@ test('my page: sources mean what the portfolio report means, pages belong to the
     const portfolio = await runPageQueries({ businessUnitId: unit.id }, { scope: { mode: 'portfolio', portfolios: ['AU'] }, periodDays: 30, queries: queries.slice(0, 1) }, now);
     assert.equal((portfolio.results['k-projects'] as { value: number }).value, 1);
 
+    // A number made of two metrics: overdue work as a share of the work to do.
+    const share = await runPageQueries({ businessUnitId: unit.id }, {
+      scope: { mode: 'all' }, periodDays: 30,
+      queries: [{ id: 'f', widget: { type: 'kpi', data: { metric: 'work.overdue', filters: [] }, formula: { op: 'percent', data: { metric: 'work.open', filters: [] } } } }],
+    }, now);
+    assert.equal((share.results.f as { value: number }).value, 50);
+
     // Past the row limit a number is refused, a table shows the first rows and says it is cut.
     forgetPageQueryCache();
     const limited = await runPageQueries({ businessUnitId: unit.id }, {

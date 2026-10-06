@@ -50,6 +50,8 @@ async function availableLegacyConversions() {
 }
 
 export function metricRoute(req: Pick<Request, 'path'>) {
+  // A link token is a secret: it never reaches metrics or logs.
+  if (req.path.startsWith('/api/page-links/')) return '/api/page-links/:token';
   if (/^\/api\/projects\/[^/]+\/jira\/sync-runs\/active$/.test(req.path)) {
     return '/api/projects/:projectId/jira/sync-runs/active';
   }

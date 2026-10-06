@@ -248,7 +248,7 @@ export function PageEditor({ page, canSave, options, onBack }: { page: EditorPag
             widget={selected}
           />
         ) : (
-          <PageSettingsPanel document={draft.document} onChange={setDocument} onFormat={setFormat} options={options} />
+          <PageSettingsPanel document={draft.document} onChange={setDocument} onFormat={setFormat} onImport={(title, document) => { commit({ title, document }); setSelectedId(null); say(t("ui.pages.json.imported")); }} options={options} title={draft.title} />
         )}
       </div>
       {palette && <QuestionPalette onClose={() => setPalette(false)} onPick={addQuestion} />}
@@ -267,6 +267,7 @@ export function PageEditor({ page, canSave, options, onBack }: { page: EditorPag
       )}
       {show && (
         <PageShow
+          compareWith={show.release ? draft.document : null}
           frozen={show.release?.answer ?? null}
           frozenLabel={show.release ? t("ui.pages.show.release", { label: show.release.label || show.release.title, when: formatters.dateTime(show.release.createdAt) }) : null}
           onExit={() => setShow(null)}

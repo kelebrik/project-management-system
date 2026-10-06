@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   PAGE_FORMATS,
+  combinePageValues,
   PAGE_METRICS,
   PAGE_QUESTIONS,
   PAGE_SOURCES,
@@ -160,4 +161,12 @@ test('free spots, overlaps and a smaller sheet', () => {
 test('bucket ranges stop at the limit', () => {
   assert.equal(pageBucketRange('2000-01-01', '2026-01-01', 'day'), null);
   assert.deepEqual(pageBucketRange('2026-01-15', '2026-04-02', 'quarter'), ['2026-01-01', '2026-04-01']);
+});
+
+test('two metrics into one number: a share, a ratio, a difference, nothing when dividing by nothing', () => {
+  assert.equal(combinePageValues(3, 12, 'percent'), 25);
+  assert.equal(combinePageValues(5, 4, 'ratio'), 1.25);
+  assert.equal(combinePageValues(5, 7.5, 'difference'), -2.5);
+  assert.equal(combinePageValues(5, 0, 'percent'), null);
+  assert.equal(combinePageValues(null, 3, 'difference'), null);
 });

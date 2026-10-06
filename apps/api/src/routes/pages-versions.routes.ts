@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { z } from 'zod';
 import { PUBLIC_DEMO_USER_ID, pageDocumentSchema, type PageDocument } from '@pms/shared';
+import type { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 import { currentUser, isPublicDemoMode } from '../server/auth.js';
 import { readableProjectWhere } from '../server/business-units.js';
@@ -50,7 +51,19 @@ async function ownPage(req: Request, res: Response) {
 }
 
 function queriesOf(document: PageDocument) {
-  return document.widgets.filter((widget) => widget.data).map((widget) => ({ id: widget.id, widget: { type: widget.type, data: widget.data }, ...(widget.scope ? { scope: widget.scope } : {}) }));
+  return document.widgets.filter((widget) => widget.data).map((widget) => ({ id: widget.id, widget: { type: widget.type, data: widget.data, formula: widget.formula }, ...(widget.scope ? { scope: widget.scope } : {}) }));
+}
+
+/** One change of a page's versions, releases or links at a time, so limits hold when requests overlap. */
+async function lockPage(tx: Prisma.TransactionClient, pageId: string) {
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`dashboard-page:${pageId}`}))`;
+}
+
+async function keepNewest(tx: Prisma.TransactionClient, table: 'revisions' | 'releases', pageId: string) {
+  const keep = table === 'revisions' ? PAGE_REVISIONS_KEPT : PAGE_RELEASES_KEPT;
+  const model = table === 'revisions' ? tx.dashboardPageRevision : tx.dashboardPageRelease;
+  const old = await (model as typeof tx.dashboardPageRevision).findMany({ where: { pageId }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], skip: keep, select: { id: true } });
+  if (old.length) await (model as typeof tx.dashboardPageRevision).deleteMany({ where: { id: { in: old.map((entry) => entry.id) } } });
 }
 
 const revisionResponse = (row: { id: string; title: string; label: string; createdAt: Date }) => ({ id: row.id, title: row.title, label: row.label, createdAt: row.createdAt.toISOString() });
@@ -82,9 +95,9 @@ export function createPageVersionsRouter() {
       return;
     }
     const row = await prisma.$transaction(async (tx) => {
+      await lockPage(tx, page.id);
       const created = await tx.dashboardPageRevision.create({ data: { pageId: page.id, title: page.title, document: page.document as object, label: body.data.label } });
-      const old = await tx.dashboardPageRevision.findMany({ where: { pageId: page.id }, orderBy: { createdAt: 'desc' }, skip: PAGE_REVISIONS_KEPT, select: { id: true } });
-      if (old.length) await tx.dashboardPageRevision.deleteMany({ where: { id: { in: old.map((entry) => entry.id) } } });
+      await keepNewest(tx, 'revisions', page.id);
       return created;
     });
     res.status(201).json(revisionResponse(row));
@@ -106,9 +119,13 @@ export function createPageVersionsRouter() {
       return;
     }
     const restored = await prisma.$transaction(async (tx) => {
-      const updated = await tx.dashboardPage.updateMany({ where: { id: page.id, revision: body.data.expectedRevision }, data: { title: revision.title, document: document.data, revision: { increment: 1 } } });
-      if (updated.count === 0) return null;
-      await tx.dashboardPageRevision.create({ data: { pageId: page.id, title: page.title, document: page.document as object, label: 'Перед восстановлением' } });
+      await lockPage(tx, page.id);
+      // The page as it is now, read under the lock, is what gets kept before going back.
+      const current = await tx.dashboardPage.findUniqueOrThrow({ where: { id: page.id } });
+      if (current.revision !== body.data.expectedRevision) return null;
+      await tx.dashboardPage.update({ where: { id: page.id }, data: { title: revision.title, document: document.data, revision: { increment: 1 } } });
+      await tx.dashboardPageRevision.create({ data: { pageId: page.id, title: current.title, document: current.document as object, label: 'Перед восстановлением' } });
+      await keepNewest(tx, 'revisions', page.id);
       return tx.dashboardPage.findUniqueOrThrow({ where: { id: page.id } });
     });
     if (!restored) {
@@ -143,10 +160,12 @@ export function createPageVersionsRouter() {
       res.status(400).json({ code: error.code, error: error.message });
       return;
     }
+    // A reader of the release must be able to read every project any widget read, its own scope included.
+    const { usedProjectIds, ...frozen } = answer;
     const row = await prisma.$transaction(async (tx) => {
-      const created = await tx.dashboardPageRelease.create({ data: { pageId: page.id, title: page.title, label: body.data.label, document: document.data, answers: answer, projectIds: answer.projects.map((project) => project.id) } });
-      const old = await tx.dashboardPageRelease.findMany({ where: { pageId: page.id }, orderBy: { createdAt: 'desc' }, skip: PAGE_RELEASES_KEPT, select: { id: true } });
-      if (old.length) await tx.dashboardPageRelease.deleteMany({ where: { id: { in: old.map((entry) => entry.id) } } });
+      await lockPage(tx, page.id);
+      const created = await tx.dashboardPageRelease.create({ data: { pageId: page.id, title: page.title, label: body.data.label, document: document.data, answers: frozen, projectIds: usedProjectIds } });
+      await keepNewest(tx, 'releases', page.id);
       return created;
     });
     res.status(201).json(revisionResponse(row));
@@ -198,14 +217,18 @@ export function createPageVersionsRouter() {
       res.status(404).json({ code: 'PAGE_NOT_FOUND', error: 'Выпуск не найден' });
       return;
     }
-    if ((await prisma.dashboardPageShare.count({ where: { pageId: page.id, revokedAt: null } })) >= SHARES_PER_PAGE) {
-      res.status(409).json({ error: `У страницы уже ${SHARES_PER_PAGE} ссылок — отзовите ненужные` });
+    const token = randomBytes(24).toString('base64url');
+    const row = await prisma.$transaction(async (tx) => {
+      await lockPage(tx, page.id);
+      if ((await tx.dashboardPageShare.count({ where: { pageId: page.id, revokedAt: null } })) >= SHARES_PER_PAGE) return null;
+      return tx.dashboardPageShare.create({
+        data: { pageId: page.id, releaseId: body.data.releaseId ?? null, tokenHash: hashToken(token), expiresAt: body.data.days ? new Date(Date.now() + body.data.days * 86_400_000) : null },
+      });
+    });
+    if (!row) {
+      res.status(409).json({ code: 'PAGE_LINKS_LIMIT', error: `У страницы уже ${SHARES_PER_PAGE} ссылок — отзовите ненужные` });
       return;
     }
-    const token = randomBytes(24).toString('base64url');
-    const row = await prisma.dashboardPageShare.create({
-      data: { pageId: page.id, releaseId: body.data.releaseId ?? null, tokenHash: hashToken(token), expiresAt: body.data.days ? new Date(Date.now() + body.data.days * 86_400_000) : null },
-    });
     res.status(201).json({ id: row.id, token, expiresAt: row.expiresAt?.toISOString() ?? null });
   });
 
@@ -222,7 +245,9 @@ export function createPageVersionsRouter() {
    * every project it was made from.
    */
   router.get('/page-links/:token', perUser, async (req, res) => {
-    if (!currentUser(req)) {
+    const reader = currentUser(req);
+    // The public demo's visitor has not signed in: a link is for people who have.
+    if (!reader || (isPublicDemoMode() && reader.id === PUBLIC_DEMO_USER_ID)) {
       res.status(401).json({ error: 'Требуется вход в систему' });
       return;
     }
@@ -247,7 +272,8 @@ export function createPageVersionsRouter() {
       return;
     }
     try {
-      const answer = await runPageQueries(readable, { scope: document.data.scope, periodDays: document.data.periodDays, queries: queriesOf(document.data) });
+      const { usedProjectIds: _used, ...answer } = await runPageQueries(readable, { scope: document.data.scope, periodDays: document.data.periodDays, queries: queriesOf(document.data) });
+      void _used;
       res.json({ title: share.page.title, document: document.data, release: null, answer });
     } catch (error) {
       if (!(error instanceof PageScopeTooLargeError)) throw error;

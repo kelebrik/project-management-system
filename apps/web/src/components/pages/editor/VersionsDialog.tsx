@@ -95,7 +95,7 @@ export function VersionsDialog({ pageId, currentRevision, saved, onRestored, onO
               {versions.map((entry) => (
                 <li key={entry.id}>
                   <span><b>{entry.label || entry.title}</b> · {when(entry.createdAt)}</span>
-                  <button disabled={busy} onClick={() => void run(async () => onRestored(await apiClient.post<SavedPage>(`${base}/revisions/${entry.id}/restore`, { expectedRevision: currentRevision() })))} type="button">{t("ui.pages.versions.restore")}</button>
+                  <button disabled={busy || !saved} onClick={() => void run(async () => onRestored(await apiClient.post<SavedPage>(`${base}/revisions/${entry.id}/restore`, { expectedRevision: currentRevision() })))} type="button">{t("ui.pages.versions.restore")}</button>
                 </li>
               ))}
               {versions.length === 0 && <li className="mp-hint">{t("ui.pages.versions.none")}</li>}

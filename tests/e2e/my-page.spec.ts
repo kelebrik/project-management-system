@@ -254,6 +254,22 @@ test("my page: the show, a frozen release and a page opened by a link", async ({
   const frozen = page.getByRole("dialog", { name: /Показ/ });
   await expect(frozen.locator('[data-widget-id="k-red"] .mp-kpi-value')).toHaveText("3");
   await expect(frozen).toContainText("данные зафиксированы");
+  // The release prints alone, the editor behind the show left out: one page.
+  await page.evaluate(() => {
+    document.documentElement.dataset.printTarget = "dashboard-show";
+    document.body.dataset.printTarget = "dashboard-show";
+    const style = document.createElement("style");
+    style.id = "test-print-size";
+    style.textContent = "@media print { @page { size: 1280px 720px; margin: 0; } }";
+    document.head.appendChild(style);
+  });
+  const pdf = await page.pdf({ preferCSSPageSize: true, printBackground: true });
+  expect(countPdfPages(pdf)).toBe(1);
+  await page.evaluate(() => {
+    delete document.documentElement.dataset.printTarget;
+    delete document.body.dataset.printTarget;
+    document.getElementById("test-print-size")?.remove();
+  });
   await frozen.getByRole("button", { name: "Выйти" }).click();
 
   // The link, as a reader opens it.

@@ -35,14 +35,16 @@ function columnIndex(reference: string) {
 
 /**
  * An .xlsx workbook with one sheet. Every cell is written as text (inline
- * string), so codes like 1.10 and dates stay exactly as they look; the header
- * row is bold and frozen.
+ * string), so codes like 1.10 and dates stay exactly as they look, except plain
+ * numbers in the columns named numeric; the header row is bold and frozen.
  */
-export function writeXlsx(table: TableDocument, sheetName = "Sheet1") {
-  const row = (cells: string[], rowIndex: number, style: number) =>
-    `<row r="${rowIndex}">${cells
-      .map((value, index) => `<c r="${columnName(index)}${rowIndex}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`)
-      .join("")}</row>`;
+export function writeXlsx(table: TableDocument, sheetName = "Sheet1", numericColumns: ReadonlySet<number> = new Set()) {
+  // Columns named as numeric keep plain numbers as numbers, so the sheet can add them up.
+  const cell = (value: string, index: number, rowIndex: number, style: number) =>
+    rowIndex > 1 && numericColumns.has(index) && /^-?\d+(\.\d+)?$/.test(value)
+      ? `<c r="${columnName(index)}${rowIndex}" s="${style}"><v>${value}</v></c>`
+      : `<c r="${columnName(index)}${rowIndex}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
+  const row = (cells: string[], rowIndex: number, style: number) => `<row r="${rowIndex}">${cells.map((value, index) => cell(value, index, rowIndex, style)).join("")}</row>`;
   const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><sheetData>${[
     row(table.headers, 1, 1),

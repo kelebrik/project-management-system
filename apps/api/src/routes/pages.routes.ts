@@ -28,7 +28,7 @@ const querySchema = z.object({
   periodDays: z.number().int().refine((value) => (pagePeriods as readonly number[]).includes(value)),
   fresh: z.boolean().optional(),
   queries: z
-    .array(z.object({ id: z.string().min(1).max(40), widget: pageWidgetSchema.pick({ type: true, data: true }), scope: pageScopeSchema.optional() }))
+    .array(z.object({ id: z.string().min(1).max(40), widget: pageWidgetSchema.pick({ type: true, data: true, formula: true }), scope: pageScopeSchema.optional() }))
     .max(PAGE_QUERY_LIMIT),
 });
 

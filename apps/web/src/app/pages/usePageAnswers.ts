@@ -9,12 +9,13 @@ import { pageQueryFingerprint, type PageAnswer } from "./pageModel";
  * The answers for all widgets of a page in one request. Asked again only when
  * the scope, the period or a widget's question changes (moving or renaming a
  * widget does not ask), a moment after the last change; an older request is
- * cancelled. The previous answers stay on screen while the next ones load.
+ * cancelled. The previous answers stay on screen while the next ones load;
+ * `current` tells whether the answer on screen is for the questions asked now.
  */
 export function usePageAnswers(document: PageDocument | null, refreshKey: number) {
   const { t } = useI18n();
   const fingerprint = document ? pageQueryFingerprint(document) : "";
-  const [answer, setAnswer] = useState<PageAnswer | null>(null);
+  const [answered, setAnswered] = useState<{ fingerprint: string; answer: PageAnswer } | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const failedText = t("ui.pages.answersFailed");
@@ -28,7 +29,7 @@ export function usePageAnswers(document: PageDocument | null, refreshKey: number
       apiClient
         .post<PageAnswer>("/api/pages/query", { scope, periodDays, queries, ...(refreshKey > 0 ? { fresh: true } : {}) }, failedText, controller.signal)
         .then((next) => {
-          setAnswer(next);
+          setAnswered({ fingerprint, answer: next });
           setError("");
         })
         .catch((failure) => {
@@ -45,5 +46,6 @@ export function usePageAnswers(document: PageDocument | null, refreshKey: number
     };
   }, [failedText, fingerprint, refreshKey, t]);
 
-  return { answer, loading, error };
+  // `current` says the answer is for the questions on the page now, not an earlier set still on screen.
+  return { answer: answered?.answer ?? null, current: answered !== null && answered.fingerprint === fingerprint, loading, error };
 }

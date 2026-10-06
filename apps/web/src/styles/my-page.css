@@ -233,6 +233,8 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-timeline-gain { stroke: var(--mp-green); stroke-width: 2; }
 .mp-timeline-more { font-size: 11px; padding-top: 2px; }
 .mp-echart-drill { cursor: pointer; }
+.mp-alert-cell { color: var(--mp-red); font-weight: 700; }
+.mp-multi-note { font-size: 10px; color: var(--mp-muted); padding-top: 2px; }
 .mp-preview { display: grid; gap: var(--space-2); }
 .mp-preview-head { display: flex; gap: var(--space-3); align-items: baseline; }
 .mp-preview-sheet { max-width: 980px; }
@@ -244,6 +246,7 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-show .mp-stage { height: 100%; padding: 16px; box-sizing: border-box; background: #0b1220; align-items: center; }
 .mp-show-bar { display: flex; gap: 18px; align-items: center; padding: 6px 16px; color: #b3c2d9; font-size: 12px; background: #0f1726; }
 .mp-show-bar button { margin-left: auto; background: transparent; color: #e5edf9; border-color: #3a4c6b; }
+.mp-show-warn { color: #f0b968; }
 .mp-show-all { font-size: var(--fs-xs); padding: 4px 10px; }
 .mp-versions { width: min(760px, calc(100vw - 32px)); }
 .mp-versions-body { overflow: auto; padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-5); }
@@ -270,30 +273,42 @@ a.mp-code:hover { text-decoration: underline; }
   body[data-print-target="dashboard-page"] .mp-banner,
   body[data-print-target="dashboard-page"] .mp-panel,
   body[data-print-target="dashboard-page"] .mp-live,
-  body[data-print-target="dashboard-page"] .mp-grid,
-  body[data-print-target="dashboard-page"] .mp-resize,
-  body[data-print-target="dashboard-page"] .mp-plain-handle,
-  body[data-print-target="dashboard-page"] .mp-passport {
+  body[data-print-target="dashboard-page"] .mp-show,
+  body[data-print-target="dashboard-show"] .workspace > :not(.mp-page),
+  body[data-print-target="dashboard-show"] .mp-page > :not(.mp-show):not(.mp-editor),
+  body[data-print-target="dashboard-show"] .mp-editor > :not(.mp-show),
+  body[data-print-target="dashboard-show"] .mp-show-bar,
+  body[data-print-target] .mp-grid,
+  body[data-print-target] .mp-resize,
+  body[data-print-target] .mp-plain-handle,
+  body[data-print-target] .mp-passport {
     display: none !important;
   }
   body[data-print-target="dashboard-page"] .workspace,
   body[data-print-target="dashboard-page"] .workspace > .mp-page,
   body[data-print-target="dashboard-page"] .mp-editor,
-  body[data-print-target="dashboard-page"] .mp-workspace {
+  body[data-print-target="dashboard-page"] .mp-workspace,
+  body[data-print-target="dashboard-show"] .workspace,
+  body[data-print-target="dashboard-show"] .workspace > .mp-page,
+  body[data-print-target="dashboard-show"] .mp-editor,
+  body[data-print-target="dashboard-show"] .mp-show {
     display: block !important;
+    position: static !important;
     margin: 0 !important;
     padding: 0 !important;
     max-width: none !important;
     min-height: 0 !important;
+    height: auto !important;
     overflow: visible !important;
+    background: none !important;
   }
-  body[data-print-target="dashboard-page"] .mp-page { padding: 0 !important; gap: 0 !important; }
-  body[data-print-target="dashboard-page"] .mp-stage { padding: 0 !important; background: none !important; display: block !important; overflow: visible !important; border-radius: 0 !important; }
-  body[data-print-target="dashboard-page"] .mp-scaler { width: auto !important; height: auto !important; }
-  body[data-print-target="dashboard-page"] .mp-sheet { position: relative !important; transform: none !important; box-shadow: none !important; border-radius: 0 !important; break-inside: avoid; page-break-after: avoid; }
-  body[data-print-target="dashboard-page"] .mp-selected { outline: none !important; }
+  body[data-print-target] .mp-page { padding: 0 !important; gap: 0 !important; }
+  body[data-print-target] .mp-stage { padding: 0 !important; background: none !important; display: block !important; overflow: visible !important; border-radius: 0 !important; height: auto !important; }
+  body[data-print-target] .mp-scaler { width: auto !important; height: auto !important; }
+  body[data-print-target] .mp-sheet { position: relative !important; transform: none !important; box-shadow: none !important; border-radius: 0 !important; break-inside: avoid; page-break-after: avoid; }
+  body[data-print-target] .mp-selected { outline: none !important; }
   /* Paper is white: a dark sheet prints in the light palette, so it stays readable and saves ink. */
-  body[data-print-target="dashboard-page"] .mp-sheet[data-theme="dark"] {
+  body[data-print-target] .mp-sheet[data-theme="dark"] {
     --mp-bg: #ffffff; --mp-surface: #ffffff; --mp-text: #17212b; --mp-muted: #4b5755; --mp-border: #c7d1cf; --mp-grid: #e1e7e6; --mp-accent: #0f766e; --mp-head: #0f766e;
     --mp-green: #15803d; --mp-amber: #b45309; --mp-red: #dc2626; --mp-soft: #f1f4f3;
   }

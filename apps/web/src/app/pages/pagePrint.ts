@@ -5,7 +5,8 @@ import { printSectionAsPdf } from "../pdfPrint";
  * Prints the sheet on exactly one page of its own size: 16:9 as a 16:9 page,
  * A4 as A4, without margins, at its real size (no scaling on screen applies).
  */
-export function printDashboardPage(format: PageFormat, title: string) {
+/** `target` is the sheet to print: the editor's page, or the slide of a show. */
+export function printDashboardPage(format: PageFormat, title: string, target: "dashboard-page" | "dashboard-show" = "dashboard-page") {
   const sheet = PAGE_FORMATS[format];
   const style = document.createElement("style");
   style.id = "mp-print-page-size";
@@ -15,5 +16,5 @@ export function printDashboardPage(format: PageFormat, title: string) {
   const cleanup = () => style.remove();
   window.addEventListener("afterprint", cleanup, { once: true });
   window.setTimeout(cleanup, 30_000);
-  printSectionAsPdf("dashboard-page", title);
+  printSectionAsPdf(target, title);
 }

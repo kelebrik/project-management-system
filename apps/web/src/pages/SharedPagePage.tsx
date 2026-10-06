@@ -6,7 +6,7 @@ import { pageErrorText } from "../app/pages/pageErrors";
 import type { PageAnswer } from "../app/pages/pageModel";
 import { printDashboardPage } from "../app/pages/pagePrint";
 import { PageCanvas } from "../components/pages/PageCanvas";
-import { PageShow } from "../components/pages/PageShow";
+import { PageShow, SHOW_REFRESH_MS } from "../components/pages/PageShow";
 import { useI18n } from "../i18n/I18nProvider";
 import "../styles/my-page.css";
 
@@ -25,17 +25,34 @@ export function SharedPagePage() {
   const [showing, setShowing] = useState(false);
   const token = new URLSearchParams(window.location.search).get("token") ?? "";
 
+  const [tick, setTick] = useState(0);
+  const live = shared !== null && shared.release === null;
+
+  // Each load checks the link again (revoked, expired, access); a live page is loaded again every five minutes.
   useEffect(() => {
     if (!token) return;
     let alive = true;
     apiClient
       .get<Shared>(`/api/page-links/${encodeURIComponent(token)}`, t("ui.pages.shared.failed"))
-      .then((next) => alive && setShared(next))
-      .catch((failure) => alive && setError(pageErrorText(failure, t, t("ui.pages.shared.failed"))));
+      .then((next) => {
+        if (!alive) return;
+        setShared(next);
+        setError("");
+      })
+      .catch((failure) => {
+        if (!alive) return;
+        setShared(null);
+        setError(pageErrorText(failure, t, t("ui.pages.shared.failed")));
+      });
     return () => {
       alive = false;
     };
-  }, [t, token]);
+  }, [t, tick, token]);
+  useEffect(() => {
+    if (!live) return;
+    const timer = window.setInterval(() => setTick((value) => value + 1), SHOW_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [live]);
 
   if (!token) return <section className="v2-page mp-page"><p className="automation-error">{t("ui.pages.shared.noToken")}</p></section>;
   if (error) return <section className="v2-page mp-page"><p className="automation-error" role="alert">{error}</p></section>;

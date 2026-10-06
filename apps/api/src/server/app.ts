@@ -243,7 +243,8 @@ export function createApp() {
       return;
     }
     logEvent('error', 'api.error', {
-      path: req.path,
+      // The token of a page link is a secret and is not written down.
+      path: req.path.replace(/^\/api\/page-links\/[^/]+/, '/api/page-links/:token'),
       method: req.method,
       message: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,

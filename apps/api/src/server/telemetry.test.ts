@@ -87,3 +87,7 @@ test('an API token uses its own per-minute limit', () => {
   assert.equal(calls, 1);
   assert.equal(res.statusCode, 429);
 });
+
+test('the token of a page link never reaches metrics', () => {
+  assert.equal(metricRoute({ path: '/api/page-links/secret-token-value' }), '/api/page-links/:token');
+});

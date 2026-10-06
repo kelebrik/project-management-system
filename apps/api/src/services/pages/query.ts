@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import {
+  combinePageValues,
   evaluatePageQuery,
   resolvePageWidgetQuery,
   type PageDatasetRow,
@@ -28,7 +29,7 @@ export const PAGE_SCOPE_PROJECT_LIMIT = 2_000;
 const CACHE_MS = 60_000;
 const CACHE_ENTRIES = 40;
 
-export type PageQueryItem = { id: string; widget: Pick<PageWidget, 'type' | 'data'>; scope?: PageScope };
+export type PageQueryItem = { id: string; widget: Pick<PageWidget, 'type' | 'data' | 'formula'>; scope?: PageScope };
 export type PageQueryRequest = { scope: PageScope; periodDays: number; queries: PageQueryItem[]; fresh?: boolean };
 
 type CacheEntry = { at: number; rows: Promise<PageDatasetRow[]> };
@@ -107,7 +108,25 @@ export async function runPageQueries(readable: Prisma.ProjectWhereInput, request
       try {
         const projects = item.scope ? await projectsOf(item.scope) : pageProjects;
         const rows = await rowsOf(resolved.spec.source, projects, now, Boolean(request.fresh), rowLimit);
-        results[item.id] = evaluatePageQuery(rows, resolved.spec, { today, periodDays: request.periodDays });
+        const result = evaluatePageQuery(rows, resolved.spec, { today, periodDays: request.periodDays });
+        // A number made of two metrics: the other one is answered the same way, then they are combined.
+        const formula = item.widget.formula;
+        if (formula && result.kind === 'value') {
+          const other = resolvePageWidgetQuery({ type: 'kpi', data: formula.data });
+          if (!other || 'error' in other) {
+            results[item.id] = { kind: 'error', code: 'PAGE_METRIC_GONE', error: other && 'error' in other ? other.error : 'Нет второго показателя', warnings: [] };
+            return;
+          }
+          const otherRows = await rowsOf(other.spec.source, projects, now, Boolean(request.fresh), rowLimit);
+          const otherResult = evaluatePageQuery(otherRows, { ...other.spec, compare: false }, { today, periodDays: request.periodDays });
+          if (otherResult.kind !== 'value') {
+            results[item.id] = otherResult;
+            return;
+          }
+          results[item.id] = { kind: 'value', value: combinePageValues(result.value, otherResult.value, formula.op), rowCount: result.rowCount, warnings: result.warnings };
+          return;
+        }
+        results[item.id] = result;
       } catch (error) {
         if (error instanceof PageSourceLimitError && error.partial && resolved.spec.output === 'rows') {
           const partial = evaluatePageQuery(error.partial, resolved.spec, { today, periodDays: request.periodDays });
@@ -124,10 +143,14 @@ export async function runPageQueries(readable: Prisma.ProjectWhereInput, request
       }
     }),
   );
+  // Every project any widget read: the page's scope and the widgets' own scopes.
+  const used = new Set<string>();
+  for (const scoped of await Promise.all(scopes.values())) for (const project of scoped) used.add(project.id);
   return {
     today,
     generatedAt: now.toISOString(),
     projects: pageProjects.map((project) => ({ id: project.id, code: project.code, name: project.name })),
+    usedProjectIds: [...used],
     results,
   };
 }

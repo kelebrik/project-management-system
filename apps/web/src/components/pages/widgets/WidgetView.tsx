@@ -13,7 +13,7 @@ import { MetricGridWidget, ProgressWidget, TimelineWidget, TrafficLightWidget } 
  */
 
 function ChartWidget({ widget, result, colors, drillable }: { widget: PageWidget; result: Extract<PageQueryResult, { kind: "groups" }>; colors: ChartColors; drillable: boolean }) {
-  const { locale } = useI18n();
+  const { locale, t } = useI18n();
   const fields = widgetFields(widget);
   const option = useMemo(
     () =>
@@ -27,6 +27,7 @@ function ChartWidget({ widget, result, colors, drillable }: { widget: PageWidget
         colors,
         locale,
         title: widget.title,
+        alert: widget.alert,
       }),
     [colors, fields, locale, result, widget],
   );
@@ -36,7 +37,12 @@ function ChartWidget({ widget, result, colors, drillable }: { widget: PageWidget
     const key = result.groups[index]?.key;
     if (key && !key.startsWith("__")) window.location.assign(`/${encodeURIComponent(key)}/overview`);
   }, [result]);
-  return <EChart label={summary} onPick={drillable && widget.data?.groupBy === "project" ? onPick : undefined} option={option} />;
+  return (
+    <>
+      <EChart label={summary} onPick={drillable && widget.data?.groupBy === "project" ? onPick : undefined} option={option} />
+      {result.multiValued && <div className="mp-multi-note">{t("ui.pages.multiValued")}</div>}
+    </>
+  );
 }
 
 /** Text written on the page: paragraphs, "- " points and **bold**. */

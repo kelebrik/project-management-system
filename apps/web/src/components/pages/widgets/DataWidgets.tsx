@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { PAGE_SOURCES, pageMetric, type PageDatasetRow, type PageFieldDef, type PageQueryResult, type PageWidget } from "@pms/shared";
-import { fitRows, formatNumber, formatPageValue, groupLabel, widgetFields, widgetSource, widgetUnit, type Locale } from "../../../app/pages/pageModel";
+import { beyondAlert, fitRows, formatNumber, formatPageValue, groupLabel, widgetFields, widgetSource, widgetUnit, type Locale } from "../../../app/pages/pageModel";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { useBoxSize } from "../useBoxSize";
 
@@ -49,7 +49,7 @@ export function KpiWidget({ widget, result, periodDays }: { widget: PageWidget; 
   const worse = delta !== null && delta !== 0 && (metric?.higherIsWorse ? delta > 0 : delta < 0);
   return (
     <div className="mp-kpi">
-      <b className={`mp-kpi-value ${metric?.higherIsWorse && (result.value ?? 0) > 0 && unit !== "percent" ? "mp-kpi-attention" : ""}`}>{formatNumber(result.value, unit, locale)}</b>
+      <b className={`mp-kpi-value ${(widget.alert ? beyondAlert(result.value, widget.alert) : metric?.higherIsWorse && !widget.formula && (result.value ?? 0) > 0 && unit !== "percent") ? "mp-kpi-attention" : ""}`}>{formatNumber(result.value, unit, locale)}</b>
       {delta !== null && (
         <span className={`mp-kpi-delta ${delta === 0 ? "" : worse ? "mp-worse" : "mp-better"}`}>
           {delta > 0 ? "▲" : delta < 0 ? "▼" : "="} {delta > 0 ? "+" : ""}
@@ -81,7 +81,7 @@ function GroupTable({ widget, result, locale, height }: { widget: PageWidget; re
           <tr key={String(group.key)}>
             <td>{groupLabel(group.key, field, result.bucket, locale)}</td>
             {subField ? group.sub?.map((part) => <td className="mp-num" key={String(part.key)}>{formatNumber(part.value, unit, locale)}</td>) : null}
-            <td className="mp-num"><b>{formatNumber(group.value, unit, locale)}</b></td>
+            <td className={`mp-num ${beyondAlert(group.value, widget.alert) ? "mp-late" : ""}`}><b>{formatNumber(group.value, unit, locale)}</b></td>
           </tr>
         ))}
         {more > 0 && <tr className="mp-more"><td colSpan={2 + (subField ? result.subKeys.length : 0)}>{t("ui.pages.more", { count: more })}</td></tr>}
@@ -109,7 +109,11 @@ export function TableWidget({ widget, result }: { widget: PageWidget; result: Ro
         <tbody>
           {result.rows.slice(0, shown).map((row) => (
             <tr key={row.id}>
-              {columns.map((field) => <td className={field.kind === "number" ? "mp-num" : ""} key={field.key}><Cell field={field} locale={locale} row={row} value={row.values[field.key]} /></td>)}
+              {columns.map((field) => (
+                <td className={`${field.kind === "number" ? "mp-num" : ""} ${field.key === widget.data?.sort?.by && typeof row.values[field.key] === "number" && beyondAlert(row.values[field.key] as number, widget.alert) ? "mp-alert-cell" : ""}`} key={field.key}>
+                  <Cell field={field} locale={locale} row={row} value={row.values[field.key]} />
+                </td>
+              ))}
             </tr>
           ))}
           {more > 0 && <tr className="mp-more"><td colSpan={columns.length}>{t("ui.pages.more", { count: more })}</td></tr>}

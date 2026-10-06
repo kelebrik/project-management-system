@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { PAGE_SOURCES, pageMetric, type PageFieldDef, type PageQueryResult, type PageWidget } from "@pms/shared";
-import { dayPosition, fitRows, formatNumber, formatPageValue, groupLabel, trafficLevel, widgetFields, widgetSource, widgetUnit } from "../../../app/pages/pageModel";
+import { beyondAlert, dayPosition, fitRows, formatNumber, formatPageValue, groupLabel, trafficLevel, widgetFields, widgetSource, widgetUnit } from "../../../app/pages/pageModel";
 import { useI18n } from "../../../i18n/I18nProvider";
 import { useBoxSize } from "../useBoxSize";
 
@@ -63,7 +63,7 @@ export function MetricGridWidget({ widget, result }: { widget: PageWidget; resul
     <div className="mp-fill" ref={box}>
       <div className="mp-figures" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
         {result.groups.slice(0, shown).map((group) => (
-          <div className={`mp-figure ${higherIsWorse && (group.value ?? 0) > 0 ? "mp-figure-attention" : ""}`} key={String(group.key)}>
+          <div className={`mp-figure ${(widget.alert ? beyondAlert(group.value, widget.alert) : higherIsWorse && (group.value ?? 0) > 0) ? "mp-figure-attention" : ""}`} key={String(group.key)}>
             <b>{formatNumber(group.value, unit, locale)}</b>
             <span title={groupLabel(group.key, field, result.bucket, locale)}>{groupLabel(group.key, field, result.bucket, locale)}</span>
           </div>

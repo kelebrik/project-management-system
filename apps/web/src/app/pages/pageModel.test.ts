@@ -3,7 +3,8 @@ import test from "node:test";
 import { PAGE_QUESTIONS, PAGE_SOURCES, PAGE_TEMPLATES, pageFromTemplate, pageLayoutProblem, type PageQueryResult, type PageWidget } from "@pms/shared";
 import { buildChartOption, chartSummary } from "./chartOption";
 import { pushHistory, redoHistory, startHistory, undoHistory } from "./pageHistory";
-import { changeFormat, duplicateWidget, fitRows, formatNumber, groupLabel, pageQueries, pageQueryFingerprint, placeNewWidget, sheetGeometry, widgetPassport } from "./pageModel";
+import { beyondAlert, changeFormat, duplicateWidget, fitRows, formatNumber, groupLabel, pageQueries, pageQueryFingerprint, placeNewWidget, sheetGeometry, trafficLevel, widgetPassport } from "./pageModel";
+import { widgetTable } from "./pageExport";
 import { applyViz, vizOf, vizProblem } from "./pageViz";
 
 const portfolio = pageFromTemplate(PAGE_TEMPLATES[0], { mode: "all" }, "ru").document;
@@ -111,4 +112,19 @@ test("the sheet geometry fills the sheet exactly", () => {
   const last = geometry.rect({ x: 11, y: 13, w: 1, h: 1 });
   assert.ok(Math.abs(last.left + last.width - (1280 - 24)) < 0.01);
   assert.ok(Math.abs(last.top + last.height - (720 - 24)) < 0.01);
+});
+
+test("alerts, traffic lights and the Excel table of a widget", () => {
+  assert.equal(beyondAlert(6, { above: 5 }), true);
+  assert.equal(beyondAlert(5, { above: 5 }), false);
+  assert.equal(beyondAlert(30, { below: 40 }), true);
+  assert.equal(trafficLevel(3, undefined, true, "count"), "AMBER");
+  assert.equal(trafficLevel(35, undefined, false, "percent"), "RED");
+  assert.equal(trafficLevel(0, { amber: 1, red: 5 }, true, "count"), "GREEN");
+  const table = portfolio.widgets.find((widget) => widget.id === "t-projects")!;
+  const rows: PageQueryResult = { kind: "rows", columns: ["project", "rag", "overdueWork"], rows: [{ id: "a", projectId: "a", values: { project: "TV", rag: "RED", overdueWork: 4 } }], total: 1, truncated: false, warnings: [] };
+  const sheet = widgetTable(table, rows, "ru")!;
+  assert.deepEqual(sheet.headers, ["Проект", "Светофор", "Просрочено работ"]);
+  assert.deepEqual(sheet.rows, [["TV", "Красный", "4"]]);
+  assert.deepEqual([...sheet.numeric], [2]);
 });
