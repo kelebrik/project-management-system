@@ -12,17 +12,21 @@
 /* ---------- Gallery ---------- */
 .mp-gallery { display: grid; gap: var(--space-6); }
 .mp-gallery h3 { margin: 0 0 var(--space-3); font-size: var(--fs-md); }
-.mp-gallery-head { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; }
+.mp-gallery-head { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; }
+.mp-gallery-head h3 { margin: 0; white-space: nowrap; }
+/* On a narrow screen the search takes a row of its own. */
+.mp-gallery-head input { flex: 1 1 220px; min-width: 0; }
 .mp-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-3); }
-.mp-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); display: grid; overflow: hidden; }
-.mp-card-open { all: unset; cursor: pointer; display: grid; gap: 4px; padding: var(--space-3); }
+/* A card keeps its buttons at the bottom at their own height, however tall its neighbours in the row are. */
+.mp-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); display: grid; grid-template-rows: 1fr auto; overflow: hidden; }
+.mp-card-open { all: unset; cursor: pointer; display: grid; gap: 4px; padding: var(--space-3); align-content: start; }
 .mp-card-open:hover { background: var(--surface-2); }
 .mp-card-open:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
 .mp-card-open small { color: var(--text-muted); font-size: var(--fs-2xs); }
-.mp-card-actions { display: flex; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
+.mp-card-actions { display: flex; gap: var(--space-2); align-items: center; padding: 0 var(--space-3) var(--space-3); }
 .mp-card-actions button, .mp-panel-head button { font-size: var(--fs-xs); padding: 3px 8px; }
 .mp-page button.danger { color: var(--danger-700); }
-.mp-thumb { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; padding: 4px; background: var(--surface-3); border-radius: var(--radius-sm); width: 100%; box-sizing: border-box; margin-bottom: 4px; }
+.mp-thumb { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; padding: 4px; overflow: hidden; background: var(--surface-3); border-radius: var(--radius-sm); width: 100%; box-sizing: border-box; margin-bottom: 4px; }
 .mp-thumb i { background: var(--brand-border); border-radius: 2px; min-height: 2px; }
 .mp-thumb i.mp-thumb-kpi { background: var(--brand); }
 .mp-thumb i.mp-thumb-chart { background: #93c5fd; }
@@ -286,7 +290,7 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-show-bar { display: flex; gap: 18px; align-items: center; padding: 6px 16px; color: #b3c2d9; font-size: 12px; background: #0f1726; }
 .mp-show-bar button { margin-left: auto; background: transparent; color: #e5edf9; border-color: #3a4c6b; }
 .mp-show-warn { color: #f0b968; }
-.mp-show-all { font-size: var(--fs-xs); padding: 4px 10px; }
+.mp-show-all { font-size: var(--fs-xs); padding: 4px 10px; white-space: nowrap; flex: none; }
 .mp-versions { width: min(760px, calc(100vw - 32px)); }
 .mp-versions-body { overflow: auto; padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-5); }
 .mp-versions-body h3 { margin: 0 0 4px; font-size: var(--fs-md); }

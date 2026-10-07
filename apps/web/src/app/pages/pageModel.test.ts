@@ -176,3 +176,21 @@ test("show as: a roadmap reads milestones and goals only, all of them, and expor
   assert.equal(pageLayoutProblem(pageFromTemplate(template, { mode: "all" }, "ru").document.widgets, 14), null);
   assert.ok(PAGE_QUESTIONS.some((question) => question.widget.type === "roadmap"));
 });
+
+test("every kind of widget and every display has its name in both languages", async () => {
+  const { pagesMessages } = await import("../../i18n/messages/pages");
+  const shared = await import("@pms/shared");
+  const { PAGE_VIZ } = await import("./pageViz");
+  const keys = [
+    ...shared.pageWidgetTypes.map((type) => `ui.pages.palette.kind.${type}`),
+    ...PAGE_VIZ.map((viz) => `ui.pages.viz.${viz}`),
+    ...["needsTime", "needsTwo", "needsDates", "needsCheckpoints"].map((problem) => `ui.pages.viz.problem.${problem}`),
+    ...shared.pageFilterOps.map((op) => `ui.pages.op.${op}`),
+    ...shared.pageBuckets.map((bucket) => `ui.pages.bucket.${bucket}`),
+    ...shared.pageTones.map((tone) => `ui.pages.tone.${tone}`),
+    ...shared.pageMeasureFns.map((fn) => `ui.pages.expert.fn.${fn}`),
+    ...shared.pageFormulaOps.map((op) => `ui.pages.expert.op.${op}`),
+  ];
+  const messages = pagesMessages as Record<string, { en: string; ru: string } | undefined>;
+  assert.deepEqual(keys.filter((key) => !messages[key]?.en || !messages[key]?.ru), []);
+});

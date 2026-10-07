@@ -15,7 +15,7 @@ import { PageCanvas } from "./PageCanvas";
 function Thumbnail({ widgets, format }: { widgets: ReadonlyArray<Pick<PageWidget, "id" | "type" | "x" | "y" | "w" | "h">>; format: keyof typeof PAGE_FORMATS }) {
   const sheet = PAGE_FORMATS[format];
   return (
-    <div aria-hidden="true" className="mp-thumb" style={{ aspectRatio: `${sheet.width} / ${sheet.height}`, gridTemplateRows: `repeat(${sheet.rows}, 1fr)` }}>
+    <div aria-hidden="true" className="mp-thumb" style={{ aspectRatio: `${sheet.width} / ${sheet.height}`, gridTemplateRows: `repeat(${sheet.rows}, minmax(0, 1fr))` }}>
       {widgets.map((widget) => (
         <i className={`mp-thumb-${widget.type}`} key={widget.id} style={{ gridColumn: `${widget.x + 1} / span ${widget.w}`, gridRow: `${widget.y + 1} / span ${widget.h}` }} />
       ))}

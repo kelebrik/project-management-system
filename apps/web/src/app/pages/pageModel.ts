@@ -147,7 +147,7 @@ export function formatNumber(value: number | null | undefined, format: PageField
 
 /** In plain words what a page or widget covers. */
 export function scopeLabel(scope: PageScope, options: ScopeOptions | null, locale: Locale) {
-  if (scope.mode === "all") return locale === "ru" ? "Все доступные проекты" : "All projects available to me";
+  if (scope.mode === "all") return locale === "ru" ? "Все доступные проекты" : "All projects I can access";
   if (scope.mode === "portfolio") return `${locale === "ru" ? "Портфель" : "Portfolio"}: ${scope.portfolios.join(", ")}`;
   const codes = scope.projectIds.map((id) => options?.projects.find((project) => project.id === id)?.code ?? "?");
   return codes.length <= 3 ? codes.join(", ") : `${codes.slice(0, 3).join(", ")} +${codes.length - 3}`;
@@ -181,8 +181,8 @@ export function widgetPassport(widget: PageWidget, locale: "ru" | "en", periodDa
   const parts = [metric ? `${metric.label[locale]}: ${metric.definition[locale]}` : locale === "ru" ? "Свой запрос" : "Custom question"];
   parts.push(
     metric?.periodField || data.periodField
-      ? locale === "ru" ? `Период: последние ${periodDays} дн.` : `Period: the last ${periodDays} days`
-      : locale === "ru" ? "Период не применяется — показатель на сегодня" : "The period does not apply — the figure is as of today",
+      ? locale === "ru" ? `Период: последние ${periodDays} дн.` : `Period: last ${periodDays} days`
+      : locale === "ru" ? "Период не применяется — показатель на сегодня" : "Period does not apply — value as of today",
   );
   if (data.filters.length > 0) {
     const fields = widgetFields(widget);
