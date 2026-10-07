@@ -179,6 +179,9 @@ export function evaluatePageQuery(rows: PageDatasetRow[], spec: PageQuerySpec, c
   };
   const current = filtered(0);
 
+  // A roadmap needs the projects of the scope too: the server answers it with evaluatePageRoadmap.
+  if (spec.output === "roadmap") return { kind: "error", code: "PAGE_QUERY_INVALID", error: "Дорожная карта считается отдельно", warnings };
+
   if (spec.output === "value") {
     const value = pageMeasureValue(current, spec.measure);
     return { kind: "value", value, ...(spec.compare ? { previous: pageMeasureValue(filtered(1), spec.measure) } : {}), rowCount: current.length, warnings };

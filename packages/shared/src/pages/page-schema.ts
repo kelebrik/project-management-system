@@ -26,8 +26,12 @@ export const PAGE_FORMATS: Record<PageFormat, { width: number; height: number; r
 export const pageThemes = ["light", "dark", "brand", "print"] as const;
 export type PageTheme = (typeof pageThemes)[number];
 
-export const pageWidgetTypes = ["kpi", "chart", "table", "list", "status-grid", "text", "callout", "heading", "traffic-light", "timeline", "progress", "metric-grid", "divider"] as const;
+export const pageWidgetTypes = ["kpi", "chart", "table", "list", "status-grid", "text", "callout", "heading", "traffic-light", "timeline", "progress", "metric-grid", "divider", "roadmap"] as const;
 export type PageWidgetType = (typeof pageWidgetTypes)[number];
+/** The window of a roadmap by default: four months back, eight ahead. */
+export const PAGE_ROADMAP_DEFAULT = { before: 4, after: 8 } as const;
+/** The windows offered first, in months before and after today. */
+export const PAGE_ROADMAP_WINDOWS = [[1, 3], [3, 9], [4, 8], [6, 6]] as const;
 /** Widgets that show text written on the page, not data. */
 export const PAGE_TEXT_WIDGETS: ReadonlySet<PageWidgetType> = new Set(["text", "callout", "heading", "divider"]);
 
@@ -96,6 +100,8 @@ export const pageWidgetSchema = z.object({
   scope: pageScopeSchema.optional(),
   /** A number made of two: this widget's value as a share of, against or minus another metric's. */
   formula: z.object({ op: z.enum(pageFormulaOps), data: pageWidgetDataSchema }).optional(),
+  /** A roadmap: how many months before and after today it shows. */
+  roadmap: z.object({ before: z.number().int().min(0).max(24), after: z.number().int().min(1).max(36) }).optional(),
   /** Values past these are marked red: above for bad news that grows, below for figures that should stay high. */
   alert: z.object({ above: z.number().optional(), below: z.number().optional() }).optional(),
 });
@@ -128,6 +134,7 @@ export function pageWidgetOutput(widget: Pick<PageWidget, "type" | "data">): Pag
   if (widget.type === "kpi" || widget.type === "progress" || widget.type === "traffic-light") return "value";
   if (widget.type === "chart" || widget.type === "metric-grid") return "groups";
   if (widget.type === "table") return widget.data.groupBy ? "groups" : "rows";
+  if (widget.type === "roadmap") return "roadmap";
   return "rows";
 }
 

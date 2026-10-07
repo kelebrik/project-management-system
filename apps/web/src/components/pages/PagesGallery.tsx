@@ -46,6 +46,7 @@ function emptyResult(result: PageQueryResult | undefined) {
   if (result.kind === "error") return true;
   if (result.kind === "groups") return result.rowCount === 0;
   if (result.kind === "rows") return result.total === 0;
+  if (result.kind === "roadmap") return result.items === 0;
   return false;
 }
 

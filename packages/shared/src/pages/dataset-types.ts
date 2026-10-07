@@ -75,7 +75,7 @@ export type PageMeasure = z.infer<typeof pageMeasureSchema>;
 export const pageBuckets = ["day", "week", "month", "quarter"] as const;
 export type PageBucket = (typeof pageBuckets)[number];
 
-export const pageOutputs = ["value", "groups", "rows"] as const;
+export const pageOutputs = ["value", "groups", "rows", "roadmap"] as const;
 export type PageOutput = (typeof pageOutputs)[number];
 
 /** A complete question to a source, after a named metric has been unfolded. */
@@ -95,12 +95,16 @@ export type PageQuerySpec = {
   output: PageOutput;
 };
 
+/** A lane of a roadmap: one project of the scope with its milestones and goals (none for a project without them). */
+export type PageRoadmapLane = { projectId: string; project: string; projectName: string; href: string | null; items: PageDatasetRow[] };
+
 export type PageGroup = { key: string | null; value: number | null; count: number; sub?: Array<{ key: string | null; value: number | null }> };
 
 export type PageQueryResult =
   | { kind: "value"; value: number | null; previous?: number | null; rowCount: number; warnings: string[] }
   | { kind: "groups"; groups: PageGroup[]; subKeys: Array<string | null>; total: number | null; rowCount: number; multiValued: boolean; bucket: PageBucket | null; warnings: string[] }
   | { kind: "rows"; columns: string[]; rows: PageDatasetRow[]; total: number; truncated: boolean; warnings: string[] }
+  | { kind: "roadmap"; lanes: PageRoadmapLane[]; totalLanes: number; items: number; warnings: string[] }
   | { kind: "error"; error: string; code?: PageQueryErrorCode; warnings: string[] };
 
 /** Why a widget got no answer, for the page to say in the person's language; `error` is the Russian text. */

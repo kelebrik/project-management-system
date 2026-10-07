@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client';
 import {
   combinePageValues,
   evaluatePageQuery,
+  evaluatePageRoadmap,
   resolvePageWidgetQuery,
   type PageDatasetRow,
   type PageQueryResult,
@@ -108,6 +109,10 @@ export async function runPageQueries(readable: Prisma.ProjectWhereInput, request
       try {
         const projects = item.scope ? await projectsOf(item.scope) : pageProjects;
         const rows = await rowsOf(resolved.spec.source, projects, now, Boolean(request.fresh), rowLimit);
+        if (resolved.spec.output === 'roadmap') {
+          results[item.id] = evaluatePageRoadmap(rows, projects, resolved.spec);
+          return;
+        }
         const result = evaluatePageQuery(rows, resolved.spec, { today, periodDays: request.periodDays });
         // A number made of two metrics: the other one is answered the same way, then they are combined.
         const formula = item.widget.formula;

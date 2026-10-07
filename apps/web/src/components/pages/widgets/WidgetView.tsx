@@ -6,6 +6,7 @@ import { useI18n } from "../../../i18n/I18nProvider";
 import { ChartView } from "../charts/ChartView";
 import { KpiWidget, ListWidget, StatusGridWidget, TableWidget } from "./DataWidgets";
 import { MetricGridWidget, ProgressWidget, TimelineWidget, TrafficLightWidget } from "./MoreWidgets";
+import { RoadmapWidget } from "./RoadmapWidget";
 
 /**
  * The inside of a widget: its picture for the answer it got, or a calm word
@@ -84,6 +85,7 @@ export function WidgetBody({ widget, result, colors, periodDays, loading, today,
     if (widget.type === "metric-grid") return <><MetricGridWidget result={result} widget={widget} />{multiNote}</>;
     return <ChartWidget colors={colors} drillable={drillable} result={result} widget={widget} />;
   }
+  if (result.kind === "roadmap") return <RoadmapWidget drillable={drillable} result={result} today={today} widget={widget} />;
   if (result.total === 0) return note(t("ui.pages.noRows"));
   if (widget.type === "list") return <ListWidget result={result} widget={widget} />;
   if (widget.type === "status-grid") return <StatusGridWidget result={result} widget={widget} />;

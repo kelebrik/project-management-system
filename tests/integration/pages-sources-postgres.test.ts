@@ -73,6 +73,15 @@ test('my page: issues, changes, workload, check-ins and Jira snapshots as page s
       const answer = await runPageQueries({ businessUnitId: unit.id }, { scope: page.document.scope, periodDays: page.document.periodDays, queries: page.document.widgets.filter((widget) => widget.data).map((widget) => ({ id: widget.id, widget: { type: widget.type, data: widget.data } })) }, now);
       for (const [id, result] of Object.entries(answer.results)) assert.notEqual(result.kind, 'error', `${template.id}/${id}: ${'error' in result ? result.error : ''}`);
     }
+    // A roadmap: a lane for each project of the scope, the one without goals too, its goal on it.
+    await prisma.wbsItem.create({ data: { projectId: project.id, code: '2', title: 'Старт продаж', type: 'GOAL', status: 'NOT_STARTED', owner: '', dueDate: day('2026-11-20'), baselineDueDate: day('2026-11-10') } as never });
+    forgetPageQueryCache();
+    const roadmap = await runPageQueries({ businessUnitId: unit.id }, { scope: { mode: 'all' }, periodDays: 30, queries: [{ id: 'r', widget: { type: 'roadmap', data: { metric: 'checkpoints.all', filters: [{ field: 'type', op: 'in', value: ['GOAL'] }] } } }] }, now);
+    const lanes = roadmap.results.r;
+    assert.equal(lanes.kind, 'roadmap');
+    if (lanes.kind === 'roadmap') {
+      assert.deepEqual(lanes.lanes.map((lane) => [lane.project, lane.items.map((item) => [item.values.title, item.values.plannedDate, item.values.forecastDate])]).sort(), [[other.code, []], [project.code, [['Старт продаж', '2026-11-10', '2026-11-20']]]].sort());
+    }
     // A widget with its own scope reads its own projects.
     const own = await runPageQueries({ businessUnitId: unit.id }, { scope: { mode: 'projects', projectIds: [project.id] }, periodDays: 30, queries: [{ id: 'x', widget: { type: 'kpi', data: { metric: 'projects.count', filters: [] } }, scope: { mode: 'all' } }] }, now);
     assert.equal((own.results.x as { value: number }).value, 2);

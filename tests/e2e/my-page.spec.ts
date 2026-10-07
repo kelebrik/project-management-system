@@ -28,6 +28,19 @@ function answer(queries: Query[]) {
         bucket: weekly ? "week" : null,
         warnings: [],
       };
+    } else if (type === "roadmap") {
+      const goal = (project: string, index: number, forecastDate: string, title: string, plannedDate = forecastDate) => ({ id: `${project}-${index}`, projectId: project, href: `/${project}/schedule`, values: { title, type: "GOAL", status: "IN_PROGRESS", plannedDate, forecastDate, slipDays: 0, open: true } });
+      const crowded = ["Образцы с завода готовы к испытаниям", "Сертификация пройдена", "Прошивка для производства", "Приёмка у заказчика", "Первая партия на складе", "Старт продаж в рознице", "Обновление по воздуху", "Пилот у оператора", "Финальный отчёт"];
+      const lanes = Array.from({ length: 30 }, (_, index) => {
+        const code = `P${index + 1}`;
+        const items =
+          index === 0 ? crowded.map((title, item) => goal(code, item, `2026-11-${String(2 + item * 2).padStart(2, "0")}`, title))
+          : index === 1 ? []
+          : index === 2 ? [goal(code, 0, "2026-01-15", "Давно прошедшая цель"), goal(code, 1, "2026-12-20", "Поздняя цель", "2026-11-20"), goal(code, 2, "2028-03-01", "Через полтора года"), goal(code, 3, "2028-05-01", "Ещё позже")]
+          : [goal(code, 0, `2027-0${1 + (index % 8)}-10`, `Цель ${code}`)];
+        return { projectId: code, project: code, projectName: `Проект ${code}`, href: `/${code}/schedule`, items };
+      });
+      results[query.id] = { kind: "roadmap", lanes, totalLanes: 34, items: lanes.reduce((sum, lane) => sum + lane.items.length, 0), warnings: [] };
     } else if (type === "timeline") {
       const rows = ["2026-10-10", "2026-10-21", "2026-11-04"].map((day, index) => ({ id: `m${index}`, projectId: "TV", href: "/TV/schedule", values: { project: "TV", title: `Веха ${index + 1}`, plannedDate: "2026-10-14", forecastDate: day } }));
       results[query.id] = { kind: "rows", columns: ["project", "title", "plannedDate", "forecastDate"], rows, total: 3, truncated: false, warnings: [] };
@@ -282,4 +295,50 @@ test("my page: the show, a frozen release and a page opened by a link", async ({
   await expect(page.locator("#dashboard-page .mp-widget")).toHaveCount(9, { timeout: 15_000 });
   await expect(page.locator('#dashboard-page [data-widget-id="k-red"] .mp-kpi-value')).toHaveText("3");
   await expect(page.getByRole("toolbar")).toContainText("Выпуск «Комитет 10.10»");
+});
+
+test("my page: a portfolio roadmap with goals named next to them, never overlapping, and a window to choose", async ({ page }) => {
+  page.on("pageerror", (error) => console.error(error.stack));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await mockAdminProject(page);
+  await mockPages(page);
+  await page.goto("/development/my-page");
+  await page.getByRole("button", { name: /Дорожная карта портфеля/ }).click();
+  await page.getByRole("button", { name: "Создать страницу" }).click();
+  const roadmap = page.locator('#dashboard-page [data-widget-id="r-goals"]');
+  await expect(roadmap.locator(".mp-roadmap")).toBeVisible();
+  // A lane for every project that fits, the empty project too; the rest are counted.
+  await expect(roadmap.locator(".mp-roadmap-project").nth(1)).toHaveText(/P2$/);
+  await expect(roadmap.locator(".mp-more")).toContainText("Ещё проектов");
+  // …and that line is not cut off by the widget.
+  expect(await roadmap.evaluate((element) => element.querySelector(".mp-more")!.getBoundingClientRect().bottom <= element.getBoundingClientRect().bottom + 0.5)).toBe(true);
+  // Goals outside the window are counted at its edges; a late goal is red with its plan.
+  await expect(roadmap.locator(".mp-roadmap-lane").nth(2).locator(".mp-roadmap-edge")).toHaveText([/‹1$/, /2›$/]);
+  await expect(roadmap.locator(".mp-roadmap-late")).toHaveCount(1);
+  // The crowded lane: names that do not fit are counted by the project, none overlaps.
+  await expect(roadmap.locator(".mp-roadmap-hidden").first()).toHaveText(/\+\d+$/);
+  const overlaps = await roadmap.evaluate((element) => {
+    const boxes = (selector: string) => [...element.querySelectorAll(selector)].map((node) => node.getBoundingClientRect());
+    const labels = boxes(".mp-roadmap-label");
+    const marks = boxes(".mp-roadmap-mark");
+    const cross = (a: DOMRect, b: DOMRect) => a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5;
+    const found: string[] = [];
+    labels.forEach((label, index) => {
+      labels.forEach((other, position) => position > index && cross(label, other) && found.push(`labels ${index}/${position}`));
+      marks.forEach((mark, position) => cross(label, mark) && found.push(`label ${index} on mark ${position}`));
+    });
+    return { found, labels: labels.length };
+  });
+  expect(overlaps.found).toEqual([]);
+  // In words for a screen reader: every goal of the window, those counted as +N too.
+  await expect(roadmap.getByRole("list", { name: "Цели проектов: −4 / +8 месяцев" })).toContainText("Финальный отчёт — 18.11.26");
+  expect(overlaps.labels).toBeGreaterThanOrEqual(10);
+  // Another window: one month back, three ahead.
+  await roadmap.click();
+  const panel = page.getByRole("complementary", { name: "Виджет" });
+  await expect(panel.getByRole("radio", { name: "Дорожная карта" })).toHaveAttribute("aria-checked", "true");
+  await panel.getByLabel("Окно вокруг сегодня").selectOption("1:3");
+  await expect(roadmap.locator(".mp-roadmap-axis").first()).toHaveText("окт 2026");
+  await expect(roadmap.locator("h2")).toHaveText("Цели проектов: −1 / +3 месяцев");
+  await page.screenshot({ path: test.info().outputPath("my-page-roadmap.png") });
 });

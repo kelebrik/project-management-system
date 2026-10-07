@@ -27,6 +27,8 @@
 .mp-thumb i.mp-thumb-kpi { background: var(--brand); }
 .mp-thumb i.mp-thumb-chart { background: #93c5fd; }
 .mp-thumb i.mp-thumb-table, .mp-thumb i.mp-thumb-status-grid { background: var(--surface); border: 1px solid var(--border-strong); }
+/* A roadmap: thin lanes with a few marks. */
+.mp-thumb i.mp-thumb-roadmap { background: repeating-linear-gradient(to bottom, var(--surface) 0 5px, #c4b5fd 5px 7px); border: 1px solid var(--border-strong); }
 .mp-thumb i.mp-thumb-callout { background: var(--warning-soft); border: 1px solid var(--warning-500); }
 .mp-templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--space-3); }
 .mp-template { display: grid; gap: 4px; text-align: left; align-content: start; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--surface); cursor: pointer; color: var(--text); font: inherit; }
@@ -234,6 +236,31 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-timeline-slip { stroke: var(--mp-red); stroke-width: 2; }
 .mp-timeline-gain { stroke: var(--mp-green); stroke-width: 2; }
 .mp-timeline-more { font-size: 11px; padding-top: 2px; }
+/* A roadmap: one thin lane per project, goals as stars, names next to them over a halo of the widget's colour. */
+.mp-roadmap { display: block; overflow: visible; font-size: 11px; }
+.mp-roadmap-grid { stroke: var(--mp-grid); }
+.mp-roadmap-axis { fill: var(--mp-muted); font-size: 10px; }
+.mp-roadmap-today { stroke: var(--mp-red); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.mp-roadmap-project { fill: var(--mp-text); font-weight: 600; }
+.mp-roadmap-hidden, .mp-roadmap-edge { fill: var(--mp-muted); font-size: 10px; font-weight: 600; cursor: help; }
+.mp-roadmap-line { stroke: color-mix(in srgb, var(--mp-accent) 35%, var(--mp-grid)); stroke-width: 3; stroke-linecap: round; }
+.mp-roadmap-mark { fill: var(--mp-accent); stroke: var(--mp-surface); stroke-width: 1.2; }
+.mp-roadmap-mark.mp-roadmap-goal { fill: var(--mp-series-4); }
+.mp-roadmap-mark.mp-roadmap-late { fill: var(--mp-red); }
+.mp-roadmap-mark.mp-roadmap-done { fill: var(--mp-green); }
+.mp-roadmap-mark.mp-roadmap-cancelled { fill: var(--mp-surface); stroke: var(--mp-muted); stroke-width: 1.3; }
+.mp-roadmap-plan { fill: var(--mp-surface); stroke: var(--mp-muted); stroke-width: 1.3; }
+.mp-roadmap-slip { stroke: var(--mp-red); stroke-width: 2; }
+.mp-roadmap-gain { stroke: var(--mp-green); stroke-width: 2; }
+.mp-roadmap-connector { stroke: var(--mp-muted); stroke-width: 1; }
+.mp-roadmap-label { fill: var(--mp-text); paint-order: stroke; stroke: var(--mp-surface); stroke-width: 3px; stroke-linejoin: round; }
+.mp-roadmap-label-bg { fill: var(--mp-surface); }
+.mp-roadmap-label.mp-roadmap-label-cancelled { fill: var(--mp-muted); text-decoration: line-through; }
+.mp-roadmap a:hover .mp-roadmap-label:not(.mp-roadmap-label-cancelled) { text-decoration: underline; }
+/* The roadmap in words: for a screen reader, and shown when a link in it takes the keyboard's focus. */
+.mp-roadmap-words { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; }
+.mp-roadmap-words:focus-within { position: absolute; z-index: 3; left: 4px; right: 4px; bottom: 4px; width: auto; height: auto; max-height: 60%; overflow: auto; clip: auto; white-space: normal; padding: 6px 8px 6px 22px; background: var(--mp-surface); border: 1px solid var(--mp-border); border-radius: 6px; font-size: 11px; box-shadow: var(--shadow); }
+.mp-roadmap-box { position: relative; }
 .mp-echart-drill { cursor: pointer; }
 .mp-alert-cell { color: var(--mp-red); font-weight: 700; }
 .mp-multi-note { font-size: 10px; color: var(--mp-muted); padding-top: 2px; }

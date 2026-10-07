@@ -147,3 +147,32 @@ test("Highcharts draws the same bars in the same order and colours, and keeps it
   const stacked = buildHighchartsOption({ ...input, kind: "stacked", result: { ...result, subKeys: ["a", "b"], groups: result.groups.map((group) => ({ ...group, sub: [{ key: "a", value: 1 }, { key: "b", value: 1 }] })) } }) as { series: unknown[] };
   assert.equal(stacked.series.length, 2);
 });
+
+test("show as: a roadmap reads milestones and goals only, all of them, and exports one line per goal", () => {
+  const upcoming: PageWidget = { id: "w1", type: "timeline", x: 0, y: 0, w: 8, h: 5, title: "Вехи", data: { metric: "checkpoints.upcoming", filters: [], columns: ["project", "title", "forecastDate"] } };
+  const roadmap = applyViz(upcoming, "roadmap")!;
+  assert.equal(roadmap.type, "roadmap");
+  assert.equal(vizOf(roadmap), "roadmap");
+  // The next four weeks would empty the window: all milestones and goals are read.
+  assert.equal(roadmap.data?.metric, "checkpoints.all");
+  assert.deepEqual(roadmap.roadmap, { before: 4, after: 8 });
+  assert.equal(pageQueries({ ...pageFromTemplate(PAGE_TEMPLATES[0], { mode: "all" }, "ru").document, widgets: [roadmap] })[0]?.widget.type, "roadmap");
+  const work: PageWidget = { id: "w2", type: "list", x: 0, y: 0, w: 4, h: 4, title: "Работы", data: { metric: "work.overdue", filters: [] } };
+  assert.equal(vizProblem(work, "roadmap"), "needsCheckpoints");
+  assert.equal(applyViz(work, "roadmap"), null);
+  const result: PageQueryResult = {
+    kind: "roadmap",
+    totalLanes: 2,
+    items: 1,
+    warnings: [],
+    lanes: [
+      { projectId: "TV", project: "TV", projectName: "Телевизор", href: "/TV/schedule", items: [{ id: "g", projectId: "TV", values: { title: "Старт продаж", type: "GOAL", plannedDate: "2026-11-01", forecastDate: "2026-11-05", slipDays: 4 } }] },
+      { projectId: "AU", project: "AU", projectName: "Аудио", href: "/AU/schedule", items: [] },
+    ],
+  };
+  const table = widgetTable(roadmap, result, "ru")!;
+  assert.deepEqual(table.rows, [["TV", "Старт продаж", "Цель", "01.11.26", "05.11.26", "4"], ["AU", "", "", "", "", ""]]);
+  const template = PAGE_TEMPLATES.find((entry) => entry.id === "portfolio-roadmap")!;
+  assert.equal(pageLayoutProblem(pageFromTemplate(template, { mode: "all" }, "ru").document.widgets, 14), null);
+  assert.ok(PAGE_QUESTIONS.some((question) => question.widget.type === "roadmap"));
+});

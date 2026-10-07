@@ -1,7 +1,9 @@
 import { useState, type ComponentType } from "react";
-import { CalendarRange, ChartArea, ChartBar, ChartColumn, ChartColumnStacked, ChartLine, ChartPie, CircleDot, Donut, Grid2x2, Hash, LayoutGrid, List, Loader, Table2 } from "lucide-react";
+import { CalendarRange, ChartArea, ChartGantt, ChartBar, ChartColumn, ChartColumnStacked, ChartLine, ChartPie, CircleDot, Donut, Grid2x2, Hash, LayoutGrid, List, Loader, Table2 } from "lucide-react";
 import {
   PAGE_METRIC_GROUPS,
+  PAGE_ROADMAP_DEFAULT,
+  PAGE_ROADMAP_WINDOWS,
   PAGE_METRICS,
   PAGE_SOURCES,
   PAGE_TEXT_WIDGETS,
@@ -43,7 +45,7 @@ type Props = {
   result?: PageQueryResult;
 };
 
-const VIZ_ICON: Record<PageVizId, ComponentType<{ size?: number }>> = { kpi: Hash, traffic: CircleDot, progress: Loader, grid: Grid2x2, timeline: CalendarRange, columns: ChartColumn, bars: ChartBar, line: ChartLine, area: ChartArea, donut: Donut, pie: ChartPie, stacked: ChartColumnStacked, table: Table2, list: List, tiles: LayoutGrid };
+const VIZ_ICON: Record<PageVizId, ComponentType<{ size?: number }>> = { kpi: Hash, traffic: CircleDot, progress: Loader, grid: Grid2x2, timeline: CalendarRange, roadmap: ChartGantt, columns: ChartColumn, bars: ChartBar, line: ChartLine, area: ChartArea, donut: Donut, pie: ChartPie, stacked: ChartColumnStacked, table: Table2, list: List, tiles: LayoutGrid };
 
 const OPS_BY_KIND: Record<PageFieldDef["kind"], PageFilterOp[]> = {
   number: ["gt", "gte", "lt", "lte", "eq", "between", "empty", "notEmpty"],
@@ -194,6 +196,13 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
   const groupField = fields.find((field) => field.key === data?.groupBy) ?? null;
   const rowsShown = widget.type === "list" || widget.type === "status-grid" || widget.type === "timeline" || (widget.type === "table" && !data?.groupBy);
   const valueShown = viz === "kpi" || viz === "traffic" || viz === "progress";
+  const roadmapShown = widget.type === "roadmap";
+  const roadmapWindow = widget.roadmap ?? PAGE_ROADMAP_DEFAULT;
+  const presetWindow = PAGE_ROADMAP_WINDOWS.some(([before, after]) => before === roadmapWindow.before && after === roadmapWindow.after);
+  const [customWindow, setCustomWindow] = useState(false);
+  // A title that names the window («−4 / +8») follows it.
+  const withWindow = (next: { before: number; after: number }, mergeKey?: string) =>
+    onChange({ ...widget, roadmap: next, title: widget.title.replace(/−\d+ \/ \+\d+/, `−${next.before} / +${next.after}`) }, mergeKey);
   const opLabel = (op: PageFilterOp) => t(`ui.pages.op.${op}` as "ui.pages.op.eq");
 
   const changeMetric = (id: string) => {
@@ -278,7 +287,7 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
             <p className="mp-hint">{metric?.periodField || (data.metric === "custom" && data.periodField) ? t("ui.pages.step.periodApplies") : t("ui.pages.step.periodNotApplies")}</p>
           </section>
 
-          {!valueShown && !rowsShown && (
+          {!valueShown && !rowsShown && !roadmapShown && (
             <section className="mp-step">
               <h3><span className="mp-step-n">2</span>{t("ui.pages.step.split")}</h3>
               <select aria-label={t("ui.pages.step.split")} onChange={(event) => setData({ groupBy: event.target.value || null, ...(event.target.value === data.groupBy2 ? { groupBy2: null } : {}) })} value={data.groupBy ?? ""}>
@@ -301,10 +310,10 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
               )}
             </section>
           )}
-          {(valueShown || rowsShown) && (
+          {(valueShown || rowsShown || roadmapShown) && (
             <section className="mp-step mp-step-muted">
               <h3><span className="mp-step-n">2</span>{t("ui.pages.step.split")}</h3>
-              <p className="mp-hint">{valueShown ? t("ui.pages.step.splitKpi") : t("ui.pages.step.splitRows")}</p>
+              <p className="mp-hint">{valueShown ? t("ui.pages.step.splitKpi") : roadmapShown ? t("ui.pages.step.splitRoadmap") : t("ui.pages.step.splitRows")}</p>
             </section>
           )}
 
@@ -367,6 +376,33 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
             )}
             {viz === "kpi" && metric?.periodField && (
               <label className="mp-check"><input checked={Boolean(data.compare)} onChange={(event) => setData({ compare: event.target.checked })} type="checkbox" />{t("ui.pages.option.compare")}</label>
+            )}
+            {roadmapShown && (
+              <div className="mp-field">
+                <span>{t("ui.pages.roadmap.window")}</span>
+                <select
+                  aria-label={t("ui.pages.roadmap.window")}
+                  onChange={(event) => {
+                    if (event.target.value === "custom") {
+                      setCustomWindow(true);
+                      return;
+                    }
+                    setCustomWindow(false);
+                    const [before, after] = event.target.value.split(":").map(Number);
+                    withWindow({ before, after });
+                  }}
+                  value={presetWindow && !customWindow ? `${roadmapWindow.before}:${roadmapWindow.after}` : "custom"}
+                >
+                  {PAGE_ROADMAP_WINDOWS.map(([before, after]) => <option key={`${before}:${after}`} value={`${before}:${after}`}>{t("ui.pages.roadmap.windowOption", { before, after })}</option>)}
+                  <option value="custom">{t("ui.pages.roadmap.custom")}</option>
+                </select>
+                {(!presetWindow || customWindow) && (
+                  <span className="mp-inline">
+                    <input aria-label={t("ui.pages.roadmap.monthsBefore")} max={24} min={0} onChange={(event) => withWindow({ ...roadmapWindow, before: Math.max(0, Math.min(24, Math.round(Number(event.target.value) || 0))) }, `roadmap:${widget.id}`)} title={t("ui.pages.roadmap.monthsBefore")} type="number" value={roadmapWindow.before} />
+                    <input aria-label={t("ui.pages.roadmap.monthsAfter")} max={36} min={1} onChange={(event) => withWindow({ ...roadmapWindow, after: Math.max(1, Math.min(36, Math.round(Number(event.target.value) || 1))) }, `roadmap:${widget.id}`)} title={t("ui.pages.roadmap.monthsAfter")} type="number" value={roadmapWindow.after} />
+                  </span>
+                )}
+              </div>
             )}
             {widget.type === "chart" && (
               <label className="mp-check"><input checked={Boolean(widget.showValues)} onChange={(event) => onChange({ ...widget, showValues: event.target.checked })} type="checkbox" />{t("ui.pages.option.showValues")}</label>
@@ -445,7 +481,7 @@ export function WidgetPanel({ widget, onChange, onDelete, onDuplicate, options, 
             </div>
             {widget.scope && <ScopePicker onChange={(scope) => onChange({ ...widget, scope })} options={options} scope={widget.scope} />}
           </section>
-          {!rowsShown && !valueShown && (
+          {!rowsShown && !valueShown && !roadmapShown && (
             <label className="mp-field">
               <span>{t("ui.pages.option.groupLimit")}</span>
               <input max={50} min={1} onChange={(event) => setData({ limit: Math.max(1, Math.min(50, Number(event.target.value) || 1)) }, `limit:${widget.id}`)} type="number" value={data.limit ?? 20} />

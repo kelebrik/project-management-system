@@ -177,3 +177,25 @@ test('a widget of a source removed since the page was saved still loads and says
   const resolved = resolvePageWidgetQuery(widget);
   assert.ok(resolved && 'error' in resolved && /больше нет/.test(resolved.error));
 });
+
+test('a roadmap has a lane for every project of the scope, with all its goals by date and none cut by the table limit', async () => {
+  const { evaluatePageRoadmap, resolvePageWidgetQuery: resolve } = await import('@pms/shared');
+  const goal = (id: string, projectId: string, forecastDate: string, type = 'GOAL') => ({ id, projectId, values: { project: projectId, projectName: projectId, title: `Цель ${id}`, type, status: 'IN_PROGRESS', plannedDate: forecastDate, forecastDate, slipDays: 0, open: true, owner: 'x' } });
+  const many = Array.from({ length: 600 }, (_, index) => goal(`g${index}`, 'TV', `2026-${String((index % 12) + 1).padStart(2, '0')}-10`));
+  const rows = [...many, goal('a1', 'AU', '2026-12-01'), goal('a2', 'AU', '2026-11-01'), goal('m1', 'AU', '2026-11-15', 'MILESTONE')];
+  const projects = [{ id: 'AU', code: 'AU', name: 'Аудио' }, { id: 'TV', code: 'TV', name: 'Телевизор' }, { id: 'EMPTY', code: 'EMPTY', name: 'Без целей' }];
+  const resolved = resolve({ type: 'roadmap', data: { metric: 'checkpoints.all', filters: [{ field: 'type', op: 'in', value: ['GOAL'] }] } });
+  assert.ok(resolved && 'spec' in resolved);
+  assert.equal(resolved.spec.output, 'roadmap');
+  const result = evaluatePageRoadmap(rows, projects, resolved.spec);
+  assert.equal(result.kind, 'roadmap');
+  if (result.kind !== 'roadmap') return;
+  assert.deepEqual(result.lanes.map((lane) => [lane.project, lane.items.length]), [['AU', 2], ['TV', 600], ['EMPTY', 0]]);
+  assert.deepEqual(result.lanes[0].items.map((item) => item.values.title), ['Цель a2', 'Цель a1']);
+  assert.equal(result.lanes[0].href, '/AU/schedule');
+  // Only what the widget draws travels: no owner.
+  assert.equal('owner' in result.lanes[0].items[0].values, false);
+  assert.equal(result.totalLanes, 3);
+  // Another source is refused.
+  assert.equal(evaluatePageRoadmap(rows, projects, { ...resolved.spec, source: 'work' }).kind, 'error');
+});

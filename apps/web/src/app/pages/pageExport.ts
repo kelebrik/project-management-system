@@ -68,6 +68,20 @@ export function widgetTable(widget: PageWidget, result: PageQueryResult, locale:
       numeric: new Set(Array.from({ length: width - 1 }, (_, index) => index + 1)),
     };
   }
+  if (result.kind === "roadmap") {
+    // One line per milestone or goal, with its project; projects without any keep a line of their own.
+    const date = (value: PageValue | undefined) => (typeof value === "string" ? formatPageValue(value, { key: "day", label: { ru: "", en: "" }, kind: "date", format: "date" }, locale) : "");
+    const ru = locale === "ru";
+    return {
+      headers: ru ? ["Проект", "Название", "Тип", "По плану", "Прогноз", "Сдвиг, дн."] : ["Project", "Title", "Type", "Planned", "Forecast", "Slip, days"],
+      rows: result.lanes.flatMap((lane) =>
+        lane.items.length === 0
+          ? [[lane.project, "", "", "", "", ""]]
+          : lane.items.map((item) => [lane.project, String(item.values.title ?? ""), item.values.type === "GOAL" ? (ru ? "Цель" : "Goal") : ru ? "Веха" : "Milestone", date(item.values.plannedDate), date(item.values.forecastDate), typeof item.values.slipDays === "number" ? String(item.values.slipDays) : ""]),
+      ),
+      numeric: new Set([5]),
+    };
+  }
   if (result.kind === "value") return { headers: [widget.title || (locale === "ru" ? "Значение" : "Value")], rows: [[result.value === null ? "" : String(result.value)]], numeric: new Set([0]) };
   return null;
 }

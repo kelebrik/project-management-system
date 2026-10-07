@@ -1,4 +1,4 @@
-import { PAGE_SOURCES, pageMetric, type PageChartKind, type PageFieldDef, type PageWidget, type PageWidgetType } from "@pms/shared";
+import { PAGE_ROADMAP_DEFAULT, PAGE_SOURCES, pageMetric, type PageChartKind, type PageFieldDef, type PageWidget, type PageWidgetType } from "@pms/shared";
 import { widgetFields, widgetSource } from "./pageModel";
 
 /**
@@ -8,7 +8,7 @@ import { widgetFields, widgetSource } from "./pageModel";
  * with a sensible choice, so a switch never ends in an empty widget.
  */
 
-export const PAGE_VIZ = ["kpi", "traffic", "progress", "columns", "bars", "line", "area", "donut", "pie", "stacked", "grid", "table", "list", "tiles", "timeline"] as const;
+export const PAGE_VIZ = ["kpi", "traffic", "progress", "columns", "bars", "line", "area", "donut", "pie", "stacked", "grid", "table", "list", "tiles", "timeline", "roadmap"] as const;
 export type PageVizId = (typeof PAGE_VIZ)[number];
 
 const CHARTS = new Set<string>(["columns", "bars", "line", "area", "donut", "pie", "stacked"]);
@@ -23,6 +23,7 @@ export function vizOf(widget: Pick<PageWidget, "type" | "chart">): PageVizId | n
   if (widget.type === "progress") return "progress";
   if (widget.type === "metric-grid") return "grid";
   if (widget.type === "timeline") return "timeline";
+  if (widget.type === "roadmap") return "roadmap";
   return null;
 }
 
@@ -30,8 +31,9 @@ const groupable = (fields: readonly PageFieldDef[]) => fields.filter((field) => 
 const timeFields = (fields: readonly PageFieldDef[]) => groupable(fields).filter((field) => field.kind === "date");
 
 /** Why a look is not available for this widget, or null when it is. */
-export function vizProblem(widget: Pick<PageWidget, "data">, viz: PageVizId): "needsTime" | "needsTwo" | "needsDates" | null {
+export function vizProblem(widget: Pick<PageWidget, "data">, viz: PageVizId): "needsTime" | "needsTwo" | "needsDates" | "needsCheckpoints" | null {
   const fields = widgetFields(widget);
+  if (viz === "roadmap" && widgetSource(widget) !== "checkpoints") return "needsCheckpoints";
   if (viz === "timeline" && !fields.some((field) => field.kind === "date")) return "needsDates";
   if ((viz === "line" || viz === "area") && timeFields(fields).length === 0) return "needsTime";
   if (viz === "stacked" && groupable(fields).length < 2) return "needsTwo";
@@ -55,6 +57,12 @@ export function applyViz(widget: PageWidget, viz: PageVizId): PageWidget | null 
     type = "metric-grid";
     if (!data.groupBy) data = { ...data, groupBy: field("project")?.groupable ? "project" : groupable(fields)[0]?.key ?? null };
     data = { ...data, groupBy2: null };
+  } else if (viz === "roadmap") {
+    type = "roadmap";
+    // A metric that keeps only the next weeks would empty the window: the roadmap reads all milestones and goals.
+    const narrowed = metric?.filters.some((filter) => filter.field === "inDays");
+    data = { ...data, ...(narrowed ? { metric: "checkpoints.all" } : {}), groupBy: null, groupBy2: null, sort: null };
+    return { ...widget, type, chart: undefined, data, roadmap: widget.roadmap ?? { ...PAGE_ROADMAP_DEFAULT } };
   } else if (viz === "timeline") {
     type = "timeline";
     const dates = fields.filter((entry) => entry.kind === "date");

@@ -54,6 +54,25 @@ export const PAGE_TEMPLATES: readonly PageTemplate[] = [
     ],
   },
   {
+    id: "portfolio-roadmap",
+    label: t("Дорожная карта портфеля", "Portfolio roadmap"),
+    description: t("Цели каждого проекта на шкале от −4 до +8 месяцев, сдвинутые и ближайшие вехи", "The goals of every project on an axis from −4 to +8 months, slipped and upcoming checkpoints"),
+    scopeHint: "portfolio",
+    format: "wide",
+    periodDays: 90,
+    title: t("Дорожная карта портфеля", "Portfolio roadmap"),
+    widgets: [
+      kpi("k-projects", 0, "projects.count", t("Открытых проектов", "Open projects")),
+      kpi("k-upcoming", 3, "checkpoints.upcoming", t("Вехи в ближайшие 4 недели", "Checkpoints within 4 weeks")),
+      kpi("k-slipped", 6, "checkpoints.slipped", t("Сдвинутых вех", "Slipped checkpoints")),
+      kpi("k-red", 9, "projects.red", t("Красных проектов", "Red projects")),
+      {
+        id: "r-goals", type: "roadmap", x: 0, y: 3, w: 12, h: 11, title: t("Цели проектов: −4 / +8 месяцев", "Project goals: −4 / +8 months"),
+        data: { metric: "checkpoints.all", filters: [{ field: "type", op: "in", value: ["GOAL"] }] }, roadmap: { before: 4, after: 8 },
+      },
+    ],
+  },
+  {
     id: "project-status",
     label: t("Статус проекта", "Project status"),
     description: t("Ближайшие вехи на ленте времени, просрочки, красные риски, Jira по неделям и вывод для встречи", "Upcoming checkpoints on a timeline, overdue work, red risks, Jira by week and a takeaway for the meeting"),
