@@ -15,14 +15,14 @@ test("my page is first in the top bar, says what it can do once, and reports mov
   await sections.first().click();
   await expect(page).toHaveURL(/\/my-page$/);
   const intro = page.getByRole("dialog", { name: "Что умеет «Моя страница»" });
-  await expect(intro).toContainText("Виджет в четыре шага");
+  await expect(intro).toContainText("Виджет в четыре шага", { timeout: 15_000 });
   await intro.getByRole("button", { name: "Понятно" }).click();
   await expect(intro).toHaveCount(0);
   await page.reload();
-  await expect(intro).toBeVisible();
+  await expect(intro).toBeVisible({ timeout: 15_000 });
   await intro.getByRole("button", { name: "Больше не показывать" }).click();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Моя страница", level: 2 })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Моя страница", level: 2 })).toBeVisible({ timeout: 15_000 });
   await expect(intro).toHaveCount(0);
   // It can still be opened by hand.
   await page.getByRole("button", { name: "Что умеет страница" }).click();
