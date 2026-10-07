@@ -41,9 +41,11 @@ test("widgets show a comparison, a line in time order and stacked bars, and dril
   await expect(kpi.locator(".jira-analytics-kpi strong")).toHaveText("12");
   await expect(kpi.getByText("+4 (+50%)")).toBeVisible();
   expect(batches[0].kpi).toMatchObject({ visualization: "kpi", compare: "previousPeriod" });
-  await expect(page.locator(".jira-analytics-line-labels button").first()).toContainText("сентябрь 2026");
+  await expect(page.getByRole("group", { name: "По месяцам" }).locator(".jira-hc-points button").first()).toContainText("сентябрь 2026");
+  await expect(page.getByRole("group", { name: "По месяцам" }).locator("path.highcharts-graph")).toHaveCount(1);
 
-  await page.getByRole("button", { name: "E1 · К выполнению: 1" }).click();
+  // A segment is reached from the keyboard through the buttons under the chart.
+  await page.getByRole("button", { name: "E1 · К выполнению: 1" }).press("Enter");
   await expect.poll(() => singles.at(-1)).toMatchObject({ groupKey: "value:E1", groupKey2: "value:new", page: 1 });
   const stacked = page.locator(".jira-analytics-widget", { hasText: "Эпики" });
   await expect(stacked.getByText("E1 · К выполнению")).toBeVisible();
@@ -51,6 +53,13 @@ test("widgets show a comparison, a line in time order and stacked bars, and dril
   await stacked.getByRole("button", { name: "Далее" }).click();
   await expect.poll(() => singles.at(-1)?.page).toBe(2);
   await expect(stacked.getByRole("link", { name: "TV-20" })).toHaveAttribute("href", "https://jira.example/browse/TV-20");
+
+  // The group's name on the axis opens the whole group; its total is the group's own value.
+  await page.reload();
+  await expect(stacked.locator("g.highcharts-stack-labels text")).toHaveText("3");
+  await stacked.locator(".highcharts-xaxis-labels text", { hasText: "E1" }).click();
+  await expect.poll(() => singles.at(-1)).toEqual(expect.objectContaining({ groupKey: "value:E1", page: 1 }));
+  expect(singles.at(-1)?.groupKey2).toBeUndefined();
 });
 
 test("anyone arranges their own view: hides a shared widget, adds their own, and goes back to the shared view", async ({ page }) => {
@@ -98,9 +107,10 @@ test("a columns chart shows every week of the period and drills into a week's is
   });
   await page.goto("/TV-OVERVIEW/jira-work");
   const chart = page.getByRole("group", { name: "Создано Critical/Blocker по неделям" });
-  await expect(chart.locator(".jira-analytics-columns-plot button")).toHaveCount(3);
+  await expect(chart.locator(".highcharts-column-series .highcharts-point")).toHaveCount(3);
   await expect(chart.getByRole("button", { name: "14 сент. 2026 г.: 0" })).toBeDisabled();
-  await chart.getByRole("button", { name: "21 сент. 2026 г.: 3" }).click();
+  // A click on the column itself opens that week.
+  await chart.locator(".highcharts-column-series .highcharts-point").nth(1).click();
   await expect.poll(() => singles.at(-1)?.groupKey).toBe("2026-W39");
   await expect(page.getByRole("link", { name: "TV-2" })).toBeVisible();
 });

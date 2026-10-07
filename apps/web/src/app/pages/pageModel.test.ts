@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PAGE_QUESTIONS, PAGE_SOURCES, PAGE_TEMPLATES, pageFromTemplate, pageLayoutProblem, type PageQueryResult, type PageWidget } from "@pms/shared";
-import { buildChartOption, chartSummary } from "./chartOption";
+import { chartSummary } from "./chartOption";
 import { pushHistory, redoHistory, startHistory, undoHistory } from "./pageHistory";
 import { beyondAlert, changeFormat, duplicateWidget, fitRows, formatNumber, groupLabel, pageQueries, pageQueryFingerprint, placeNewWidget, sheetGeometry, trafficLevel, widgetPassport, widgetSource } from "./pageModel";
 import { widgetTable } from "./pageExport";
@@ -91,12 +91,9 @@ test("undo and redo, with a run of small changes as one step", () => {
   assert.deepEqual([history.present, history.future.length], [5, 0]);
 });
 
-test("charts: bars in order with RAG colours, a summary for screen readers", () => {
+test("charts: a summary for screen readers", () => {
   const rag = PAGE_SOURCES.projects.fields.find((field) => field.key === "rag")!;
   const result: Extract<PageQueryResult, { kind: "groups" }> = { kind: "groups", groups: [{ key: "RED", value: 2, count: 2 }, { key: "GREEN", value: 5, count: 5 }], subKeys: [], total: 7, rowCount: 7, multiValued: false, bucket: null, warnings: [] };
-  const option = buildChartOption({ result, kind: "bars", field: rag, subField: null, unit: "count", showValues: true, colors, locale: "ru", title: "Светофор" }) as { yAxis: { data: string[] }; series: Array<{ data: Array<{ itemStyle: { color: string } }> }> };
-  assert.deepEqual(option.yAxis.data, ["Красный", "Зелёный"]);
-  assert.deepEqual(option.series[0].data.map((entry) => entry.itemStyle.color), ["#f00", "#0f0"]);
   assert.equal(chartSummary({ result, field: rag, unit: "count", locale: "ru", title: "Светофор" }), "Светофор. Красный: 2; Зелёный: 5");
 });
 

@@ -4,6 +4,7 @@ import type { ScenarioResult } from "@pms/shared";
 import { createScenarioGantt } from "../app/scenarioGanttModel";
 import { usePageContext } from "./PageContext";
 import type { GanttCssProperties } from "../app/uiStyleTypes";
+import { GanttHighchartsLayer } from "../components/timeline/GanttHighchartsLayer";
 
 export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResult | null }) {
   const { locale, t: uiText } = useInterfaceTranslation();
@@ -171,32 +172,20 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                             aria-label={uiText("ui.projects.structureColumnResizeHandle")}
                           />
                           <div
-                            className="gantt-timeline"
+                            className="gantt-timeline hc-gantt"
                             ref={ganttTimelineRef}
                             style={{ minHeight: `${wbsGantt.height}px` }}
                           >
-                            <div className="gantt-month-grid" aria-hidden="true">
-                              {primaryPeriods.map((period) => (
-                                <span
-                                  key={period.label}
-                                  style={{
-                                    left: `${period.offset}%`,
-                                    width: `${period.width}%`,
-                                  }}
-                                />
-                              ))}
-                            </div>
-                            {subPeriods.length > 0 && (
-                              <div className="gantt-sub-grid" aria-hidden="true">
-                                {subPeriods.map((period) => (
-                                  <span
-                                    key={`${ganttScale}-${period.label}`}
-                                    style={{ left: `${period.offset}%` }}
-                                  />
-                                ))}
-                              </div>
-                            )}
+                            <GanttHighchartsLayer
+                              gantt={wbsGantt}
+                              primaryPeriods={primaryPeriods}
+                              showBaseline={showGanttBaseline}
+                              showCritical={showGanttCriticalPath}
+                              showForecast={showGanttForecast}
+                              subPeriods={subPeriods}
+                            />
                             {wbsGantt.todayOffset !== null && (
+                              // Highcharts draws the line; this stays as the anchor of «Today».
                               <span
                                 className="gantt-today"
                                 style={{ left: `${wbsGantt.todayOffset}%` }}
@@ -337,12 +326,11 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                 summary,
                                 rangeLine,
                                 bracket,
-                                baselineRange,
-                                  forecastRange,
-                                  scheduleVarianceDays,
                                   toneClass,
                                   nearCritical,
                                   totalFloatWorkDays,
+                                  baselineRange,
+                                  forecastRange,
                                 }) => (
                                   <div
                                   className={`gantt-track-row ${
@@ -368,26 +356,6 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                   onMouseEnter={() => setHoveredGanttItemId(item.id)}
                                   onMouseLeave={() => setHoveredGanttItemId(null)}
                                 >
-                                  {showGanttBaseline && baselineRange && (
-                                    <i
-                                      className="gantt-overlay baseline"
-                                      style={{
-                                        left: `${baselineRange.offset}%`,
-                                        width: `${baselineRange.width}%`,
-                                      }}
-                                      title={`${item.code} базовый план: ${date(item.baselineStartDate)} - ${date(item.baselineDueDate)}`}
-                                    />
-                                  )}
-                                  {showGanttForecast && forecastRange && (
-                                    <i
-                                      className={`gantt-overlay forecast ${scheduleVarianceDays > 0 ? "slipped" : ""}`}
-                                      style={{
-                                        left: `${forecastRange.offset}%`,
-                                        width: `${forecastRange.width}%`,
-                                      }}
-                                      title={`${item.code} прогноз: ${date(item.forecastStartDate)} - ${date(item.forecastDueDate)}`}
-                                    />
-                                  )}
                                     <i
                                       className={`gantt-bar ${item.status.toLowerCase().replaceAll("_", "-")} ${toneClass} ${milestone ? "milestone" : ""} ${item.type === "GOAL" ? "goal" : ""} ${summary ? "summary" : ""} ${rangeLine ? "range-line" : ""} ${bracket ? "summary-bracket" : ""} ${showGanttCriticalPath && critical ? "critical-path" : ""} ${showGanttCriticalPath && nearCritical ? "near-critical-path" : ""}`}
                                       style={{
@@ -398,6 +366,14 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                         totalFloatWorkDays === null
                                           ? ""
                                           : `. Резерв: ${totalFloatWorkDays} раб. дн.`
+                                      }${
+                                        showGanttBaseline && baselineRange
+                                          ? `. Базовый план: ${date(item.baselineStartDate)} - ${date(item.baselineDueDate)}`
+                                          : ""
+                                      }${
+                                        showGanttForecast && forecastRange
+                                          ? `. Прогноз: ${date(item.forecastStartDate)} - ${date(item.forecastDueDate)}`
+                                          : ""
                                       }`}
                                     >
                                     {rangeLine && (

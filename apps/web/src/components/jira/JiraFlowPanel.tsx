@@ -3,53 +3,14 @@ import { useEffect, useState } from "react";
 import { apiClient } from "../../api/client";
 import { useJiraSlice } from "../../hooks/useJiraSlice";
 import { useI18n } from "../../i18n/I18nProvider";
+import { JiraFlowChart } from "./JiraCharts";
 import { JiraSliceBar } from "./JiraSliceBar";
 
 type Category = "new" | "indeterminate" | "done";
 type Bucket = { start: string; end: string; created: number; resolved: number; open: number; byCategory: Record<Category, number>; scope: number; done: number };
 type Flow = { step: string; metric: string; buckets: Bucket[]; quality: { issues: number; incompleteHistory: number; withoutCreationDate: number; missingStoryPoints: number; unknownStatuses: string[] } };
-type Series = { key: string; label: string; color: string; values: number[] };
 
-const WIDTH = 720;
-const HEIGHT = 220;
-const PAD = { left: 40, right: 12, top: 10, bottom: 24 };
 const CATEGORY_COLORS: Record<Category, string> = { new: "#94a3b8", indeterminate: "#3b82f6", done: "#22c55e" };
-
-/** Lines over the steps, or stacked areas when `stacked`; the x axis shows the first day of a few steps. */
-function Chart({ title, labels, series, stacked = false }: { title: string; labels: string[]; series: Series[]; stacked?: boolean }) {
-  const count = labels.length;
-  const totals = labels.map((_, index) => (stacked ? series.reduce((sum, line) => sum + line.values[index], 0) : Math.max(0, ...series.map((line) => line.values[index]))));
-  const maximum = Math.max(1, ...totals);
-  const x = (index: number) => PAD.left + (count <= 1 ? 0 : (index / (count - 1)) * (WIDTH - PAD.left - PAD.right));
-  const y = (value: number) => HEIGHT - PAD.bottom - (value / maximum) * (HEIGHT - PAD.top - PAD.bottom);
-  const base = new Array<number>(count).fill(0);
-  const shapes = series.map((line) => {
-    if (!stacked) return <polyline fill="none" key={line.key} points={line.values.map((value, index) => `${x(index)},${y(value)}`).join(" ")} stroke={line.color} strokeWidth={2} />;
-    const lower = [...base];
-    line.values.forEach((value, index) => (base[index] += value));
-    const top = base.map((value, index) => `${x(index)},${y(value)}`);
-    const bottom = lower.map((value, index) => `${x(index)},${y(value)}`).reverse();
-    return <polygon fill={line.color} fillOpacity={0.75} key={line.key} points={[...top, ...bottom].join(" ")} />;
-  });
-  const tickEvery = Math.max(1, Math.ceil(count / 6));
-  return (
-    <figure className="jira-flow-chart">
-      <figcaption>{title}</figcaption>
-      <svg aria-label={title} role="img" viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
-        <line stroke="currentColor" strokeOpacity={0.2} x1={PAD.left} x2={WIDTH - PAD.right} y1={y(0)} y2={y(0)} />
-        <text fontSize={10} x={4} y={y(maximum) + 4}>{Math.round(maximum)}</text>
-        <text fontSize={10} x={4} y={y(0)}>0</text>
-        {shapes}
-        {labels.map((label, index) => (index % tickEvery === 0 ? <text fontSize={10} key={label} textAnchor="middle" x={x(index)} y={HEIGHT - 6}>{label}</text> : null))}
-      </svg>
-      <ul className="jira-flow-legend">
-        {series.map((line) => (
-          <li key={line.key}><span style={{ background: line.color }} />{line.label}: <b>{Math.round(line.values.at(-1) ?? 0)}</b></li>
-        ))}
-      </ul>
-    </figure>
-  );
-}
 
 /**
  * The flow of the project's Jira work over time: created against resolved,
@@ -85,6 +46,7 @@ export function JiraFlowPanel({ projectId, revision, userId, isAdmin }: { projec
   const buckets = flow?.buckets ?? [];
   const labels = buckets.map((bucket) => formatters.date(bucket.start.slice(0, 10)));
   const pick = (key: keyof Omit<Bucket, "start" | "end" | "byCategory">) => buckets.map((bucket) => bucket[key]);
+  const format = (value: number) => formatters.formatNumber(Math.round(value * 10) / 10);
   return (
     <div className="jira-flow-panel">
       <JiraSliceBar isAdmin={isAdmin} projectId={projectId} revision={revision} state={sliceState} userId={userId} />
@@ -98,10 +60,10 @@ export function JiraFlowPanel({ projectId, revision, userId, isAdmin }: { projec
       {flow && (
         <>
           <div className="jira-flow-grid">
-            <Chart labels={labels} series={[{ key: "created", label: t("ui.jiraFlow.created"), color: "#f97316", values: pick("created") }, { key: "resolved", label: t("ui.jiraFlow.resolved"), color: "#22c55e", values: pick("resolved") }]} title={t("ui.jiraFlow.createdResolved")} />
-            <Chart labels={labels} series={[{ key: "open", label: t("ui.jiraFlow.open"), color: "#3b82f6", values: pick("open") }]} title={t("ui.jiraFlow.wip")} />
-            <Chart labels={labels} series={(["done", "indeterminate", "new"] as Category[]).map((category) => ({ key: category, label: t(`ui.jiraSlice.category.${category}`), color: CATEGORY_COLORS[category], values: buckets.map((bucket) => bucket.byCategory[category]) }))} stacked title={t("ui.jiraFlow.cfd")} />
-            <Chart labels={labels} series={[{ key: "scope", label: t("ui.jiraFlow.scope"), color: "#64748b", values: pick("scope") }, { key: "done", label: t("ui.jiraFlow.done"), color: "#22c55e", values: pick("done") }]} title={t("ui.jiraFlow.burnup")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "created", label: t("ui.jiraFlow.created"), color: "#f97316", values: pick("created") }, { key: "resolved", label: t("ui.jiraFlow.resolved"), color: "#22c55e", values: pick("resolved") }]} title={t("ui.jiraFlow.createdResolved")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "open", label: t("ui.jiraFlow.open"), color: "#3b82f6", values: pick("open") }]} title={t("ui.jiraFlow.wip")} />
+            <JiraFlowChart format={format} labels={labels} series={(["done", "indeterminate", "new"] as Category[]).map((category) => ({ key: category, label: t(`ui.jiraSlice.category.${category}`), color: CATEGORY_COLORS[category], values: buckets.map((bucket) => bucket.byCategory[category]) }))} stacked title={t("ui.jiraFlow.cfd")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "scope", label: t("ui.jiraFlow.scope"), color: "#64748b", values: pick("scope") }, { key: "done", label: t("ui.jiraFlow.done"), color: "#22c55e", values: pick("done") }]} title={t("ui.jiraFlow.burnup")} />
           </div>
           <p className="jira-analytics-quality">
             {t("ui.jiraFlow.quality", { issues: flow.quality.issues, incomplete: flow.quality.incompleteHistory })}

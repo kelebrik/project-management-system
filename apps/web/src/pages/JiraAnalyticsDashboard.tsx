@@ -1,4 +1,5 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
+import { JiraGroupsChart, JiraStackedChart } from "../components/jira/JiraCharts";
 import { useI18n as useJiraTranslations } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
@@ -190,28 +191,13 @@ function WidgetContent({ widget, result, error, drilldown, onDrill, onBack }: {
       <small>{previous === undefined || previous === 0 ? uiText("ui.jira.kpiNoPrevious") : uiText("ui.jira.kpiPrevious", { value: formatJiraAnalyticsMetric(widget.metric, previous) })}</small>
     </div>;
   }
-  if (widget.groupBy !== "none" && widget.visualization === "columns") {
-    // Columns along time: every week or month of the period, empty ones too, in order.
-    const steps = [...result.groups].sort((left, right) => left.key.localeCompare(right.key));
-    const maximum = Math.max(1, ...steps.map((step) => step.value));
-    return <div className="jira-analytics-columns" role="group" aria-label={widget.title}>
-      <div className="jira-analytics-columns-plot">{steps.map((step) => <button type="button" key={step.key} title={`${step.label}: ${formatJiraAnalyticsMetric(widget.metric, step.value)}`} aria-label={`${step.label}: ${formatJiraAnalyticsMetric(widget.metric, step.value)}`} disabled={step.value === 0} onClick={() => toGroup(step)}><span className="jira-analytics-column-value">{step.value > 0 ? formatJiraAnalyticsMetric(widget.metric, step.value) : ""}</span><span className="jira-analytics-column" style={{ height: `${(step.value / maximum) * 100}%` }} /></button>)}</div>
-      <div className="jira-analytics-columns-axis">{steps.map((step, index) => <span key={step.key}>{index % Math.max(1, Math.ceil(steps.length / 9)) === 0 ? step.label : ""}</span>)}</div>
-    </div>;
-  }
-  if (widget.groupBy !== "none" && widget.visualization === "line") {
-    // A line runs through time: weeks and months in their order, not by value.
-    const points = [...result.groups].sort((left, right) => left.key.localeCompare(right.key));
-    const maximum = Math.max(1, ...points.map((point) => point.value));
-    const x = (index: number) => (points.length <= 1 ? 0 : (index / (points.length - 1)) * 100);
-    return <div className="jira-analytics-line"><svg viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label={widget.title}><polyline fill="none" stroke="currentColor" strokeWidth={0.8} points={points.map((point, index) => `${x(index)},${38 - (point.value / maximum) * 36}`).join(" ")} /></svg><div className="jira-analytics-line-labels">{points.map((point) => <button type="button" key={point.key} onClick={() => toGroup(point)} title={`${point.label}: ${formatJiraAnalyticsMetric(widget.metric, point.value)}`}>{point.label}<b>{formatJiraAnalyticsMetric(widget.metric, point.value)}</b></button>)}</div></div>;
+  if (widget.groupBy !== "none" && (widget.visualization === "columns" || widget.visualization === "line")) {
+    // Columns and lines run along time: every week or month of the period, empty ones too, in order.
+    return <JiraGroupsChart kind={widget.visualization} title={widget.title} groups={result.groups} format={(value) => formatJiraAnalyticsMetric(widget.metric, value)} formatKey={widget.metric} onPick={toGroup} />;
   }
   if (widget.groupBy !== "none" && widget.visualization === "stacked" && result.breakdownKeys) {
-    const maximum = Math.max(1, ...result.groups.map((group) => (group.breakdown ?? []).reduce((sum, cell) => sum + cell.value, 0)));
-    const colorOf = (key: string) => STACK_COLORS[(result.breakdownKeys ?? []).findIndex((entry) => entry.key === key) % STACK_COLORS.length];
     return <div className="jira-analytics-stacked">
-      {result.groups.map((group) => <div className="jira-analytics-bar-row" key={group.key}><button type="button" className="jira-analytics-bar-label link-button" onClick={() => toGroup(group)}>{group.label}</button><span className="jira-analytics-bar-track">{(group.breakdown ?? []).map((cell) => <button type="button" key={cell.key} title={`${cell.label}: ${formatJiraAnalyticsMetric(widget.metric, cell.value)}`} aria-label={`${group.label} · ${cell.label}: ${formatJiraAnalyticsMetric(widget.metric, cell.value)}`} style={{ width: `${(cell.value / maximum) * 100}%`, background: colorOf(cell.key) }} onClick={() => toCell(group, cell)} />)}</span><b>{formatJiraAnalyticsMetric(widget.metric, group.value)}</b></div>)}
-      <ul className="jira-flow-legend">{(result.breakdownKeys ?? []).map((entry) => <li key={entry.key}><span style={{ background: colorOf(entry.key) }} />{entry.label}</li>)}</ul>
+      <JiraStackedChart title={widget.title} groups={result.groups} keys={result.breakdownKeys} format={(value) => formatJiraAnalyticsMetric(widget.metric, value)} formatKey={widget.metric} onPick={(group, cell) => (cell ? toCell(group, cell) : toGroup(group))} />
       {result.multiValued ? <p className="jira-analytics-quality">{uiText("ui.jira.multiValuedNote")}</p> : null}
     </div>;
   }
@@ -219,13 +205,11 @@ function WidgetContent({ widget, result, error, drilldown, onDrill, onBack }: {
     return <BreakdownTable metric={widget.metric} result={result} onGroup={toGroup} onCell={toCell} />;
   }
   if (widget.groupBy !== "none") {
-    const maximum = Math.max(1, ...result.groups.map((group) => group.value));
-    return <div className="jira-analytics-bars">{result.groups.map((group) => <button type="button" className="jira-analytics-bar-row" key={group.key} onClick={() => toGroup(group)}><span className="jira-analytics-bar-label">{group.label}</span><span className="jira-analytics-bar-track"><span style={{ width: `${Math.max(2, group.value / maximum * 100)}%` }} /></span><b>{formatJiraAnalyticsMetric(widget.metric, group.value)}</b></button>)}</div>;
+    return <div className="jira-analytics-bars"><JiraGroupsChart kind="bars" title={widget.title} groups={result.groups} format={(value) => formatJiraAnalyticsMetric(widget.metric, value)} formatKey={widget.metric} onPick={toGroup} /></div>;
   }
   return <div className="jira-analytics-number"><strong>{formatJiraAnalyticsMetric(widget.metric, result.value)}</strong><span>{uiText("ui.jira.rowsCountLabel")} {result.totalRecords.toLocaleString(intlLocale(uiLocale))}</span></div>;
 }
 
-const STACK_COLORS = ["#3b82f6", "#22c55e", "#f97316", "#a855f7", "#14b8a6", "#eab308", "#ef4444", "#64748b"];
 
 /** Groups by rows and the second grouping by columns, with a total per row. */
 function BreakdownTable({ metric, result, onGroup, onCell }: { metric: JiraSemanticWidget["metric"]; result: SemanticResult; onGroup: (group: { key: string; label: string }) => void; onCell: (group: { key: string; label: string }, cell: { key: string; label: string }) => void }) {

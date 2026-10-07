@@ -322,3 +322,12 @@ select.field-invalid {
 .unified-list-search input { background: transparent; border: 0; box-shadow: none; flex: 1; min-width: 120px; }
 .unified-list-search input:focus { box-shadow: none; }
 .unified-list-search button { border: 0; background: transparent; min-height: 24px; padding: 2px; }
+
+/* Highcharts pictures fill their box. */
+.hc-chart { width: 100%; height: 100%; min-height: 0; }
+.hc-chart-loading { background: linear-gradient(90deg, var(--surface-2), var(--surface-3), var(--surface-2)); border-radius: var(--radius-sm); }
+.jira-hc { width: 100%; min-width: 0; }
+.jira-hc-points { position: absolute; width: 1px; height: 1px; margin: 0; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; list-style: none; }
+.jira-hc-points:focus-within { position: static; display: flex; flex-wrap: wrap; gap: 4px; width: auto; height: auto; margin-top: 6px; overflow: visible; clip: auto; white-space: normal; }
+.jira-hc-points button { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; }
+.jira-hc-points button:disabled { color: var(--text-muted); cursor: default; }
