@@ -58,13 +58,15 @@ function TemplatePreview({ template, scope }: { template: PageTemplate; scope: P
   const empty = answer ? dataWidgets.filter((widget) => emptyResult(answer.results[widget.id])) : [];
   if (dataWidgets.length === 0) return null;
   return (
-    <section aria-label={t("ui.pages.preview.title")} className="mp-preview">
+    <section aria-label={t("ui.pages.preview.title", { template: template.label[locale] })} className="mp-preview">
       <div className="mp-preview-head">
-        <b>{t("ui.pages.preview.title")}</b>
+        <b>{t("ui.pages.preview.title", { template: template.label[locale] })}</b>
         {answer && <span className={empty.length ? "mp-warn" : "mp-ok"}>{t("ui.pages.preview.fit", { with: dataWidgets.length - empty.length, all: dataWidgets.length })}</span>}
       </div>
+      <p className="mp-hint">{t("ui.pages.preview.note")}</p>
       {empty.length > 0 && <p className="mp-hint">{t("ui.pages.preview.empty", { widgets: empty.map((widget) => widget.title).join(", ") })}</p>}
       <div className="mp-preview-sheet">
+        <span aria-hidden="true" className="mp-preview-badge">{t("ui.pages.preview.badge")}</span>
         <PageCanvas document={draft.document} editable={false} fit="width" sheetId="dashboard-preview" loading={loading} meta={null} results={answer?.results ?? {}} selectedId={null} title={draft.title} today={answer?.today ?? new Date().toISOString().slice(0, 10)} />
       </div>
     </section>

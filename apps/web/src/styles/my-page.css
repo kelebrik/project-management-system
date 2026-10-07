@@ -239,7 +239,9 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-multi-note { font-size: 10px; color: var(--mp-muted); padding-top: 2px; }
 .mp-preview { display: grid; gap: var(--space-2); }
 .mp-preview-head { display: flex; gap: var(--space-3); align-items: baseline; }
-.mp-preview-sheet { max-width: 980px; }
+/* The example is marked as one, so nobody tries to open or edit it as their own page. */
+.mp-preview-sheet { max-width: 980px; position: relative; outline: 2px dashed var(--border); outline-offset: 6px; border-radius: var(--radius-sm, 6px); }
+.mp-preview-badge { position: absolute; z-index: 2; top: 10px; right: 10px; padding: 3px 10px; border-radius: 999px; background: var(--warning-alt); color: #1f2937; font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; pointer-events: none; }
 .mp-ok { color: var(--success-800); font-size: var(--fs-xs); }
 .mp-preview-head .mp-warn { font-size: var(--fs-xs); }
 

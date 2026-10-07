@@ -182,7 +182,7 @@ test("my page: a project status page with a timeline, and a number turned into a
   await mockPages(page);
   await page.goto("/development/my-page");
   await page.getByRole("button", { name: /Статус проекта/ }).click();
-  await expect(page.getByRole("region", { name: "Предпросмотр на ваших данных" })).toContainText("Виджетов с данными");
+  await expect(page.getByRole("region", { name: /^Пример страницы по шаблону «.+» на ваших данных$/ })).toContainText("Виджетов с данными");
   await page.getByRole("button", { name: "Создать страницу" }).click();
   const sheet = page.locator("#dashboard-page");
   await expect(sheet.locator('[data-widget-id="tl-checkpoints"] .mp-timeline-dot')).toHaveCount(3);
