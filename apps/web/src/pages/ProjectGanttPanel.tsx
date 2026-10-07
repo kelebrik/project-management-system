@@ -5,6 +5,8 @@ import { createScenarioGantt } from "../app/scenarioGanttModel";
 import { usePageContext } from "./PageContext";
 import type { GanttCssProperties } from "../app/uiStyleTypes";
 import { GanttHighchartsLayer } from "../components/timeline/GanttHighchartsLayer";
+import { ganttConnectorArrow, ganttConnectorPath, ganttConnectorPoints } from "../ganttDependencyPath";
+import { useElementWidth } from "../hooks/useElementWidth";
 
 export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResult | null }) {
   const { locale, t: uiText } = useInterfaceTranslation();
@@ -45,6 +47,9 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
     wbsGantt: workingGantt,
     ganttRangeDays,
   } = usePageContext();
+  // Lengths of the links meant in pixels (arrowheads, corners) are turned into % of the timeline.
+  const timelineWidth = useElementWidth(ganttTimelineRef);
+  const percentPerPx = 100 / Math.max(1, timelineWidth || 1200);
   const wbsGantt = useMemo(() => scenario ? createScenarioGantt(visibleWbsTree, project.wbsDependencies ?? [], ganttRangeDays, scenario, locale) : workingGantt, [scenario, visibleWbsTree, project.wbsDependencies, ganttRangeDays, locale, workingGantt]);
   const primaryPeriods =
     ganttScale === "week"
@@ -199,19 +204,6 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                 preserveAspectRatio="none"
                                 aria-hidden="true"
                               >
-                                <defs>
-                                  <marker
-                                    id="ganttDependencyArrow"
-                                    markerHeight="7"
-                                    markerWidth="8"
-                                    orient="auto"
-                                    refX="7"
-                                    refY="3.5"
-                                    viewBox="0 0 8 7"
-                                  >
-                                    <path d="M 0 0 L 8 3.5 L 0 7 z" />
-                                  </marker>
-                                </defs>
                                 {wbsGantt.dependencyLines
                                   .filter(
                                     (line) =>
@@ -230,52 +222,69 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                       100,
                                     );
                                     const endX = clampNumber(
-                                      line.toX - line.toDirection * targetGap,
+                                      line.toX -
+                                        line.toDirection *
+                                          (line.toMilestone ? line.toTipPx * percentPerPx : targetGap),
                                       0,
                                       100,
                                     );
+                                    const connector = ganttConnectorPoints({
+                                      fromCenterX: line.fromCenterX,
+                                      fromRowY: line.fromRowY,
+                                      fromTop: line.fromTop,
+                                      fromBottom: line.fromBottom,
+                                      toSide: line.toSide,
+                                      toX: endX,
+                                      toY: line.toY,
+                                      percentPerPx,
+                                    });
+                                    const classes = `${
+                                      showGanttCriticalPath ? "critical-path" : ""
+                                    }${
+                                      activeGanttLinkIds.sourceId &&
+                                      (line.predecessorId === activeGanttLinkIds.sourceId ||
+                                        line.successorId === activeGanttLinkIds.sourceId)
+                                        ? " active"
+                                        : ""
+                                    }${
+                                      ganttLinkDraft?.replaceDependencyId === line.id
+                                        ? " moving"
+                                        : ""
+                                    }`;
                                     return (
-                                      <path
-                                        className={`slot-${line.styleSlot}${
-                                          showGanttCriticalPath
-                                            ? " critical-path"
-                                            : ""
-                                        }${
-                                          activeGanttLinkIds.sourceId &&
-                                          (line.predecessorId ===
-                                            activeGanttLinkIds.sourceId ||
-                                            line.successorId ===
-                                              activeGanttLinkIds.sourceId)
-                                            ? " active"
-                                            : ""
-                                        }${
-                                          ganttLinkDraft?.replaceDependencyId ===
-                                          line.id
-                                            ? " moving"
-                                            : ""
-                                        }`}
-                                        onPointerDown={(event) =>
-                                          !scenario && startGanttLinkDrag(
-                                            {
-                                              itemId: line.predecessorId,
-                                              side: line.fromSide,
-                                            },
-                                            event,
-                                            line.id,
-                                          )
-                                        }
-                                        d={ganttDependencyPath({
-                                          fromSide: line.fromSide,
-                                          fromX: startX,
-                                          fromY: line.fromY,
-                                          toSide: line.toSide,
-                                          toX: endX,
-                                          toY: line.toY,
-                                        })}
-                                        key={line.id}
-                                        data-dependency-type={line.type}
-                                        aria-label={uiText("ui.projects.ganttDependencyLabel")}
-                                      />
+                                      <g className="gantt-link" key={line.id}>
+                                        <path
+                                          className={classes}
+                                          onPointerDown={(event) =>
+                                            !scenario && startGanttLinkDrag(
+                                              {
+                                                itemId: line.predecessorId,
+                                                side: line.fromSide,
+                                              },
+                                              event,
+                                              line.id,
+                                            )
+                                          }
+                                          d={
+                                            connector
+                                              ? ganttConnectorPath(connector, percentPerPx)
+                                              : ganttDependencyPath({
+                                                  fromSide: line.fromSide,
+                                                  fromX: startX,
+                                                  fromY: line.fromY,
+                                                  toSide: line.toSide,
+                                                  toX: endX,
+                                                  toY: line.toY,
+                                                })
+                                          }
+                                          data-dependency-type={line.type}
+                                          aria-label={uiText("ui.projects.ganttDependencyLabel")}
+                                        />
+                                        <path
+                                          className={`gantt-link-arrow ${classes}`}
+                                          d={ganttConnectorArrow(endX, line.toY, line.toSide, percentPerPx)}
+                                        />
+                                      </g>
                                     );
                                   })}
                                 {ganttLinkDraft &&

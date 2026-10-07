@@ -72,26 +72,28 @@ export function buildGanttOption(input: GanttLayerInput): Options {
   const plotBands: YAxisPlotBandsOptions[] = items.flatMap((_, index) => ((firstRow + index) % 2 === 1 ? [{ from: index - 0.5, to: index + 0.5, color: "rgba(100, 116, 139, 0.035)" }] : []));
   const subLines: XAxisPlotLinesOptions[] = input.subGridOffsets.map((value) => ({ value, color: colors.grid, width: 1, dashStyle: "ShortDash", zIndex: 0 }));
   const todayLine: XAxisPlotLinesOptions[] = input.todayOffset === null ? [] : [{ value: input.todayOffset, color: TODAY, width: 2, dashStyle: "Solid", zIndex: 4 }];
+  // Every point has an id: drawn in place, Highcharts matches the new points to the old ones by it
+  // (by x otherwise — and bars starting the same day would take each other's rows).
   const span = (value: GanttSpan, y: number) => ({ x: value.offset, x2: value.offset + value.width, y });
   const bars = (summary: boolean) =>
     items.flatMap((item, y): XrangePointOptionsObject[] =>
       item.milestone || item.rangeLine || item.summary !== summary
         ? []
-        : [{ ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "rgba(15, 23, 42, 0.12)", borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
+        : [{ id: `bar:${item.id}`, ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "rgba(15, 23, 42, 0.12)", borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
     );
   const phases = items.flatMap((item, y): XrangePointOptionsObject[] =>
-    item.rangeLine ? [{ ...span(item, y + 0.27), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "transparent", borderWidth: edge(item) ? 1 : 0 } as XrangePointOptionsObject] : [],
+    item.rangeLine ? [{ id: `phase:${item.id}`, ...span(item, y + 0.27), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "transparent", borderWidth: edge(item) ? 1 : 0 } as XrangePointOptionsObject] : [],
   );
   const markers = (goal: boolean) =>
     items.flatMap((item, y): PointOptionsObject[] =>
       item.milestone && item.goal === goal
-        ? [{ x: item.offset, y, marker: { lineColor: edge(item) ?? colors.surface, lineWidth: edge(item) ? 3 : 1.5 } }]
+        ? [{ id: `mark:${item.id}`, x: item.offset, y, marker: { lineColor: edge(item) ?? colors.surface, lineWidth: edge(item) ? 3 : 1.5 } }]
         : [],
     );
-  const baselines = input.showBaseline ? items.flatMap((item, y): XrangePointOptionsObject[] => (item.baseline ? [span(item.baseline, y + 0.42)] : [])) : [];
+  const baselines = input.showBaseline ? items.flatMap((item, y): XrangePointOptionsObject[] => (item.baseline ? [{ id: `baseline:${item.id}`, ...span(item.baseline, y + 0.42) }] : [])) : [];
   const forecasts = input.showForecast
     ? items.flatMap((item, y): XrangePointOptionsObject[] =>
-        item.forecast ? [{ ...span(item.forecast, y), color: item.forecast.slipped ? "rgba(245, 158, 11, 0.65)" : "rgba(20, 184, 166, 0.7)" }] : [],
+        item.forecast ? [{ id: `forecast:${item.id}`, ...span(item.forecast, y), color: item.forecast.slipped ? "rgba(245, 158, 11, 0.65)" : "rgba(20, 184, 166, 0.7)" }] : [],
       )
     : [];
 

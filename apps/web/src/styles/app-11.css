@@ -307,50 +307,38 @@
   z-index: 2;
 }
 
+/* Links as Highcharts' Gantt draws them: a thin grey line ending in an open arrowhead. */
 .gantt-links path {
   fill: none;
-  marker-end: url("#ganttDependencyArrow");
-  opacity: 0.9;
   pointer-events: stroke;
-  stroke: var(--warning-alt);
+  stroke: var(--gantt-link-color, #6b7280);
   stroke-linecap: round;
   stroke-linejoin: round;
-  stroke-width: 1.5;
+  stroke-width: 1.15;
   vector-effect: non-scaling-stroke;
 }
 
-.gantt-links path:hover {
+[data-theme="dark"] .gantt-links {
+  --gantt-link-color: #9ca3af;
+}
+
+.gantt-links path.gantt-link-arrow {
+  pointer-events: none;
+}
+
+.gantt-links .gantt-link:hover path,
+.gantt-links path.active {
+  stroke: var(--text);
+  stroke-width: 1.8;
+}
+
+.gantt-links .gantt-link:hover path:not(.gantt-link-arrow) {
   cursor: grab;
-  opacity: 1;
-  stroke: var(--warning);
-  stroke-width: 2.1;
-}
-
-.gantt-links path.slot-1 {
-  stroke: var(--warning-500);
-}
-
-.gantt-links path.slot-2 {
-  stroke: #fb923c;
-}
-
-.gantt-links path.slot-3 {
-  stroke: var(--warning);
-}
-
-.gantt-links path.slot-4 {
-  stroke: #f97316;
-}
-
-.gantt-links path.slot-5 {
-  stroke: #ea580c;
 }
 
 .gantt-links path.critical-path {
-  opacity: 1;
   stroke: var(--danger);
-  stroke-dasharray: none;
-  stroke-width: 2.45;
+  stroke-width: 2;
 }
 
 .gantt-links path.non-critical-path {
@@ -361,30 +349,16 @@
   pointer-events: none;
 }
 
-.gantt-links path.active {
-  opacity: 1;
-  stroke: var(--warning);
-  stroke-width: 2.15;
-}
-
 .gantt-links path.moving {
   opacity: 0.25;
 }
 
 .gantt-links path.draft {
-  marker-end: none;
   pointer-events: none;
   opacity: 0.9;
   stroke: var(--brand-600);
   stroke-dasharray: 2 2;
   stroke-width: 1.8;
-}
-
-.gantt-links marker path {
-  fill: var(--warning-alt);
-  marker-end: none;
-  pointer-events: none;
-  stroke: none;
 }
 
 .gantt-panel-resizer {

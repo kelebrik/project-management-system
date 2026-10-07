@@ -46,8 +46,17 @@ export type WbsGanttDependencyLine = {
   fromY: number;
   fromSlotOffset: number;
   fromDirection: number;
+  /** Where a link leaves its predecessor: the middle of the bar (the centre of a milestone), in %. */
+  fromCenterX: number;
+  /** The centre of the predecessor's row, in px. */
+  fromRowY: number;
+  /** The top and bottom of the predecessor's painted shape, in px from its row's centre: a link leaves from one of them. */
+  fromTop: number;
+  fromBottom: number;
   toSide: "start" | "end";
   toMilestone: boolean;
+  /** How far left (or right) of a milestone's centre its side tip is, in px: a link ends at the tip. */
+  toTipPx: number;
   toX: number;
   toY: number;
   toSlotOffset: number;
@@ -380,10 +389,27 @@ export function createWbsGantt({
           fromSlotOffset,
         fromSlotOffset,
         fromDirection: ganttPathDirection(fromSide),
+        fromCenterX: Math.max(0, Math.min(100, predecessor.milestone ? predecessor.offset : predecessor.offset + predecessor.width / 2)),
+        fromRowY: predecessorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2,
+        // Bars are 16 px tall, a diamond 18; a star reaches 11 px up but only 4.4 down in its middle;
+        // the line of a phase lies a quarter of a row below the centre and is 4 px thick.
+        ...(predecessor.item.type === "GOAL"
+          ? { fromTop: -11, fromBottom: 4.4 }
+          : predecessor.milestone
+            ? { fromTop: -9, fromBottom: 9 }
+            : predecessor.rangeLine
+              ? { fromTop: 4.5, fromBottom: 8.5 }
+              : { fromTop: -8, fromBottom: 8 }),
         toSide,
         toMilestone: successor.milestone,
+        toTipPx: successor.item.type === "GOAL" ? 10.5 : successor.milestone ? 9 : 0,
         toX: Math.max(0, Math.min(100, to)),
-        toY: successorRow * GANTT_ROW_HEIGHT + GANTT_ROW_HEIGHT / 2 + toSlotOffset,
+        // Links into a milestone meet at its side tip (a star's side rays are 3.4 px above its centre),
+        // into a phase at its line, a quarter of a row below the centre.
+        toY:
+          successorRow * GANTT_ROW_HEIGHT +
+          GANTT_ROW_HEIGHT / 2 +
+          (successor.item.type === "GOAL" ? -3.4 : successor.milestone ? 0 : successor.rangeLine ? 6.5 : toSlotOffset),
         toSlotOffset,
         toDirection: ganttTargetDirection(toSide),
         styleSlot: Math.max(fromSlot, toSlot) % 6,

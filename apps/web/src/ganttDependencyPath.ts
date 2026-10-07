@@ -122,7 +122,10 @@ function ganttDependencyPathPoints(line: GanttDependencyPathInput) {
   return points;
 }
 
-export function ganttRoundedDependencyPath(points: GanttDependencyPathPoint[]) {
+export function ganttRoundedDependencyPath(
+  points: GanttDependencyPathPoint[],
+  radius: { x: number; y: number } = { x: GANTT_LINK_RADIUS_X, y: GANTT_LINK_RADIUS_Y },
+) {
   if (points.length < 2) return "";
   const path = [`M ${points[0].x} ${points[0].y}`];
 
@@ -145,11 +148,11 @@ export function ganttRoundedDependencyPath(points: GanttDependencyPathPoint[]) {
       ? Math.abs(next.x - current.x)
       : Math.abs(next.y - current.y);
     const beforeRadius = Math.min(
-      previousHorizontal ? GANTT_LINK_RADIUS_X : GANTT_LINK_RADIUS_Y,
+      previousHorizontal ? radius.x : radius.y,
       previousDistance / 2,
     );
     const afterRadius = Math.min(
-      nextHorizontal ? GANTT_LINK_RADIUS_X : GANTT_LINK_RADIUS_Y,
+      nextHorizontal ? radius.x : radius.y,
       nextDistance / 2,
     );
     const before = {
@@ -182,4 +185,62 @@ export function ganttRoundedDependencyPath(points: GanttDependencyPathPoint[]) {
 
 export function ganttDependencyPath(line: GanttDependencyPathInput) {
   return ganttRoundedDependencyPath(ganttDependencyPathPoints(line));
+}
+
+/*
+ * Links drawn the way Highcharts' Gantt draws them: a thin line leaves the
+ * middle of the predecessor from its bottom (its top when the successor is
+ * above), goes down to the successor's row and then along it into the
+ * successor, ending in an open arrowhead. When the successor begins before
+ * that middle, the line turns along the border of the rows and comes into it
+ * from its side. The x of the Gantt is in % of its width and y in pixels, so
+ * the lengths meant in pixels are turned into % with `percentPerPx`.
+ */
+const CONNECTOR_CLEARANCE_PX = 12;
+const CONNECTOR_STUB_PX = 10;
+const CONNECTOR_RADIUS_PX = 4;
+const ARROW_LENGTH_PX = 6;
+const ARROW_HALF_WIDTH_PX = 4;
+
+export type GanttConnectorInput = {
+  fromCenterX: number;
+  fromRowY: number;
+  /** The top and bottom of the predecessor's shape, in px from its row's centre. */
+  fromTop: number;
+  fromBottom: number;
+  toSide: "start" | "end";
+  toX: number;
+  toY: number;
+  percentPerPx: number;
+};
+
+/** The points of a link between rows; null for a link within one row, which keeps the side-to-side route. */
+export function ganttConnectorPoints(input: GanttConnectorInput) {
+  const vertical = Math.sign(input.toY - input.fromRowY);
+  if (Math.abs(input.toY - input.fromRowY) < GANTT_ROW_HEIGHT / 2) return null;
+  const direction = ganttTargetDirection(input.toSide);
+  const points: GanttDependencyPathPoint[] = [];
+  pushGanttPathPoint(points, input.fromCenterX, input.fromRowY + (vertical > 0 ? input.fromBottom : input.fromTop));
+  if ((input.toX - input.fromCenterX) * direction >= CONNECTOR_CLEARANCE_PX * input.percentPerPx) {
+    pushGanttPathPoint(points, input.fromCenterX, input.toY);
+  } else {
+    const boundaryY = ganttTargetRowBoundary(input.fromRowY, input.toY);
+    const stubX = clampNumber(input.toX - direction * CONNECTOR_STUB_PX * input.percentPerPx, 0, 100);
+    pushGanttPathPoint(points, input.fromCenterX, boundaryY);
+    pushGanttPathPoint(points, stubX, boundaryY);
+    pushGanttPathPoint(points, stubX, input.toY);
+  }
+  pushGanttPathPoint(points, input.toX, input.toY);
+  return points;
+}
+
+/** The path of a link between rows, with small rounded corners. */
+export function ganttConnectorPath(points: GanttDependencyPathPoint[], percentPerPx: number) {
+  return ganttRoundedDependencyPath(points, { x: CONNECTOR_RADIUS_PX * percentPerPx, y: CONNECTOR_RADIUS_PX });
+}
+
+/** An open arrowhead whose tip is at the end of a link, pointing the way it comes in. */
+export function ganttConnectorArrow(toX: number, toY: number, toSide: "start" | "end", percentPerPx: number) {
+  const backX = ganttPathNumber(toX - ganttTargetDirection(toSide) * ARROW_LENGTH_PX * percentPerPx);
+  return `M ${backX} ${ganttPathNumber(toY - ARROW_HALF_WIDTH_PX)} L ${ganttPathNumber(toX)} ${ganttPathNumber(toY)} L ${backX} ${ganttPathNumber(toY + ARROW_HALF_WIDTH_PX)}`;
 }

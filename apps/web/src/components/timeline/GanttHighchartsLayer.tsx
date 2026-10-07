@@ -3,6 +3,7 @@ import { useAppChartColors } from "../../app/charts/appChartTheme";
 import { buildGanttOption, type GanttLayerItem, type GanttSpan } from "../../app/charts/ganttChartOptions";
 import { GANTT_ROW_HEIGHT } from "../../ganttDependencyPath";
 import { HighchartsChart } from "../charts/HighchartsChart";
+import { useElementWidth } from "../../hooks/useElementWidth";
 
 type GanttModel = {
   todayOffset: number | null;
@@ -75,19 +76,6 @@ function useDrawnRows(ref: React.RefObject<HTMLDivElement | null>, count: number
   return block;
 }
 
-/** The width of the box, from a ResizeObserver: read without making the browser lay out the page. */
-function useWidth(ref: React.RefObject<HTMLDivElement | null>) {
-  const [width, setWidth] = useState(0);
-  useEffect(() => {
-    const element = ref.current;
-    if (!element) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.round(entry?.contentRect.width ?? 0)));
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [ref]);
-  return width;
-}
-
 /**
  * The painted layer of the Gantt, under its own rows, handles and links:
  * Highcharts draws the bars, phases, milestones, goals, baseline, forecast,
@@ -117,7 +105,7 @@ export function GanttHighchartsLayer({ gantt, primaryPeriods, subPeriods, showBa
   );
   const ref = useRef<HTMLDivElement>(null);
   const { start, end } = useDrawnRows(ref, items.length);
-  const width = useWidth(ref);
+  const width = useElementWidth(ref);
   const drawn = useMemo(() => items.slice(start, end), [items, start, end]);
   const gridOffsets = primaryPeriods.map((period) => period.offset);
   const subGridOffsets = subPeriods.map((period) => period.offset);

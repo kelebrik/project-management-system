@@ -166,35 +166,42 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
     }
   }
 
-  // Highcharts paints every bar and milestone right under the Gantt's own handles.
-  await expect(page.locator(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point").first()).toBeAttached();
-  const painted = await page.locator(".gantt-timeline").evaluate((timeline) => {
-    const box = (element: Element) => {
-      const rect = element.getBoundingClientRect();
-      return { left: rect.left, right: rect.right, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    };
-    const all = (selector: string) => [...timeline.querySelectorAll(selector)].map(box);
-    return {
-      own: all(".gantt-bar:not(.milestone):not(.range-line):not(.summary)"),
-      bars: all(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point"),
-      ownMarks: all(".gantt-bar.milestone:not(.goal)"),
-      marks: all(".gantt-hc-layer g.gantt-hc-milestones > .highcharts-point"),
-    };
-  });
-  expect(painted.own.length).toBeGreaterThan(0);
-  expect(painted.bars).toHaveLength(painted.own.length);
-  expect(painted.marks).toHaveLength(painted.ownMarks.length);
-  painted.own.forEach((own, index) => {
-    const bar = painted.bars[index]!;
-    expect(Math.abs(bar.left - own.left)).toBeLessThanOrEqual(1.5);
-    expect(Math.abs(bar.right - own.right)).toBeLessThanOrEqual(1.5);
-    expect(Math.abs(bar.y - own.y)).toBeLessThanOrEqual(1.5);
-  });
-  painted.ownMarks.forEach((own, index) => {
-    const mark = painted.marks[index]!;
-    expect(Math.abs(mark.x - own.x)).toBeLessThanOrEqual(1.5);
-    expect(Math.abs(mark.y - own.y)).toBeLessThanOrEqual(1.5);
-  });
+  // Highcharts paints every bar and milestone right under the Gantt's own handles — also after
+  // the rows change and the chart is updated in place (bars starting the same day keep their rows).
+  const expectPaintedUnderHandles = async () => {
+    await expect(page.locator(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point").first()).toBeAttached();
+    const painted = await page.locator(".gantt-timeline").evaluate((timeline) => {
+      const box = (element: Element) => {
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      };
+      const all = (selector: string) => [...timeline.querySelectorAll(selector)].map(box);
+      return {
+        own: all(".gantt-bar:not(.milestone):not(.range-line):not(.summary)"),
+        bars: all(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point"),
+        ownMarks: all(".gantt-bar.milestone:not(.goal)"),
+        marks: all(".gantt-hc-layer g.gantt-hc-milestones > .highcharts-point"),
+      };
+    });
+    expect(painted.own.length).toBeGreaterThan(0);
+    expect(painted.bars).toHaveLength(painted.own.length);
+    expect(painted.marks).toHaveLength(painted.ownMarks.length);
+    for (const own of painted.own) {
+      const bar = painted.bars.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
+      expect(bar, `a painted bar in the row at ${own.y}`).toBeDefined();
+      expect(Math.abs(bar!.left - own.left)).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(bar!.right - own.right)).toBeLessThanOrEqual(1.5);
+    }
+    for (const own of painted.ownMarks) {
+      const mark = painted.marks.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
+      expect(mark, `a painted milestone in the row at ${own.y}`).toBeDefined();
+      expect(Math.abs(mark!.x - own.x)).toBeLessThanOrEqual(1.5);
+    }
+  };
+  await expectPaintedUnderHandles();
+  await page.getByRole("button", { name: "1", exact: true }).first().click();
+  await page.getByRole("button", { name: "3", exact: true }).first().click();
+  await expectPaintedUnderHandles();
 
   await page.goto("/TV-OVERVIEW/schedule");
   const milestoneWidths = await page.locator(".milestone-timeline").evaluate(
