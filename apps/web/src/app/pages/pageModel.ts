@@ -41,7 +41,7 @@ export function widgetSource(widget: Pick<PageWidget, "data">): PageSourceKey | 
   const data = widget.data;
   if (!data) return null;
   // A source removed since the page was saved reads as none.
-  if (data.metric === "custom") return data.source && data.source in PAGE_SOURCES ? (data.source as PageSourceKey) : null;
+  if (data.metric === "custom") return data.source && Object.hasOwn(PAGE_SOURCES, data.source) ? (data.source as PageSourceKey) : null;
   return pageMetric(data.metric)?.source ?? null;
 }
 

@@ -3,7 +3,7 @@ import test from "node:test";
 import { PAGE_QUESTIONS, PAGE_SOURCES, PAGE_TEMPLATES, pageFromTemplate, pageLayoutProblem, type PageQueryResult, type PageWidget } from "@pms/shared";
 import { buildChartOption, chartSummary } from "./chartOption";
 import { pushHistory, redoHistory, startHistory, undoHistory } from "./pageHistory";
-import { beyondAlert, changeFormat, duplicateWidget, fitRows, formatNumber, groupLabel, pageQueries, pageQueryFingerprint, placeNewWidget, sheetGeometry, trafficLevel, widgetPassport } from "./pageModel";
+import { beyondAlert, changeFormat, duplicateWidget, fitRows, formatNumber, groupLabel, pageQueries, pageQueryFingerprint, placeNewWidget, sheetGeometry, trafficLevel, widgetPassport, widgetSource } from "./pageModel";
 import { widgetTable } from "./pageExport";
 import { applyViz, vizOf, vizProblem } from "./pageViz";
 
@@ -127,4 +127,10 @@ test("alerts, traffic lights and the Excel table of a widget", () => {
   assert.deepEqual(sheet.headers, ["Проект", "Светофор", "Просрочено работ"]);
   assert.deepEqual(sheet.rows, [["TV", "Красный", "4"]]);
   assert.deepEqual([...sheet.numeric], [2]);
+});
+
+test("a source that is not one of ours, even an inherited name, reads as none", () => {
+  for (const source of ["lessons", "constructor", "__proto__", "toString"]) {
+    assert.equal(widgetSource({ data: { metric: "custom", source, filters: [] } }), null, source);
+  }
 });

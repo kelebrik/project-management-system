@@ -143,7 +143,7 @@ const MEASURES: PageMeasureFn[] = ["count", "sum", "avg", "min", "max", "distinc
 /** A question built by hand: a source, what to count in it, and the event date the page period applies to. */
 function CustomQuery({ data, onChange }: { data: PageWidgetData; onChange: (patch: Partial<PageWidgetData>) => void }) {
   const { t, locale } = useI18n();
-  const source = (data.source && data.source in PAGE_SOURCES ? data.source : "work") as PageSourceKey;
+  const source = (data.source && Object.hasOwn(PAGE_SOURCES, data.source) ? data.source : "work") as PageSourceKey;
   const fields = PAGE_SOURCES[source].fields;
   const fn = data.measure?.fn ?? "count";
   const measurable = fields.filter((field) => (fn === "distinct" ? field.kind !== "boolean" : field.kind === "number" && !(fn === "sum" && field.format === "percent")));
