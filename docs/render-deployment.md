@@ -62,3 +62,4 @@ npm run prisma:deploy
 ```
 
 If `SEED_DEMO_DATA=true`, the build also runs `npm run prisma:seed`. The seed is idempotent and creates the sample ERP project used by the first demo. Set it to `false` when real data entry starts.
+- The cloud Render service takes no new builds while the corporate build uses Highcharts under its evaluation terms (render.yaml autoDeployTrigger: off).
