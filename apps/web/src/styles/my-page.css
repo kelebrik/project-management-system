@@ -88,8 +88,9 @@
 .mp-keys { border-top: 1px solid var(--border); padding-top: var(--space-2); }
 
 /* ---------- Palette ---------- */
-.mp-modal-backdrop { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35); display: grid; place-items: center; z-index: 60; }
-.mp-modal { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 64px); display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
+/* Over the top bar (as the app's confirmation, which stays above), with room around it on every side. */
+.mp-modal-backdrop { position: fixed; inset: 0; box-sizing: border-box; padding: 24px 16px; background: rgba(15, 23, 42, 0.35); display: grid; place-items: center; z-index: 150; }
+.mp-modal { background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: min(920px, calc(100vw - 32px)); max-height: calc(100vh - 48px); display: grid; grid-template-rows: auto 1fr; overflow: hidden; }
 .mp-modal-head { display: flex; gap: var(--space-3); align-items: center; padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--border); }
 .mp-modal-head h2 { margin: 0; font-size: var(--fs-lg); flex: none; }
 .mp-modal-head input { flex: 1; }
