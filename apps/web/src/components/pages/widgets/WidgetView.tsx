@@ -1,9 +1,9 @@
 import { useCallback, useMemo, type ReactNode } from "react";
 import type { PageQueryResult, PageWidget } from "@pms/shared";
-import { buildChartOption, type ChartColors } from "../../../app/pages/chartOption";
+import { chartSummary, type ChartColors, type ChartInput } from "../../../app/pages/chartOption";
 import { widgetFields, widgetUnit } from "../../../app/pages/pageModel";
 import { useI18n } from "../../../i18n/I18nProvider";
-import { EChart } from "../charts/EChart";
+import { ChartView } from "../charts/ChartView";
 import { KpiWidget, ListWidget, StatusGridWidget, TableWidget } from "./DataWidgets";
 import { MetricGridWidget, ProgressWidget, TimelineWidget, TrafficLightWidget } from "./MoreWidgets";
 
@@ -15,23 +15,22 @@ import { MetricGridWidget, ProgressWidget, TimelineWidget, TrafficLightWidget } 
 function ChartWidget({ widget, result, colors, drillable }: { widget: PageWidget; result: Extract<PageQueryResult, { kind: "groups" }>; colors: ChartColors; drillable: boolean }) {
   const { locale, t } = useI18n();
   const fields = widgetFields(widget);
-  const option = useMemo(
-    () =>
-      buildChartOption({
-        result,
-        kind: widget.chart ?? "columns",
-        field: fields.find((field) => field.key === widget.data?.groupBy) ?? null,
-        subField: fields.find((field) => field.key === widget.data?.groupBy2) ?? null,
-        unit: widgetUnit(widget),
-        showValues: Boolean(widget.showValues),
-        colors,
-        locale,
-        title: widget.title,
-        alert: widget.alert,
-      }),
+  const input = useMemo<ChartInput>(
+    () => ({
+      result,
+      kind: widget.chart ?? "columns",
+      field: fields.find((field) => field.key === widget.data?.groupBy) ?? null,
+      subField: fields.find((field) => field.key === widget.data?.groupBy2) ?? null,
+      unit: widgetUnit(widget),
+      showValues: Boolean(widget.showValues),
+      colors,
+      locale,
+      title: widget.title,
+      alert: widget.alert,
+    }),
     [colors, fields, locale, result, widget],
   );
-  const summary = (option.aria as { label: { description: string } }).label.description;
+  const summary = chartSummary(input);
   // Outside the editor a bar of a project opens that project.
   const onPick = useCallback((index: number) => {
     const key = result.groups[index]?.key;
@@ -39,7 +38,7 @@ function ChartWidget({ widget, result, colors, drillable }: { widget: PageWidget
   }, [result]);
   return (
     <>
-      <EChart label={summary} onPick={drillable && widget.data?.groupBy === "project" ? onPick : undefined} option={option} />
+      <ChartView input={input} label={summary} onPick={drillable && widget.data?.groupBy === "project" ? onPick : undefined} />
       {result.multiValued && <div className="mp-multi-note">{t("ui.pages.multiValued")}</div>}
     </>
   );
