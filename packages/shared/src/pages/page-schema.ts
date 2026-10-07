@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { pageBuckets, pageFilterSchema, pageMeasureSchema, pageSourceKeys, type PageOutput, type PageQuerySpec } from "./dataset-types.js";
+import { pageBuckets, pageFilterSchema, pageMeasureSchema, pageSourceKeys, type PageOutput, type PageQuerySpec, type PageSourceKey } from "./dataset-types.js";
 import { pageMetric } from "./metrics.js";
 import { PAGE_SOURCES } from "./sources.js";
 import { pageLayoutProblem } from "./page-layout.js";
@@ -53,7 +53,8 @@ export function combinePageValues(value: number | null, other: number | null, op
 export const pageWidgetDataSchema = z.object({
   /** A named metric, or "custom" for a question built by hand. */
   metric: z.string().min(1).max(60),
-  source: z.enum(pageSourceKeys).optional(),
+  /** Any text, so a page saved with a source that was later removed still loads; that widget says so. */
+  source: z.string().max(40).optional(),
   measure: pageMeasureSchema.optional(),
   periodField: fieldKey.nullable().optional(),
   filters: z.array(pageFilterSchema).max(12).default([]),
@@ -137,8 +138,9 @@ export function resolvePageWidgetQuery(widget: Pick<PageWidget, "type" | "data">
   if (!output || !data) return null;
   const metric = data.metric === "custom" ? null : pageMetric(data.metric);
   if (data.metric !== "custom" && !metric) return { error: `Показатель «${data.metric}» больше не существует` };
-  const source = metric?.source ?? data.source;
+  const source = (metric?.source ?? data.source) as PageSourceKey | undefined;
   if (!source) return { error: "Не выбран источник данных" };
+  if (!(pageSourceKeys as readonly string[]).includes(source)) return { error: `Источника «${source}» больше нет — выберите другой` };
   return {
     spec: {
       source,

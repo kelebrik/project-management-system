@@ -137,7 +137,7 @@ export const checkins: PageSourceAdapter = async (context) => {
   return items.map((item) => ({
     id: item.id,
     projectId: item.projectId,
-    href: '/development/my-work',
+    href: ref.href(item.projectId, 'wbs'),
     values: {
       ...ref.values(item.projectId),
       title: `${item.wbsItem.code} ${item.wbsItem.title}`, person: item.personName, confidence: item.confidence, done: item.done || null, blocker: item.blocker || null,

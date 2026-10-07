@@ -170,3 +170,10 @@ test('two metrics into one number: a share, a ratio, a difference, nothing when 
   assert.equal(combinePageValues(5, 0, 'percent'), null);
   assert.equal(combinePageValues(null, 3, 'difference'), null);
 });
+
+test('a widget of a source removed since the page was saved still loads and says so', () => {
+  const widget = { type: 'kpi' as const, data: { metric: 'custom', source: 'lessons', measure: { fn: 'count' as const }, filters: [] } };
+  assert.equal(pageDocumentSchema.safeParse({ ...pageFromTemplate(PAGE_TEMPLATES[0], { mode: 'all' }, 'ru').document, widgets: [{ id: 'old', x: 0, y: 0, w: 3, h: 3, title: '', ...widget }] }).success, true);
+  const resolved = resolvePageWidgetQuery(widget);
+  assert.ok(resolved && 'error' in resolved && /больше нет/.test(resolved.error));
+});
