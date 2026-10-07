@@ -4,7 +4,9 @@ services:
     runtime: node
     plan: free
     branch: main
-    autoDeployTrigger: commit
+    # Deploys are off while the corporate build uses Highcharts under its evaluation terms:
+    # the public cloud site stays on the version it runs. Turn back to "commit" to resume.
+    autoDeployTrigger: off
     buildCommand: npm run render-build
     startCommand: npm run start
     healthCheckPath: /api/health
