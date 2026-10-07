@@ -82,6 +82,11 @@ async function mockPages(page: Page, options: { conflictOnce?: boolean } = {}) {
   return { saved, queries };
 }
 
+// The intro of the page has its own test; here it is already read.
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("pms-my-page-intro-hidden", "1"));
+});
+
 function countPdfPages(pdf: Buffer) {
   return pdf.toString("latin1").match(/\/Type\s*\/Page[^s]/g)?.length ?? 0;
 }

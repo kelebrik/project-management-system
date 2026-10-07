@@ -34,7 +34,6 @@ const changeTypeValues = { SCOPE: t("Содержание", "Scope"), BUDGET: t(
 const changeStatusValues = {
   DRAFT: t("Черновик", "Draft"), SUBMITTED: t("Подан", "Submitted"), IN_REVIEW: t("На рассмотрении", "In review"), APPROVED: t("Одобрен", "Approved"), REJECTED: t("Отклонён", "Rejected"), IMPLEMENTED: t("Внедрён", "Implemented"),
 };
-const lessonSourceValues = { MANUAL: t("Вручную", "By hand"), SHIFT: t("Сдвиг графика", "Schedule shift"), RISK: t("Риск или проблема", "Risk or problem"), ISSUE: t("Вопрос", "Issue"), DECISION: t("Решение", "Decision") };
 const confidenceValues = { ON_TRACK: t("В срок", "On track"), AT_RISK: t("Под вопросом", "At risk"), OFF_TRACK: t("Не успеваю", "Off track") };
 const jiraCategoryValues = { new: t("К выполнению", "To do"), indeterminate: t("В работе", "In progress"), done: t("Готово", "Done") };
 const levelValues = { RED: t("Красный", "Red"), AMBER: t("Жёлтый", "Amber"), GREEN: t("Зелёный", "Green") };
@@ -225,23 +224,6 @@ export const PAGE_SOURCES: Record<PageSourceKey, PageSourceDef> = {
       { key: "dueDate", label: t("Срок решения", "Decision due"), kind: "date", format: "date", groupable: true },
       { key: "createdAt", label: t("Создан", "Created"), kind: "date", format: "date", groupable: true },
       { key: "approvedAt", label: t("Одобрен", "Approved"), kind: "date", format: "date", groupable: true },
-    ],
-  },
-  lessons: {
-    key: "lessons",
-    label: t("Уроки", "Lessons"),
-    rowLabel: t("урок проекта", "a lesson of a project"),
-    titleField: "title",
-    periodFields: ["createdAt"],
-    defaultColumns: ["project", "title", "category", "createdAt"],
-    fields: [
-      ...project,
-      { key: "title", label: t("Урок", "Lesson"), kind: "text" },
-      { key: "category", label: t("Категория", "Category"), kind: "text", groupable: true },
-      { key: "sourceKind", label: t("Откуда", "Source"), kind: "enum", values: lessonSourceValues, groupable: true },
-      { key: "recommendation", label: t("Что делать в следующий раз", "Next time"), kind: "text" },
-      { key: "author", label: t("Автор", "Author"), kind: "text", groupable: true },
-      { key: "createdAt", label: t("Записан", "Recorded"), kind: "date", format: "date", groupable: true },
     ],
   },
   workload: {

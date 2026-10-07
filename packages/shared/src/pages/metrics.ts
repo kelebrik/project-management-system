@@ -9,7 +9,7 @@ import type { PageFieldFormat, PageFilter, PageMeasure, PageSourceKey, PageText 
 
 const t = (ru: string, en: string): PageText => ({ ru, en });
 
-export type PageMetricGroup = "projects" | "work" | "checkpoints" | "risks" | "decisions" | "shifts" | "issues" | "changes" | "people" | "jira" | "lessons";
+export type PageMetricGroup = "projects" | "work" | "checkpoints" | "risks" | "decisions" | "shifts" | "issues" | "changes" | "people" | "jira";
 
 export type PageMetric = {
   id: string;
@@ -38,7 +38,6 @@ export const PAGE_METRIC_GROUPS: Record<PageMetricGroup, PageText> = {
   changes: t("Изменения", "Changes"),
   people: t("Люди", "People"),
   jira: t("Jira", "Jira"),
-  lessons: t("Уроки", "Lessons"),
 };
 
 const count: PageMeasure = { fn: "count" };
@@ -97,8 +96,6 @@ export const PAGE_METRICS: readonly PageMetric[] = [
   { id: "jira.critical", group: "jira", label: t("Открытые Critical и Blocker", "Open Critical and Blocker"), definition: t("Открытые задачи с приоритетом Critical или Blocker", "Open issues of Critical or Blocker priority"), source: "jira", filters: [open, { field: "critical", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
   { id: "jira.overdue", group: "jira", label: t("Просроченные задачи Jira", "Overdue Jira issues"), definition: t("Открытые задачи со сроком (due date) раньше сегодня", "Open issues due before today"), source: "jira", filters: [{ field: "overdue", op: "isTrue" }], measure: count, unit: "count", higherIsWorse: true },
   { id: "jira.storyPoints", group: "jira", label: t("Story points в работе", "Open story points"), definition: t("Сумма story points открытых задач", "Sum of the story points of open issues"), source: "jira", filters: [open], measure: { fn: "sum", field: "storyPoints" }, unit: "count" },
-
-  { id: "lessons.new", group: "lessons", label: t("Уроки за период", "Lessons in the period"), definition: t("Уроки, записанные за период страницы", "Lessons recorded in the page's period"), source: "lessons", filters: [], measure: count, periodField: "createdAt", unit: "count" },
 ];
 
 const metricsById = new Map(PAGE_METRICS.map((metric) => [metric.id, metric]));

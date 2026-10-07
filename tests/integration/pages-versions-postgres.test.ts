@@ -53,7 +53,7 @@ test('my page: versions to go back to, frozen releases and read-only links', { s
     assert.deepEqual([restored.title, restored.revision], [template.title, 3]);
     const after = await (await asAdmin(`/api/pages/${page.id}/revisions`)).json();
     assert.deepEqual(after.map((entry: { label: string; title: string }) => [entry.label, entry.title]), [['Перед восстановлением', 'Изменённая'], ['Перед комитетом', template.title]]);
-    assert.equal((await asReader(`/api/pages/${page.id}/revisions`)).status, 403);
+    assert.equal((await asReader(`/api/pages/${page.id}/revisions`)).status, 404, 'someone else\'s page');
 
     // A release freezes the answers; later changes of the data do not move it.
     const release = await (await asAdmin(`/api/pages/${page.id}/releases`, 'POST', { label: 'Комитет 10.10' })).json();

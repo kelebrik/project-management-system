@@ -27,7 +27,7 @@ const restoreSchema = z.object({ expectedRevision: z.number().int().min(1) });
 
 const hashToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
-/** The owner's page, or a reply: only administrators save pages while they are in Development; others' pages are not found. */
+/** The owner's page, or a reply: the public demo saves nothing; others' pages are not found. */
 async function ownPage(req: Request, res: Response) {
   const user = currentUser(req);
   if (!user) {
@@ -36,10 +36,6 @@ async function ownPage(req: Request, res: Response) {
   }
   if (isPublicDemoMode() && user.id === PUBLIC_DEMO_USER_ID) {
     res.status(403).json({ code: 'PAGES_DEMO_READ_ONLY', error: 'В демо-режиме страницу можно собрать и посмотреть, но не сохранить' });
-    return null;
-  }
-  if (user.role !== 'ADMIN') {
-    res.status(403).json({ code: 'PAGES_ADMIN_ONLY', error: '«Моя страница» пока в разделе «Разработка» и открыта администраторам' });
     return null;
   }
   const page = await prisma.dashboardPage.findFirst({ where: { id: String(req.params.pageId), ownerId: user.id } });

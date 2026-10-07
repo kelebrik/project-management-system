@@ -69,22 +69,26 @@ test("public demo visitor only reads administration and development and edits ev
     assert.equal(canViewAppView(view, demoVisitor), true, `view ${view}`);
     assert.equal(canEditAppView(view, demoVisitor), false, `edit ${view}`);
   }
-  for (const view of ["leave-schedule", "project-create", "project-structure", "portfolio", "reports"] as const) {
+  for (const view of ["leave-schedule", "project-create", "project-structure", "portfolio", "my-page"] as const) {
     assert.equal(canEditAppView(view, demoVisitor), true, `edit ${view}`);
   }
 });
 
-test("reports are in the top bar again, the archive in Development, the leave schedule in Operations", () => {
-  assert.equal(isDevelopmentSectionViewName("reports"), false);
+test("My page is in the top bar, reports and the archive in Development, the leave schedule in Operations", () => {
+  assert.equal(isDevelopmentSectionViewName("reports"), true);
+  assert.equal(isDevelopmentSectionViewName("my-page"), false);
+  assert.equal(appPathForView("my-page"), "/my-page");
   assert.equal(isDevelopmentSectionViewName("closed-projects"), true);
   assert.equal(isDevelopmentSectionViewName("leave-schedule"), false);
   assert.equal(isOperationsSectionViewName("leave-schedule"), true);
-  assert.equal(appPathForView("reports"), "/reports");
+  assert.equal(appPathForView("reports"), "/development/reports");
   assert.equal(appPathForView("closed-projects"), "/development/archive");
   assert.equal(appPathForView("leave-schedule"), "/operations/leave-schedule");
   for (const [path, view] of [
     ["/reports", "reports"],
     ["/development/reports", "reports"],
+    ["/my-page", "my-page"],
+    ["/development/my-page", "my-page"],
     ["/closed-projects", "closed-projects"],
     ["/closed", "closed-projects"],
     ["/development/leave-schedule", "leave-schedule"],
@@ -94,12 +98,13 @@ test("reports are in the top bar again, the archive in Development, the leave sc
   }
 });
 
-test("Operations and Reports are open to any signed-in user, Development only to administrators", () => {
+test("Operations and My page are open to any signed-in user, Development and its reports only to administrators", () => {
   assert.equal(canViewAppView("leave-schedule", guest), false);
   assert.equal(canViewAppView("leave-schedule", projectManager), true);
   assert.equal(canEditAppView("leave-schedule", projectManager), true);
-  assert.equal(canViewAppView("reports", projectManager), true);
-  assert.equal(canViewAppView("reports", guest), false);
+  assert.equal(canViewAppView("my-page", projectManager), true);
+  assert.equal(canViewAppView("my-page", guest), false);
+  assert.equal(canViewAppView("reports", projectManager), false);
   assert.equal(canViewAppView("closed-projects", projectManager), false);
   assert.equal(canViewAppView("reports", systemAdmin), true);
 });

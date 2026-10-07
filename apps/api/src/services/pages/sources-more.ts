@@ -5,7 +5,7 @@ import { PAGE_SOURCE_ROW_LIMIT, pageDay, type PageSourceAdapter, type PageSource
 
 /**
  * Adapters of "My page" beyond the first ones: issues, change requests,
- * lessons, people's workload, weekly check-ins and Jira issues. Same rules:
+ * people's workload, weekly check-ins and Jira issues. Same rules:
  * one query per source for all projects of the scope, the words computed here.
  * Jira is never asked — its rows are the projects' own snapshots, and its days
  * are Moscow days, as in the Jira widgets.
@@ -76,23 +76,6 @@ export const changes: PageSourceAdapter = async (context) => {
       title: item.title, type: item.type, status: item.status, owner: item.owner.trim() || null, waiting: WAITING_CHANGE.has(item.status),
       scheduleImpactDays: item.scheduleImpactDays, budgetImpact: Number(item.budgetImpact), dueDate: pageDay(item.dueDate), createdAt: pageDay(item.createdAt), approvedAt: pageDay(item.approvedAt),
     },
-  }));
-};
-
-export const lessons: PageSourceAdapter = async (context) => {
-  if (context.projects.length === 0) return [];
-  const ref = refs(context);
-  const items = await prisma.lesson.findMany({
-    where: { projectId: { in: ref.ids } },
-    select: { id: true, projectId: true, title: true, category: true, sourceKind: true, recommendation: true, createdByName: true, createdAt: true },
-    orderBy: { id: 'asc' },
-    take: PAGE_SOURCE_ROW_LIMIT + 1,
-  });
-  return items.map((item) => ({
-    id: item.id,
-    projectId: item.projectId,
-    href: '/development/lessons',
-    values: { ...ref.values(item.projectId), title: item.title, category: item.category, sourceKind: item.sourceKind, recommendation: item.recommendation || null, author: item.createdByName, createdAt: pageDay(item.createdAt) },
   }));
 };
 

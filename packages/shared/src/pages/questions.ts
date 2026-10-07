@@ -79,7 +79,6 @@ export const PAGE_QUESTIONS: readonly PageQuestion[] = [
   { id: "q.jira.critical", group: "jira", label: t("Сколько открытых Critical и Blocker?", "How many open Critical and Blocker?"), widget: kpi("jira.critical", t("Critical и Blocker", "Critical and Blocker")) },
   { id: "q.jira.byAssignee", group: "jira", label: t("У кого больше задач Jira?", "Who holds the most Jira issues?"), widget: { type: "chart", chart: "bars", w: 4, h: 5, title: t("Открытые задачи по исполнителям", "Open issues by assignee"), showValues: true, data: { metric: "jira.open", filters: [], groupBy: "assignee", limit: 10 } } },
 
-  { id: "q.lessons.recent", group: "lessons", label: t("Какие уроки записаны за период?", "Which lessons were recorded?"), widget: { type: "list", w: 4, h: 5, title: t("Уроки за период", "Lessons of the period"), data: { metric: "lessons.new", filters: [], columns: ["category", "createdAt"], sort: { by: "createdAt", dir: "desc" }, limit: 10 } } },
 
   { id: "q.design.heading", group: "design", label: t("Заголовок раздела", "Section heading"), widget: { type: "heading", w: 12, h: 1, title: t("", ""), text: t("Раздел", "Section") } },
   { id: "q.design.text", group: "design", label: t("Текст", "Text"), widget: { type: "text", w: 4, h: 3, title: t("", ""), text: t("", "") } },

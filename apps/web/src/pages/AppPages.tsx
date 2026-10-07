@@ -96,7 +96,7 @@ export function AppPages() {
     return null;
   }
 
-  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "shared-page" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView || isOperationsSectionView)) {
+  if (!(project || activeView === "portfolio" || activeView === "projects" || activeView === "reports" || activeView === "wiki" || activeView === "shared-page" || activeView === "my-page" || activeView === "project-create" || activeView === "closed-projects" || isAdminSectionView || isDevelopmentSectionView || isOperationsSectionView)) {
     return null;
   }
 

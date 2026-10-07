@@ -390,7 +390,7 @@ test("report builder creates and filters a project status report", async ({ page
 
 });
 
-test("reports are in the top bar for everyone signed in, and the old Development address leads there", async ({ page }) => {
+test("reports are a tab of Development for administrators, and the old address leads there", async ({ page }) => {
   let role = "ADMIN";
   await page.route("**/api/auth/me", (route) =>
     route.fulfill({
@@ -419,19 +419,19 @@ test("reports are in the top bar for everyone signed in, and the old Development
   );
 
   await page.goto("/reports");
-  const topBar = page.getByRole("banner");
-  await expect(topBar.getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("banner").getByRole("button", { name: "Отчёты" })).toHaveCount(0);
   await page.getByRole("button", { name: "Сводка портфеля" }).click();
   await expect(page.locator(".portfolio-report-scroll tbody tr")).toHaveCount(1);
   await expect(page.locator(".portfolio-report-scroll tbody tr")).toContainText("Поставщик: Задержка плат");
   await expect(page.getByRole("button", { name: "Excel" })).toBeEnabled();
   await expect(page).toHaveURL(/reportView=summary/);
 
-  // A project manager opens them too, also by the old address.
+  // A project manager no longer has them: Development is for administrators.
   role = "PROJECT_MANAGER";
   await page.goto("/development/reports");
-  await expect(page.getByRole("banner").getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
   await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+  await expect(page.locator(".portfolio-report-scroll")).toHaveCount(0);
 });
 
 test("the archive opens for an administrator and the demo visitor but not for a project manager", async ({ page }) => {

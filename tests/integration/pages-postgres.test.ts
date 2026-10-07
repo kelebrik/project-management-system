@@ -124,11 +124,15 @@ test('my page: sources mean what the portfolio report means, pages belong to the
     const asAdmin = await session(admin.email);
     const asOther = await session(otherAdmin.email);
     const asViewer = await session(viewer.email);
-    assert.equal((await asViewer('/api/pages')).status, 403);
+    // Anyone signed in has their own pages.
+    const viewerPages = await asViewer('/api/pages');
+    assert.equal(viewerPages.status, 200);
+    assert.deepEqual((await viewerPages.json()).pages, []);
     const created = await asAdmin('/api/pages', 'POST', template);
     assert.equal(created.status, 201, await created.clone().text());
     const page = await created.json();
     assert.equal((await asOther(`/api/pages/${page.id}`)).status, 404);
+    assert.equal((await asViewer(`/api/pages/${page.id}`)).status, 404);
     assert.equal((await asOther(`/api/pages/${page.id}`, 'DELETE')).status, 404);
     const renamed = await asAdmin(`/api/pages/${page.id}`, 'PATCH', { title: 'Портфель TV', expectedRevision: 1 });
     assert.equal(renamed.status, 200);

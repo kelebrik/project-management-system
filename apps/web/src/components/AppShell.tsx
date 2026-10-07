@@ -274,9 +274,9 @@ const developmentNavItems: AdminNavItem[] = [
     icon: <ClipboardCheck size={15} />,
   },
   {
-    view: "my-page",
-    label: "view.my-page",
-    icon: <LayoutDashboard size={15} />,
+    view: "reports",
+    label: "nav.reports",
+    icon: <NotebookText size={15} />,
   },
   {
     view: "automation-rules",
@@ -395,6 +395,15 @@ export function AppShell({
         />
         <BusinessUnitSwitcher />
         <nav className="global-section-nav" aria-label={t("nav.mainSections")}>
+          {isAuthenticated && (
+            <button
+              type="button"
+              className={activeView === "my-page" ? "active" : ""}
+              onClick={() => openView("my-page")}
+            >
+              <LayoutDashboard size={15} /> {t("view.my-page")}
+            </button>
+          )}
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
@@ -416,15 +425,6 @@ export function AppShell({
               onClick={() => openView("leave-schedule")}
             >
               <ClipboardList size={15} /> {t("nav.operations")}
-            </button>
-          )}
-          {isAuthenticated && (
-            <button
-              type="button"
-              className={activeView === "reports" ? "active" : ""}
-              onClick={() => openView("reports")}
-            >
-              <NotebookText size={15} /> {t("nav.reports")}
             </button>
           )}
           {canViewAdminSections && (

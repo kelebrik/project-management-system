@@ -9,7 +9,7 @@ import { z } from "zod";
 
 export type PageText = { ru: string; en: string };
 
-export const pageSourceKeys = ["projects", "work", "checkpoints", "risks", "decisions", "shifts", "issues", "changes", "lessons", "workload", "checkins", "jira"] as const;
+export const pageSourceKeys = ["projects", "work", "checkpoints", "risks", "decisions", "shifts", "issues", "changes", "workload", "checkins", "jira"] as const;
 export type PageSourceKey = (typeof pageSourceKeys)[number];
 
 export type PageFieldKind = "text" | "number" | "date" | "enum" | "boolean" | "list";

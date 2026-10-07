@@ -80,7 +80,7 @@ test('the page period applies to events only, never to plans or due dates', () =
   // The closed list: moments something happened, never a plan or a due date.
   assert.deepEqual(Object.fromEntries(Object.values(PAGE_SOURCES).map((source) => [source.key, [...source.periodFields]])), {
     projects: [], work: ['closedAt'], checkpoints: [], risks: ['createdAt'], decisions: ['requestedAt', 'decidedAt', 'createdAt'], shifts: ['createdAt'],
-    issues: ['createdAt'], changes: ['createdAt', 'approvedAt'], lessons: ['createdAt'], workload: [], checkins: ['weekStart'], jira: ['createdAt', 'resolvedAt'],
+    issues: ['createdAt'], changes: ['createdAt', 'approvedAt'], workload: [], checkins: ['weekStart'], jira: ['createdAt', 'resolvedAt'],
   });
 });
 

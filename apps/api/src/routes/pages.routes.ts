@@ -8,11 +8,11 @@ import { readableProjectWhere } from '../server/business-units.js';
 import { PAGE_QUERY_LIMIT, PageScopeTooLargeError, pageScopeProjects, runPageQueries } from '../services/pages/query.js';
 
 /**
- * "My page" (in Development for now): a person's own pages and the answers
- * for their widgets. Pages are read and written by their owner only; someone
- * else's page is "not found". While the tool lives in Development it is open
- * to administrators; the public demo may look at templates and try a page
- * without saving it. Errors carry a stable `code` the page words in the
+ * "My page": a person's own pages and the answers for their widgets, for
+ * everyone signed in. Pages are read and written by their owner only; someone
+ * else's page is "not found"; the answers count only the projects the person
+ * may read. The public demo may look at templates and try a page without
+ * saving it. Errors carry a stable `code` the page words in the
  * person's language; `error` is the Russian text for other clients.
  */
 
@@ -34,7 +34,7 @@ const querySchema = z.object({
 
 type Access = { userId: string; canSave: boolean } | null;
 
-/** Who may use the pages: administrators fully, the public demo without saving. */
+/** Who may use the pages: anyone signed in, the public demo without saving. */
 function pagesAccess(req: Request, res: Response): Access {
   const user = currentUser(req);
   if (!user) {
@@ -42,10 +42,6 @@ function pagesAccess(req: Request, res: Response): Access {
     return null;
   }
   if (isPublicDemoMode() && user.id === PUBLIC_DEMO_USER_ID) return { userId: user.id, canSave: false };
-  if (user.role !== 'ADMIN') {
-    res.status(403).json({ code: 'PAGES_ADMIN_ONLY', error: '«Моя страница» пока в разделе «Разработка» и открыта администраторам' });
-    return null;
-  }
   return { userId: user.id, canSave: true };
 }
 

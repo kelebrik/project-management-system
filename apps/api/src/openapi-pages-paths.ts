@@ -3,10 +3,10 @@ import { pathParam, securedOperation } from "./openapi-helpers.js";
 const json = (schema: Record<string, unknown>) => ({ required: true, content: { "application/json": { schema } } });
 const pageId = pathParam("pageId");
 const label = json({ type: "object", properties: { label: { type: "string", maxLength: 120 } } });
-const owned = (summary: string, params: ReturnType<typeof pathParam>[], result: string) => ({ ...securedOperation(["Pages"], summary, params, result), responses: { "200": { description: result }, "403": { description: "Not an administrator, or the public demo" }, "404": { description: "No such page of this person" } } });
+const owned = (summary: string, params: ReturnType<typeof pathParam>[], result: string) => ({ ...securedOperation(["Pages"], summary, params, result), responses: { "200": { description: result }, "403": { description: "The public demo" }, "404": { description: "No such page of this person" } } });
 const document = { type: "object", description: "PageDocument: schemaVersion 1, format (wide, a4-landscape, a4-portrait), theme, scope, periodDays, subtitle, widgets (at most 30, on a 12-column grid without overlaps)" };
 const pageBody = { type: "object", required: ["title", "document"], properties: { title: { type: "string", maxLength: 120 }, document } };
-const responses = (ok: string) => ({ "200": { description: ok }, "401": { description: "Not signed in" }, "403": { description: "Not an administrator, or the public demo trying to save" }, "404": { description: "No such page of this person" } });
+const responses = (ok: string) => ({ "200": { description: ok }, "401": { description: "Not signed in" }, "403": { description: "The public demo trying to save" }, "404": { description: "No such page of this person" } });
 
 /** "My page": a person's own pages and the answers for their widgets. */
 export const openApiPagesPaths = {

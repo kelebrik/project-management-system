@@ -45,7 +45,7 @@ export type DevelopmentSectionView = Extract<
   | "lessons-register"
   | "raci-matrix"
   | "my-work"
-  | "my-page"
+  | "reports"
   | "automation-rules"
 >;
 
@@ -93,7 +93,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "lessons-register",
   "raci-matrix",
   "my-work",
-  "my-page",
+  "reports",
   "automation-rules",
 ];
 
@@ -101,8 +101,8 @@ export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule"
 
 export const writeProtectedViews = new Set<AppView>([
   "project-create",
-  // Reports are for everyone signed in; the API shows each person only the projects they may read.
-  "reports",
+  // My page is for everyone signed in: each person's own pages over the projects they may read.
+  "my-page",
   // A page opened by a link: anyone signed in, each with their own access to projects.
   "shared-page",
   ...adminSectionViews,
@@ -185,12 +185,12 @@ export const appViewPaths: Record<AppView, string> = {
   "lessons-register": "/development/lessons",
   "raci-matrix": "/development/raci",
   "my-work": "/development/my-work",
-  "my-page": "/development/my-page",
+  "my-page": "/my-page",
   "shared-page": "/shared-page",
   "automation-rules": "/development/rules",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
-  reports: "/reports",
+  reports: "/development/reports",
   wiki: "/faq",
   "project-create": "/new-project",
   "project-overview": "/overview",
@@ -270,6 +270,8 @@ export const appPathViews: Record<string, AppView> = {
   "/development/lessons": "lessons-register",
   "/development/raci": "raci-matrix",
   "/development/my-work": "my-work",
+  "/my-page": "my-page",
+  // My page lived in Development first; its old address still opens it.
   "/development/my-page": "my-page",
   "/shared-page": "shared-page",
   "/development/rules": "automation-rules",

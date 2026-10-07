@@ -9,7 +9,7 @@ import { PAGE_SOURCE_ADAPTERS } from '../../apps/api/src/services/pages/registry
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 
-test('my page: issues, changes, lessons, workload, check-ins and Jira snapshots as page sources', { skip: !enabled }, async () => {
+test('my page: issues, changes, workload, check-ins and Jira snapshots as page sources', { skip: !enabled }, async () => {
   assert.match(new URL(process.env.DATABASE_URL!).pathname, /test/);
   forgetPageQueryCache();
   const suffix = randomUUID().slice(0, 8);
@@ -26,7 +26,6 @@ test('my page: issues, changes, lessons, workload, check-ins and Jira snapshots 
     await prisma.issue.create({ data: { projectId: project.id, source: 'INTERNAL', title: 'Решён', owner: 'Иван', impact: '', severity: 'LOW', status: 'Resolved', dueDate: day('2026-09-01') } as never });
     await prisma.changeRequest.create({ data: { projectId: project.id, type: 'SCHEDULE', title: 'Сдвинуть Beta', description: '', owner: 'Анна', status: 'IN_REVIEW', impactAnalysis: '', affectedBaseline: '', scheduleImpactDays: 7 } as never });
     await prisma.changeRequest.create({ data: { projectId: project.id, type: 'SCOPE', title: 'Черновик', description: '', owner: '', status: 'DRAFT', impactAnalysis: '', affectedBaseline: '', scheduleImpactDays: 30 } as never });
-    await prisma.lesson.create({ data: { projectId: project.id, category: 'Поставки', title: 'Заказывать платы заранее', createdAt: day('2026-10-02') } });
     await prisma.projectAllocation.createMany({ data: [
       { employeeId: employee.id, projectId: project.id, percent: 80, startsOn: day('2026-09-01') },
       { employeeId: employee.id, projectId: other.id, percent: 40, startsOn: day('2026-09-01') },
@@ -66,8 +65,7 @@ test('my page: issues, changes, lessons, workload, check-ins and Jira snapshots 
     assert.deepEqual([blocker.values.open, blocker.values.critical, blocker.values.overdue, blocker.values.createdAt], [true, true, true, '2026-10-05'], 'a Moscow day, as in the Jira widgets');
     assert.equal(jira.find((row) => row.values.issueKey === 'TV-2')!.values.resolvedAt, '2026-10-03');
 
-    const lessons = await PAGE_SOURCE_ADAPTERS.lessons(context);
-    assert.equal(lessons[0].values.createdAt, '2026-10-02');
+    assert.equal('lessons' in PAGE_SOURCE_ADAPTERS, false, 'lessons are not a page source');
 
     // Every template answers without errors on these sources.
     for (const template of PAGE_TEMPLATES) {

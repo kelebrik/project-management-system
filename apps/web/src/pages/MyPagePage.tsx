@@ -6,6 +6,7 @@ import { useConfirm } from "../hooks/useConfirm";
 import { PageEditor, type EditorPage } from "../components/pages/PageEditor";
 import { PagesGallery } from "../components/pages/PagesGallery";
 import { PageShow } from "../components/pages/PageShow";
+import { PagesIntro } from "../components/pages/PagesIntro";
 import { pageErrorText } from "../app/pages/pageErrors";
 import { useI18n } from "../i18n/I18nProvider";
 import "../styles/my-page.css";
@@ -16,6 +17,15 @@ import "../styles/my-page.css";
  */
 
 const PAGE_PARAM = "page";
+const INTRO_HIDDEN_KEY = "pms-my-page-intro-hidden";
+
+function introHidden() {
+  try {
+    return window.localStorage.getItem(INTRO_HIDDEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
 
 function pageIdFromAddress() {
   return new URLSearchParams(window.location.search).get(PAGE_PARAM);
@@ -38,6 +48,16 @@ export function MyPagePage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [showFrom, setShowFrom] = useState<number | null>(null);
+  const [intro, setIntro] = useState(() => !introHidden());
+  const hideIntro = () => {
+    try {
+      window.localStorage.setItem(INTRO_HIDDEN_KEY, "1");
+    } catch {
+      // Storage may be blocked: the window just closes.
+    }
+    setIntro(false);
+  };
+  const introDialog = intro ? <PagesIntro onClose={() => setIntro(false)} onHide={hideIntro} /> : null;
 
   const loadList = useCallback(() => {
     apiClient.get<PagesList>("/api/pages", t("ui.pages.loadFailed")).then(setList).catch((failure) => setError(pageErrorText(failure, t, t("ui.pages.loadFailed"))));
@@ -128,14 +148,23 @@ export function MyPagePage() {
     return (
       <section className="v2-page mp-page">
         <PageEditor canSave={list?.canSave !== false && shown.id !== null} key={shown.id ?? "local"} onBack={back} options={options} page={shown} />
+        {introDialog}
       </section>
     );
   }
   return (
     <section className="v2-page mp-page">
-      <p className="mp-lead">{t("ui.pages.description")}</p>
+      <div className="v2-compact-header">
+        <div>
+          <h2>{t("ui.pages.title")}</h2>
+          <span>
+            {t("ui.pages.description")} · <button className="mp-link-button" onClick={() => setIntro(true)} type="button">{t("ui.pages.intro.open")}</button>
+          </span>
+        </div>
+      </div>
       {error && <p className="automation-error" role="alert">{error}</p>}
       {openId && !shown ? <p className="mp-hint">{t("ui.pages.loading")}</p> : <PagesGallery busy={busy} list={list} onShow={setShowFrom} onCreate={(template, scope) => void create(template, scope)} onDelete={(page) => void remove(page)} onDuplicate={(page) => void duplicate(page)} onOpen={openPage} options={options} />}
+      {introDialog}
       {showFrom !== null && list && list.pages.length > 0 && <PageShow onExit={() => setShowFrom(null)} options={options} pages={list.pages} start={showFrom} />}
     </section>
   );

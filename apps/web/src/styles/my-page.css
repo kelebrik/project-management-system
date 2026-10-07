@@ -243,6 +243,13 @@ a.mp-code:hover { text-decoration: underline; }
 .mp-ok { color: var(--success-800); font-size: var(--fs-xs); }
 .mp-preview-head .mp-warn { font-size: var(--fs-xs); }
 
+/* The intro */
+.mp-intro { width: min(720px, calc(100vw - 32px)); grid-template-rows: auto 1fr auto; }
+.mp-intro-body { overflow: auto; padding: var(--space-3) var(--space-4); }
+.mp-intro-body ul { margin: var(--space-3) 0 0; padding-left: 18px; display: grid; gap: var(--space-2); font-size: var(--fs-sm); line-height: 1.5; }
+.mp-intro-actions { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-4); border-top: 1px solid var(--border); }
+.mp-link-button { border: 0; background: none; padding: 0; color: var(--brand); text-decoration: underline; cursor: pointer; font: inherit; }
+
 /* Stage 3: show, versions, links */
 .mp-show { position: fixed; inset: 0; z-index: 80; background: #0b1220; display: grid; grid-template-rows: 1fr auto; }
 .mp-show .mp-stage { height: 100%; padding: 16px; box-sizing: border-box; background: #0b1220; align-items: center; }
