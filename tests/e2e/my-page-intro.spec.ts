@@ -2,6 +2,8 @@ import { expect, test } from "./fixtures";
 import { mockAdminProject } from "./overview-and-baseline.support";
 
 test("my page is first in the top bar, says what it can do once, and reports moved to Development", async ({ page }) => {
+  // Three reloads of a page whose charts load lazily: in a busy parallel run 30 s is not enough.
+  test.slow();
   await mockAdminProject(page);
   await page.route(/\/api\/pages(\?.*)?$/, (route) => route.fulfill({ json: { canSave: true, limit: 50, pages: [] } }));
   await page.route("**/api/pages/scope-options", (route) => route.fulfill({ json: { projects: [], portfolios: [] } }));

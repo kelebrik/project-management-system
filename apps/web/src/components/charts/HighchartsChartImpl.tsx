@@ -32,6 +32,7 @@ if (!symbols.star) {
  * one shape and only change their data (the Gantt as it scrolls): every new
  * chart puts a <style> of its palette into the page, which makes the browser
  * restyle the whole page — on a Gantt of thousands of rows, a visible stall.
+ * Its series must keep their number and order; their data is replaced whole.
  */
 export default function HighchartsChartImpl({ options, label, className = "", inPlace = false }: { options: Options; label: string; className?: string; inPlace?: boolean }) {
   const box = useRef<HTMLDivElement | null>(null);
@@ -52,8 +53,14 @@ export default function HighchartsChartImpl({ options, label, className = "", in
   useEffect(() => {
     const element = box.current;
     if (!element) return;
-    if (inPlace && chart.current) {
-      chart.current.update(options, true, true, false);
+    const current = chart.current;
+    const series = options.series ?? [];
+    if (inPlace && current && current.series.length === series.length) {
+      // The data of each series is replaced whole: merged, Highcharts matches new points to old ones
+      // assuming they are sorted by x, and on a Gantt (sorted by rows) points were lost or doubled.
+      current.update({ ...options, series: series.map((item) => ({ ...item, data: undefined })) } as Options, false, true, false);
+      series.forEach((item, index) => current.series[index]?.setData(("data" in item ? item.data : undefined) ?? [], false, false, false));
+      current.redraw(false);
       return;
     }
     chart.current?.destroy();

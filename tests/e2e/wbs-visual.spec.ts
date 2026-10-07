@@ -81,6 +81,38 @@ test("read-only WBS rows keep the editable table geometry", async ({ page }) => 
   ).toHaveCount(2);
 });
 
+// Highcharts paints every bar and milestone right under the Gantt's own handles.
+async function expectGanttPaintedUnderHandles(page: Page) {
+  await expect(page.locator(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point").first()).toBeAttached();
+  const painted = await page.locator(".gantt-timeline").evaluate((timeline) => {
+    const box = (element: Element) => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    };
+    const all = (selector: string) => [...timeline.querySelectorAll(selector)].map(box);
+    return {
+      own: all(".gantt-bar:not(.milestone):not(.range-line):not(.summary)"),
+      bars: all(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point"),
+      ownMarks: all(".gantt-bar.milestone:not(.goal)"),
+      marks: all(".gantt-hc-layer g.gantt-hc-milestones > .highcharts-point"),
+    };
+  });
+  expect(painted.own.length).toBeGreaterThan(0);
+  expect(painted.bars).toHaveLength(painted.own.length);
+  expect(painted.marks).toHaveLength(painted.ownMarks.length);
+  for (const own of painted.own) {
+    const bar = painted.bars.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
+    expect(bar, `a painted bar in the row at ${own.y}`).toBeDefined();
+    expect(Math.abs(bar!.left - own.left)).toBeLessThanOrEqual(1.5);
+    expect(Math.abs(bar!.right - own.right)).toBeLessThanOrEqual(1.5);
+  }
+  for (const own of painted.ownMarks) {
+    const mark = painted.marks.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
+    expect(mark, `a painted milestone in the row at ${own.y}`).toBeDefined();
+    expect(Math.abs(mark!.x - own.x)).toBeLessThanOrEqual(1.5);
+  }
+}
+
 test("visual refresh keeps two-level navigation and Gantt rows aligned", async ({
   page,
 }) => {
@@ -168,40 +200,10 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
 
   // Highcharts paints every bar and milestone right under the Gantt's own handles — also after
   // the rows change and the chart is updated in place (bars starting the same day keep their rows).
-  const expectPaintedUnderHandles = async () => {
-    await expect(page.locator(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point").first()).toBeAttached();
-    const painted = await page.locator(".gantt-timeline").evaluate((timeline) => {
-      const box = (element: Element) => {
-        const rect = element.getBoundingClientRect();
-        return { left: rect.left, right: rect.right, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      };
-      const all = (selector: string) => [...timeline.querySelectorAll(selector)].map(box);
-      return {
-        own: all(".gantt-bar:not(.milestone):not(.range-line):not(.summary)"),
-        bars: all(".gantt-hc-layer g.gantt-hc-bars > .highcharts-point"),
-        ownMarks: all(".gantt-bar.milestone:not(.goal)"),
-        marks: all(".gantt-hc-layer g.gantt-hc-milestones > .highcharts-point"),
-      };
-    });
-    expect(painted.own.length).toBeGreaterThan(0);
-    expect(painted.bars).toHaveLength(painted.own.length);
-    expect(painted.marks).toHaveLength(painted.ownMarks.length);
-    for (const own of painted.own) {
-      const bar = painted.bars.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
-      expect(bar, `a painted bar in the row at ${own.y}`).toBeDefined();
-      expect(Math.abs(bar!.left - own.left)).toBeLessThanOrEqual(1.5);
-      expect(Math.abs(bar!.right - own.right)).toBeLessThanOrEqual(1.5);
-    }
-    for (const own of painted.ownMarks) {
-      const mark = painted.marks.find((candidate) => Math.abs(candidate.y - own.y) <= 1.5);
-      expect(mark, `a painted milestone in the row at ${own.y}`).toBeDefined();
-      expect(Math.abs(mark!.x - own.x)).toBeLessThanOrEqual(1.5);
-    }
-  };
-  await expectPaintedUnderHandles();
+  await expectGanttPaintedUnderHandles(page);
   await page.getByRole("button", { name: "1", exact: true }).first().click();
   await page.getByRole("button", { name: "3", exact: true }).first().click();
-  await expectPaintedUnderHandles();
+  await expectGanttPaintedUnderHandles(page);
 
   await page.goto("/TV-OVERVIEW/schedule");
   const milestoneWidths = await page.locator(".milestone-timeline").evaluate(
@@ -594,4 +596,34 @@ test("project navigation and current work reflect the structure", async ({ page 
     "href",
     "https://mm.sberdevices.ru/team/channel",
   );
+});
+
+test("Gantt bars keep their rows when a phase is collapsed and expanded in the middle of rows not in date order", async ({ page }) => {
+  await mockAdminProject(page, (project) => {
+    const base = project.wbsItems[0];
+    project.wbsItems.splice(
+      0,
+      project.wbsItems.length,
+      { ...base, id: "phase-a", parentId: null, code: "1", title: "Фаза А", type: "PHASE", wbsLevel: 1, sortOrder: 10, startDate: isoDay(20), dueDate: isoDay(60) },
+      { ...base, id: "task-a1", parentId: "phase-a", code: "1.1", title: "Поздняя задача", type: "TASK", wbsLevel: 2, sortOrder: 20, startDate: isoDay(45), dueDate: isoDay(60) },
+      { ...base, id: "task-a2", parentId: "phase-a", code: "1.2", title: "Средняя задача", type: "TASK", wbsLevel: 2, sortOrder: 30, startDate: isoDay(20), dueDate: isoDay(30) },
+      { ...base, id: "task-b", parentId: null, code: "2", title: "Ранняя задача", type: "TASK", wbsLevel: 1, sortOrder: 40, startDate: isoDay(2), dueDate: isoDay(10) },
+      { ...base, id: "task-c", parentId: null, code: "3", title: "Ещё задача", type: "TASK", wbsLevel: 1, sortOrder: 50, startDate: isoDay(35), dueDate: isoDay(40) },
+    );
+  });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/TV-OVERVIEW/gantt");
+  await expect(page.locator(".gantt-label", { hasText: "Ранняя задача" })).toBeVisible();
+  await expectGanttPaintedUnderHandles(page);
+  const toggle = page.locator(".gantt-label", { hasText: "Фаза А" }).locator("button").filter({ hasText: /^[-+]$/ });
+  // The phase's late tasks appear above the early one: the chart is updated in place.
+  await toggle.click();
+  await expect(page.locator(".gantt-label", { hasText: "Поздняя задача" })).toBeVisible();
+  await expectGanttPaintedUnderHandles(page);
+  await toggle.click();
+  await expect(page.locator(".gantt-label", { hasText: "Поздняя задача" })).toHaveCount(0);
+  await expectGanttPaintedUnderHandles(page);
+  await toggle.click();
+  await expect(page.locator(".gantt-label", { hasText: "Поздняя задача" })).toBeVisible();
+  await expectGanttPaintedUnderHandles(page);
 });
