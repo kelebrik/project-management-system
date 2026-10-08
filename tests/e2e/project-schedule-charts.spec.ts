@@ -1,7 +1,7 @@
 import { expect, test } from "./fixtures";
-import { isoDay, mockAdminProject } from "./overview-and-baseline.support";
+import { countPdfPages, isoDay, mockAdminProject } from "./overview-and-baseline.support";
 
-test("Schedule 2.0 in Development draws the project's goals, phases, milestones and shifts with Highcharts and exports in the browser", async ({ page }) => {
+test("the project schedule tab draws goals, phases, milestones and shifts with Highcharts, exports in the browser and prints each chart on a page", async ({ page }) => {
   page.on("pageerror", (error) => console.error(error.stack));
   await mockAdminProject(page, (project) => {
     const base = project.wbsItems[0];
@@ -16,10 +16,13 @@ test("Schedule 2.0 in Development draws the project's goals, phases, milestones 
     route.fulfill({ json: { checkpoints: [{ id: "lab-goal", code: "9.1", title: "Цель лаборатории", type: "GOAL", isActiveGoal: true, baselineDate: isoDay(20), currentDate: isoDay(30), varianceDays: 10, unexplainedDays: 0, earlierSteps: null, reasonDays: { SUPPLIER: 7, CUSTOMER: 3 }, steps: [step("s1", 7, "SUPPLIER"), step("s2", 3, "CUSTOMER")] }] } }),
   );
   await page.setViewportSize({ width: 1500, height: 1000 });
+  await page.addInitScript(() => {
+    window.print = () => {
+      document.body.dataset.printInvoked = "true";
+    };
+  });
   await page.goto("/TV-OVERVIEW/schedule");
-  await expect(page.getByText("Цель лаборатории").first()).toBeVisible();
-  await page.goto("/development/schedule-lab");
-  await expect(page.getByRole("button", { name: "График 2.0" })).toHaveClass(/active/);
+  await expect(page.locator(".project-section-navigation").getByRole("button", { name: "График" })).toHaveClass(/active/);
   const cards = page.locator(".lab-card");
   await expect(cards).toHaveCount(6);
   await expect(page.locator(".lab-card .highcharts-root")).toHaveCount(6);
@@ -31,11 +34,39 @@ test("Schedule 2.0 in Development draws the project's goals, phases, milestones 
   await expect(moves.locator(".highcharts-breadcrumbs-group")).toContainText("Цель лаборатории");
   // The menu exports in the browser: a PNG file, and the data as a table.
   const reasons = cards.filter({ hasText: "Почему сдвигались вехи" });
-  await reasons.locator(".highcharts-contextbutton").click();
+  // Highcharts hides its menu when the pointer has been away from it for half a second; under load the
+  // pick is tried again with the menu opened anew.
+  const pick = (item: string) =>
+    expect(async () => {
+      await reasons.locator(".highcharts-contextbutton").click();
+      await reasons.locator(".highcharts-menu-item", { hasText: item }).click({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
   const download = page.waitForEvent("download");
-  await page.getByText("Скачать PNG").click();
+  await pick("Скачать PNG");
   expect((await download).suggestedFilename()).toBe("Почему сдвигались вехи.png");
-  await reasons.locator(".highcharts-contextbutton").click();
-  await page.getByText("Показать таблицу данных").click();
+  await pick("Показать таблицу данных");
   await expect(reasons.locator(".highcharts-data-table")).toContainText("Поставщик");
+
+  // "Save as PDF": every chart drawn at the page's size, one chart a page; back as it was after printing.
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Сохранить в PDF" }).click();
+  await expect(page.locator("body")).toHaveAttribute("data-print-invoked", "true");
+  await expect(page.locator("body")).toHaveAttribute("data-print-target", "project-schedule-charts");
+  await expect.poll(() => page.locator(".lab-card .highcharts-root").first().getAttribute("width")).toBe("1040");
+  await page.emulateMedia({ media: "print" });
+  const pdf = await page.pdf({ format: "A4", landscape: true, printBackground: true, preferCSSPageSize: true });
+  expect(countPdfPages(pdf)).toBe(6);
+  await page.emulateMedia({ media: "screen" });
+  await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+  await expect(page.locator("body")).not.toHaveAttribute("data-print-target", /.*/);
+  await expect.poll(() => page.locator(".lab-card .highcharts-root").first().getAttribute("width")).not.toBe("1040");
+});
+
+test("the old schedule lives in Development as «Старый график»", async ({ page }) => {
+  await mockAdminProject(page);
+  await page.goto("/TV-OVERVIEW/schedule");
+  await page.goto("/development/schedule-legacy");
+  await expect(page.locator(".development-section-navigation").getByRole("button", { name: "Старый график" })).toHaveClass(/active/);
+  await expect(page.locator("#milestones-by-phase")).toBeVisible();
+  await expect(page.locator(".development-section-navigation .section-project-picker")).toBeVisible();
 });

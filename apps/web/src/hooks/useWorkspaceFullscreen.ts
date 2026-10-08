@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import type { AppView, FullscreenWorkspaceView } from "../app/routes";
 
-function expectedViewForFullscreen(
+/** The views where a full-screen workspace may stay open: the milestones live on the old schedule in Development. */
+function expectedViewsForFullscreen(
   fullscreenWorkspaceView: FullscreenWorkspaceView,
-) {
+): AppView[] {
   return fullscreenWorkspaceView === "overview-milestones-by-phase" ||
     fullscreenWorkspaceView === "overview-milestones-all"
-    ? "project-schedule"
-    : fullscreenWorkspaceView;
+    ? ["schedule-legacy", "project-schedule"]
+    : [fullscreenWorkspaceView];
 }
 
 export function useWorkspaceFullscreen(activeView: AppView) {
@@ -16,7 +17,7 @@ export function useWorkspaceFullscreen(activeView: AppView) {
 
   useEffect(() => {
     if (!fullscreenWorkspaceView) return;
-    if (activeView === expectedViewForFullscreen(fullscreenWorkspaceView)) return;
+    if (expectedViewsForFullscreen(fullscreenWorkspaceView).includes(activeView)) return;
 
     const timeoutId = window.setTimeout(() => {
       setFullscreenWorkspaceView(null);

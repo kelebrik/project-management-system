@@ -556,9 +556,17 @@ export const englishWikiGroups: WikiGroup[] = [
       {
         "id": "wiki-milestones-calendar",
         "title": "Project schedule, milestones and calendars",
-        "summary": "How the Project schedule section builds milestones by phase and the serpentine scale, and how it stores user label offsets.",
-        "keywords": ["project schedule", "milestones", "goals", "calendar", "dragging", "serpentine"],
+        "summary": "What the Highcharts Schedule tab shows, how to save it as PDF, and where the old schedule with milestones by phase now lives.",
+        "keywords": ["project schedule", "milestones", "goals", "calendar", "dragging", "serpentine", "old schedule", "pareto", "forecast drift"],
         "sections": [
+          {
+            "heading": "The Schedule tab",
+            "points": [
+              "The project's Schedule tab is drawn with Highcharts: goals as dumbbells from baseline to forecast (a red bar when a goal moved later, green when earlier); phases as bars with their progress filled in, with milestone diamonds and goal stars on them; milestones of the past two months and the next four as a timeline of events; Why milestones moved as a Pareto chart of the reasons in the shift journal; Moves by milestone, where clicking a column shows each move; and the drift of the current goal's forecast as a step line with notes.",
+              "Every chart zooms by selecting an area and has a menu: full screen, print, PNG, JPEG, SVG, CSV, Excel and a data table; exporting happens in the browser and nothing is sent anywhere. Save as PDF puts each chart on its own A4 landscape page.",
+              "The previous page — goals on an axis and milestones by phase with draggable labels and a two-page PDF — stays in Development as Old schedule; how it works is described below."
+            ]
+          },
           {
             "heading": "Source of milestones",
             "points": [

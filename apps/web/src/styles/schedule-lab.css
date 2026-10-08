@@ -1,7 +1,7 @@
 /* "Schedule 2.0": cards of Highcharts charts on the page's own surfaces, two columns where the cards are narrow. */
-.schedule-lab { display: grid; gap: var(--space-4); padding: var(--space-4) var(--space-6) var(--space-8); }
-.lab-head h2 { margin: 0 0 4px; font-size: var(--fs-lg); }
-.lab-head p { margin: 0; color: var(--text-secondary); max-width: 980px; }
+.schedule-lab { display: grid; gap: var(--space-4); grid-column: 1 / -1; min-width: 0; }
+.lab-head { display: flex; flex-wrap: wrap; gap: var(--space-3); align-items: center; justify-content: space-between; }
+.lab-head p { margin: 0; color: var(--text-secondary); max-width: 980px; flex: 1 1 420px; }
 .lab-head .lab-error { color: var(--danger); }
 .lab-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
 .lab-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: var(--space-4); box-shadow: var(--shadow-sm, none); min-width: 0; }
@@ -18,3 +18,12 @@
 .lab-card .highcharts-data-table caption { caption-side: top; text-align: left; font-weight: 600; padding-bottom: 4px; color: var(--text-secondary); }
 .lab-card .highcharts-data-table th, .lab-card .highcharts-data-table td { border-bottom: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .lab-card .highcharts-data-table td.highcharts-number { text-align: right; }
+
+/* "Save as PDF": each chart on an A4 landscape page of its own, drawn at the page's size (see printScheduleOption). */
+@media print {
+  body[data-print-target="project-schedule-charts"] .content-grid > [data-print-section="project-schedule-charts"] { display: block !important; }
+  body[data-print-target="project-schedule-charts"] .lab-head { display: none !important; }
+  body[data-print-target="project-schedule-charts"] .lab-grid { display: block !important; }
+  body[data-print-target="project-schedule-charts"] .lab-card { border: 0 !important; box-shadow: none !important; break-inside: avoid; break-after: page; page-break-after: always; padding: 0 0 4mm !important; }
+  body[data-print-target="project-schedule-charts"] .lab-card:last-child { break-after: auto; page-break-after: auto; }
+}

@@ -27,6 +27,7 @@ test("goals are dumbbells from baseline to forecast, red when later, written wit
   const [alpha, beta] = series(options);
   assert.equal(beta!.connectorColor, "#ef4444");
   assert.equal(alpha!.connectorColor, "#16a34a");
+  assert.equal((beta!.accessibility as { description: string }).description, "Beta. Baseline 2026-11-01, Forecast 2026-11-11, +10 d");
   assert.equal(options.exporting?.enabled, true);
   assert.equal(options.exporting?.fallbackToExportServer, false, "export never goes to Highcharts' server");
   assert.equal(options.exporting?.filename, "Goals");

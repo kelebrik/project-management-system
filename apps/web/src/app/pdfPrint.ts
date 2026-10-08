@@ -1,6 +1,7 @@
-export function printSectionAsPdf(sectionId: string, title: string) {
+/** Prints a section; returns its cleanup, for a page that is left before the dialog reports back. */
+export function printSectionAsPdf(sectionId: string, title: string): (() => void) | undefined {
   const section = document.getElementById(sectionId);
-  if (!section) return;
+  if (!section) return undefined;
   const previousTitle = document.title;
   let cleanedUp = false;
   let fallbackTimer: number | null = null;
@@ -31,4 +32,5 @@ export function printSectionAsPdf(sectionId: string, title: string) {
     cleanup();
     throw error;
   }
+  return cleanup;
 }

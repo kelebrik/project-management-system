@@ -221,12 +221,11 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
   const summary = filter.locator("summary");
   await expect(summary).toContainText("Все 2");
   await expect(filter).not.toHaveClass(/is-filtered/);
-  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
-  await expect(
-    page
-      .locator(".portfolio-project-timeline-row", { hasText: "Первый проект" })
-      .locator(".portfolio-project-timeline-title small"),
-  ).toHaveText("TV-FIRST");
+  // The goals of every shown project on one Highcharts chart, a row each, named with the project's code.
+  const goals = page.locator(".portfolio-goal-timeline-panel");
+  await expect(goals.locator(".highcharts-xaxis-labels text")).toHaveCount(2);
+  await expect(goals.locator(".highcharts-xaxis-labels")).toContainText("TV-FIRST");
+  await expect(goals.locator(".highcharts-xaxis-labels")).toContainText("TV-SECOND");
   await expect(page.getByText("Основной", { exact: true })).toHaveCount(0);
 
   await summary.click();
@@ -234,6 +233,8 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
 
   await expect(summary).toContainText("1 из 2");
   await expect(filter).toHaveClass(/is-filtered/);
+  await expect(goals.locator(".highcharts-xaxis-labels text")).toHaveCount(1);
+  await expect(goals.locator(".highcharts-xaxis-labels")).not.toContainText("TV-SECOND");
   await expect(page.getByText("Вторая цель", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Вторая проблема", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Второй риск", { exact: true })).toHaveCount(0);
@@ -268,15 +269,16 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
 
   await filter.getByRole("button", { name: "Снять все" }).click();
   await expect(summary).toContainText("0 из 2");
+  // Goals, progress, problems and risks say so; the project cards stay.
   await expect(
     page.getByText("Для отображения не выбран ни один проект."),
-  ).toHaveCount(3);
+  ).toHaveCount(4);
   await expect(page.locator(".projects-overview-card")).toHaveCount(2);
 
   await filter.getByRole("button", { name: "Выбрать все" }).click();
   await expect(summary).toContainText("Все 2");
   await expect(filter).not.toHaveClass(/is-filtered/);
-  await expect(page.locator(".portfolio-project-timeline-row")).toHaveCount(2);
+  await expect(goals.locator(".highcharts-xaxis-labels text")).toHaveCount(2);
 
   await page.goto("/projects");
   await expect(page.locator(".projects-overview-card")).toHaveCount(2);

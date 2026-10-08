@@ -49,7 +49,7 @@ const MyWorkPage = lazy(() =>
   })),
 );
 const AutomationRulesPage = lazy(() => import("./AutomationRulesPage"));
-const ScheduleLabPage = lazy(() => import("./ScheduleLabPage"));
+const ProjectSchedulePage = lazy(() => import("./ProjectSchedulePage"));
 const MyPagePage = lazy(() =>
   import("./MyPagePage").then((module) => ({
     default: module.MyPagePage,
@@ -134,11 +134,6 @@ export function AppPages() {
           <AutomationRulesPage />
         </Suspense>
       )}
-      {activeView === "schedule-lab" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <ScheduleLabPage />
-        </Suspense>
-      )}
       {activeView === "raci-matrix" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <RaciMatrixPage />
@@ -176,7 +171,13 @@ export function AppPages() {
         {activeView === "admin-project-access" && <AdminProjectAccessPageContent />}
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {activeView === "admin-analytics" && <AdminAnalyticsPageContent />}
-        {project && activeView === "project-schedule" && <ProjectOverviewMilestonesPage />}
+        {project && activeView === "project-schedule" && (
+          <Suspense fallback={<DevelopmentPageFallback />}>
+            <ProjectSchedulePage />
+          </Suspense>
+        )}
+        {/* The schedule before the Highcharts one, kept in Development for comparison and its two-page PDF. */}
+        {project && activeView === "schedule-legacy" && <ProjectOverviewMilestonesPage />}
         {project && activeView === "project-passport" && <ProjectPassportPage />}
         {project && activeView === "project-business-requirements" && <ProjectBusinessRequirementsPage />}
         {project && activeView === "project-current-work" && <ProjectCurrentWorkPage key={project.id} />}

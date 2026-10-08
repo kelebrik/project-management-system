@@ -1,8 +1,17 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
+  useCallback,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import type { Options } from "highcharts";
+import { useAppChartColors } from "../app/charts/appChartTheme";
+import { portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText, type PortfolioProgressProject } from "../app/charts/portfolioOptions";
+import { createProjectWorkProgress } from "../app/projectWorkProgress";
+import { HighchartsLabChart } from "../components/charts/HighchartsLabChart";
+import { useHighchartsExtras } from "../components/charts/useHighchartsExtras";
 import { AlertTriangle, ChevronDown } from "lucide-react";
 import { signedDaysUntil } from "../app/dateUtils";
 import type { ProjectListItem } from "../app/domainTypes";
@@ -18,8 +27,20 @@ import {
 } from "../app/portfolioProjectFilter";
 import { usePageContext } from "./PageContext";
 import { ProjectsOverview } from "./ProjectsOverview";
-import { goalScheduleHealth } from "../app/goalScheduleHealth";
 import type { Translator } from "../i18n/types";
+
+/** A callback that always calls the latest one, though the charts using it are not drawn anew for it. */
+function useLatest<T extends (...args: never[]) => void>(callback: T) {
+  const current = useRef(callback);
+  useLayoutEffect(() => {
+    current.current = callback;
+  });
+  return useCallback((...args: Parameters<T>) => current.current(...args), []);
+}
+
+function PortfolioChart({ options, label }: { options: Options | null; label: string }) {
+  return options ? <div className="portfolio-chart"><HighchartsLabChart label={label} options={options} /></div> : null;
+}
 
 
 function dueDateTone(dueDate: string | null) {
@@ -39,7 +60,9 @@ function dueDateLabel(dueDate: string | null, uiText: Translator) {
 }
 
 export function PortfolioPage() {
-  const { t: uiText } = useInterfaceTranslation();
+  const { t: uiText, locale, formatters } = useInterfaceTranslation();
+  const colors = useAppChartColors();
+  const chartsReady = useHighchartsExtras(locale);
   const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -63,18 +86,73 @@ export function PortfolioPage() {
     () => selectedPortfolioProjectIds(projectFilterOptions, excludedProjectIds),
     [excludedProjectIds, projectFilterOptions],
   );
-  const timelineRows = filterPortfolioRowsByProject<PortfolioGoalTimelineProjectRow>(
-    portfolioGoalTimeline.projectRows,
-    selectedProjectIds,
+  const timelineRows = useMemo(
+    () => filterPortfolioRowsByProject<PortfolioGoalTimelineProjectRow>(portfolioGoalTimeline.projectRows, selectedProjectIds),
+    [portfolioGoalTimeline, selectedProjectIds],
   );
-  const visibleProblemProjects = filterPortfolioRowsByProject<PortfolioRedRaidProject>(
-    visiblePortfolioProblemProjects,
-    selectedProjectIds,
+  const visibleProblemProjects = useMemo(
+    () => filterPortfolioRowsByProject<PortfolioRedRaidProject>(visiblePortfolioProblemProjects, selectedProjectIds),
+    [selectedProjectIds, visiblePortfolioProblemProjects],
   );
-  const visibleRiskProjects = filterPortfolioRowsByProject<PortfolioRedRaidProject>(
-    visiblePortfolioRiskProjects,
-    selectedProjectIds,
+  const visibleRiskProjects = useMemo(
+    () => filterPortfolioRowsByProject<PortfolioRedRaidProject>(visiblePortfolioRiskProjects, selectedProjectIds),
+    [selectedProjectIds, visiblePortfolioRiskProjects],
   );
+  // The projects of the filter from their start to their target, with the share of work done (none without work).
+  const progressProjects = useMemo<PortfolioProgressProject[]>(
+    () =>
+      (projects as ProjectListItem[])
+        .filter((project) => project.status !== "CLOSED" && selectedProjectIds.has(project.id))
+        .map((project) => {
+          const progress = createProjectWorkProgress(project.wbsItems ?? []);
+          return { id: project.id, code: project.code, name: project.name, rag: project.rag, startDate: project.startDate, targetDate: project.targetDate, completedPercent: progress.totalDays > 0 ? progress.completedPercent : null };
+        }),
+    [projects, selectedProjectIds],
+  );
+  const openProject = useLatest((projectId: string) => selectProject(projectId, firstEnabledProjectView));
+  const openRaid = useLatest((item: PortfolioRedRaidItem) => openRaidItemFromOverview(item.id, item.type, item.projectId));
+  const chartText = useMemo<PortfolioChartText>(
+    () => ({
+      today: uiText("ui.portfolio.chart.today"),
+      baseline: uiText("ui.portfolio.chart.baseline"),
+      forecast: uiText("ui.portfolio.chart.forecast"),
+      noBaseline: uiText("ui.portfolio.chart.noBaseline"),
+      daysLater: (count) => uiText("ui.portfolio.chart.daysLater", { count }),
+      daysEarlier: (count) => uiText("ui.portfolio.chart.daysEarlier", { count }),
+      onTime: uiText("ui.portfolio.chart.onTime"),
+      start: uiText("ui.portfolio.chart.start"),
+      target: uiText("ui.portfolio.chart.target"),
+      done: (percent) => uiText("ui.portfolio.chart.done", { percent }),
+      noWork: uiText("ui.portfolio.chart.noWork"),
+      overdue: uiText("ui.portfolio.chart.overdue"),
+      daysUntil: uiText("ui.portfolio.chart.daysUntil"),
+      score: uiText("ui.portfolio.chart.score"),
+      impact: (days) => uiText("ui.portfolio.chart.impact", { days }),
+      owner: uiText("ui.portfolio.chart.owner"),
+      dueDate: uiText("ui.portfolio.chart.dueDate"),
+      date: (day) => formatters.date(day),
+      titles: { goals: uiText("ui.portfolio.projectGoals"), progress: uiText("ui.portfolio.progressTitle"), problems: uiText("ui.portfolio.portfolioBlockingIssuesTitle"), risks: uiText("ui.portfolio.portfolioKeyRisksTitle") },
+    }),
+    [formatters, uiText],
+  );
+  const today = new Date().toISOString().slice(0, 10);
+  // A colour per project from the list of all projects, so filtering never recolours the others.
+  const projectColor = useCallback(
+    (projectId: string) => {
+      const index = projectFilterOptions.findIndex((option) => option.id === projectId);
+      return colors.series[Math.max(0, index) % colors.series.length];
+    },
+    [colors, projectFilterOptions],
+  );
+  const charts = useMemo(() => {
+    if (!chartsReady) return null;
+    return {
+      goals: portfolioGoalsOption({ rows: timelineRows, from: portfolioGoalTimeline.startDate.toISOString(), to: portfolioGoalTimeline.endDate.toISOString(), today, colors, text: chartText, onPick: openProject }),
+      progress: portfolioProgressOption({ projects: progressProjects, today, colors, text: chartText, onPick: openProject }),
+      problems: portfolioRaidBubbleOption({ projects: visibleProblemProjects, title: chartText.titles.problems, today, colors, text: chartText, projectColor, onPick: openRaid }),
+      risks: portfolioRaidBubbleOption({ projects: visibleRiskProjects, title: chartText.titles.risks, today, colors, text: chartText, projectColor, onPick: openRaid }),
+    };
+  }, [chartText, chartsReady, colors, openProject, openRaid, portfolioGoalTimeline, progressProjects, projectColor, timelineRows, today, visibleProblemProjects, visibleRiskProjects]);
   const projectCount = projectFilterOptions.length;
   const selectedProjectCount = selectedProjectIds.size;
   const isProjectFilterActive = selectedProjectCount < projectCount;
@@ -165,7 +243,7 @@ export function PortfolioPage() {
           <div className="panel-title">
             <div>
               <h2>{uiText("ui.portfolio.projectGoals")}</h2>
-              <p>{uiText("ui.portfolio.wbsGoalScalePerProject")}</p>
+              <p>{uiText("ui.portfolio.goalsChartSubtitle")}</p>
             </div>
             <details
               className={`portfolio-project-filter ${
@@ -246,115 +324,28 @@ export function PortfolioPage() {
             <div className="empty-state compact">
               {uiText("ui.portfolio.portfolioNoProjectsSelected")}
             </div>
-          ) : timelineRows.length > 0 ? (
-            <div className="portfolio-goal-timeline">
-              <div className="portfolio-project-timelines">
-                {timelineRows.map((row) => (
-                  <section
-                    className="portfolio-project-timeline-row"
-                    data-project-id={row.projectId}
-                    key={row.projectId}
-                  >
-                    <button
-                      type="button"
-                      className="portfolio-project-timeline-title"
-                      onClick={() =>
-                        selectProject(row.projectId, firstEnabledProjectView)
-                      }
-                    >
-                      <span>
-                        <b>{row.projectName}</b>
-                        <small>{row.projectCode}</small>
-                      </span>
-                      <strong>{row.items.length}</strong>
-                    </button>
-                    <div
-                      className="portfolio-project-timeline-track"
-                      aria-label={uiText("ui.portfolio.projectGoalsLabel", { project: row.projectName })}
-                    >
-                      <span className="portfolio-goal-axis-line" />
-                      {portfolioGoalTimeline.monthTicks.map((tick, index) => (
-                        <span
-                          className={`portfolio-goal-track-month-tick ${
-                            index % 2 === 0 ? "major" : "minor"
-                          } ${
-                            index === 0 ? "edge-start" : ""
-                          } ${
-                            index === portfolioGoalTimeline.monthTicks.length - 1
-                              ? "edge-end"
-                              : ""
-                          }`}
-                          data-label={index % 2 === 0 ? tick.label : ""}
-                          key={tick.key}
-                          style={{ left: `${tick.offset}%` }}
-                          title={tick.label}
-                        />
-                      ))}
-                      <span
-                        className="portfolio-goal-today-line"
-                        style={{ left: `${portfolioGoalTimeline.todayOffset}%` }}
-                      />
-                      {row.items.map((item, index) => (
-                        <span
-                          className={`portfolio-goal-dot goal-health-${goalScheduleHealth(item)}`}
-                          key={item.id}
-                          style={{ left: `${item.offset}%` }}
-                          title={`${item.goalTitle}: ${date(item.dueDate)}`}
-                        >
-                          {index + 1}
-                        </span>
-                      ))}
-                    </div>
-                    <div className="portfolio-goal-items">
-                      {row.items.length > 0 ? (
-                        row.items.map((item, index) => (
-                          <button
-                            type="button"
-                            className={`portfolio-goal-item goal-health-${goalScheduleHealth(item)}`}
-                            key={item.id}
-                            onClick={() =>
-                              selectProject(item.projectId, firstEnabledProjectView)
-                            }
-                          >
-                            <span className="portfolio-goal-item-index">
-                              {index + 1}
-                            </span>
-                            <span className="portfolio-goal-inline">
-                              <b>
-                                {item.projectName} · {item.goalTitle}
-                              </b>
-                              <small className="portfolio-goal-meta">
-                                <span>
-                                  {uiText("ui.portfolio.baselineLowercase")} {date(item.baselineDueDate)}
-                                </span>
-                                <span>{uiText("ui.portfolio.currentForecastLowercase")} {date(item.dueDate)}</span>
-                                {item.delayDays !== null && item.delayDays > 0 && (
-                                  <span className="portfolio-goal-delay">
-                                    {uiText("ui.portfolio.delayPrefixPlus")}{item.delayDays} {uiText("ui.portfolio.daysAbbrev")}
-                                  </span>
-                                )}
-                              </small>
-                            </span>
-                          </button>
-                        ))
-                      ) : (
-                        <div className="portfolio-goal-row-empty">
-                          {uiText("ui.portfolio.portfolioNoGoalsInRange")}
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                ))}
-              </div>
-              <div className="portfolio-goal-range">
-                <span>{date(portfolioGoalTimeline.startDate)}</span>
-                <span>{date(portfolioGoalTimeline.endDate)}</span>
-              </div>
-            </div>
+          ) : timelineRows.some((row) => row.items.length > 0) ? (
+            <PortfolioChart label={uiText("ui.portfolio.projectGoals")} options={charts?.goals ?? null} />
           ) : (
             <div className="empty-state compact">
               {uiText("ui.portfolio.portfolioNoActiveProjectsWithPendingGoals")}
             </div>
+          )}
+        </article>
+      </section>
+
+      <section className="projects-tree-section">
+        <article className="panel portfolio-progress-panel">
+          <div className="panel-title">
+            <div>
+              <h2>{uiText("ui.portfolio.progressTitle")}</h2>
+              <p>{uiText("ui.portfolio.progressSubtitle")}</p>
+            </div>
+          </div>
+          {noProjectsSelected ? (
+            <div className="empty-state compact">{uiText("ui.portfolio.portfolioNoProjectsSelected")}</div>
+          ) : (
+            <PortfolioChart label={uiText("ui.portfolio.progressTitle")} options={charts?.progress ?? null} />
           )}
         </article>
       </section>
@@ -367,6 +358,8 @@ export function PortfolioPage() {
               <p>{uiText("ui.portfolio.portfolioBlockingIssuesSubtitle")}</p>
             </div>
           </div>
+          {charts?.problems && <p className="portfolio-chart-hint">{uiText("ui.portfolio.raidChartHint")}</p>}
+          <PortfolioChart label={uiText("ui.portfolio.portfolioBlockingIssuesTitle")} options={charts?.problems ?? null} />
           {renderRaidProjects(
             visibleProblemProjects,
             noProjectsSelected
@@ -382,6 +375,8 @@ export function PortfolioPage() {
               <p>{uiText("ui.portfolio.portfolioKeyRisksSubtitle")}</p>
             </div>
           </div>
+          {charts?.risks && <p className="portfolio-chart-hint">{uiText("ui.portfolio.raidChartHint")}</p>}
+          <PortfolioChart label={uiText("ui.portfolio.portfolioKeyRisksTitle")} options={charts?.risks ?? null} />
           {renderRaidProjects(
             visibleRiskProjects,
             noProjectsSelected

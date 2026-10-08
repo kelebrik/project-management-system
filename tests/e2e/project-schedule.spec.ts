@@ -320,14 +320,16 @@ test("project header does not duplicate an approved target date without active g
   );
 });
 
-test("schedule PDF keeps the print layout until afterprint", async ({ page }) => {
+test("old schedule PDF keeps the print layout until afterprint", async ({ page }) => {
   await page.addInitScript(() => {
     window.print = () => {
       document.body.dataset.printInvoked = "true";
     };
   });
   await mockAdminProject(page);
+  // The two-page schedule PDF belongs to the old schedule, now in Development.
   await page.goto("/TV-OVERVIEW/schedule");
+  await page.goto("/development/schedule-legacy");
 
   await page.getByRole("button", { name: "Сохранить в PDF" }).click();
   await expect(page.locator("body")).toHaveAttribute("data-print-invoked", "true");
@@ -340,7 +342,7 @@ test("schedule PDF keeps the print layout until afterprint", async ({ page }) =>
   await expect(page.locator("body")).not.toHaveAttribute("data-print-target", /.*/);
 });
 
-test("schedule PDF prints goals and milestones on two complete pages", async ({
+test("old schedule PDF prints goals and milestones on two complete pages", async ({
   page,
 }) => {
   await mockAdminProject(page, (project) => {
@@ -390,6 +392,7 @@ test("schedule PDF prints goals and milestones on two complete pages", async ({
     }
   });
   await page.goto("/TV-OVERVIEW/schedule");
+  await page.goto("/development/schedule-legacy");
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
   if (process.env.CAPTURE_UI_CONSISTENCY === "1") {
     await page.screenshot({

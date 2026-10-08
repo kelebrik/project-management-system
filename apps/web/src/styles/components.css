@@ -331,3 +331,7 @@ select.field-invalid {
 .jira-hc-points:focus-within { position: static; display: flex; flex-wrap: wrap; gap: 4px; width: auto; height: auto; margin-top: 6px; overflow: visible; clip: auto; white-space: normal; }
 .jira-hc-points button { padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; }
 .jira-hc-points button:disabled { color: var(--text-muted); cursor: default; }
+/* Portfolio charts (Highcharts) on the page's panels. */
+.portfolio-chart { width: 100%; min-width: 0; margin: 4px 0 var(--space-3); }
+.portfolio-chart .hc-chart { min-height: 200px; }
+.portfolio-chart-hint { margin: 0 0 4px; color: var(--text-muted); font-size: var(--fs-xs); }

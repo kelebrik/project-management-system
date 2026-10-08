@@ -205,7 +205,8 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
   await page.getByRole("button", { name: "3", exact: true }).first().click();
   await expectGanttPaintedUnderHandles(page);
 
-  await page.goto("/TV-OVERVIEW/schedule");
+  // The milestone lanes are the old schedule's, now in Development.
+  await page.goto("/development/schedule-legacy");
   const milestoneWidths = await page.locator(".milestone-timeline").evaluate(
     (timeline) => {
       const timelineBox = timeline.getBoundingClientRect();

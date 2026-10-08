@@ -137,7 +137,7 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     "my-page": t("view.my-page"),
     "shared-page": t("view.shared-page"),
     "automation-rules": t("view.automation-rules"),
-    "schedule-lab": t("view.schedule-lab"),
+    "schedule-legacy": t("view.schedule-legacy"),
     "jira-reconciliation": t("view.jira-reconciliation"),
     projects: t("view.projects"),
     reports: t("view.reports"),

@@ -160,9 +160,9 @@ export const navigation = {
     "en": "Rules",
     "ru": "Правила"
   },
-  "view.schedule-lab": {
-    "en": "Schedule 2.0",
-    "ru": "График 2.0"
+  "view.schedule-legacy": {
+    "en": "Old schedule",
+    "ru": "Старый график"
   },
   "view.raci-matrix": {
     "en": "RACI",

@@ -124,6 +124,7 @@ export function goalsDumbbellOption({ items, today, colors, text }: LabInput): O
           connectorColor: row.slip !== null && row.slip > 0 ? LATE : row.slip !== null && row.slip < 0 ? EARLY : colors.muted,
           lowColor: colors.surface,
           color: row.goal.status === "DONE" ? EARLY : row.slip !== null && row.slip > 0 ? LATE : GOAL,
+          accessibility: { description: `${row.goal.title}. ${text.baseline} ${row.baseline ? text.date(row.baseline) : "—"}, ${text.forecast} ${text.date(row.forecast)}, ${slipText(text, row.slip)}` },
         })),
         connectorWidthPlus: 4,
         marker: { radius: 7 },
@@ -381,5 +382,24 @@ export function forecastDriftOption(ladders: ShiftLadder[], colors: AppChartColo
         })),
       },
     ],
+  };
+}
+
+/** The width of an A4 landscape page inside its margins, and the height a chart may take on it, in pixels. */
+export const SCHEDULE_PRINT_WIDTH = 1040;
+export const SCHEDULE_PRINT_HEIGHT = 560;
+
+/**
+ * A chart as it goes on paper: the page's width, at most a page's height
+ * (the rows of a tall chart get closer), no animation and no menu. Each chart
+ * prints on a page of its own.
+ */
+export function printScheduleOption(options: Options): Options {
+  const height = typeof options.chart?.height === "number" ? options.chart.height : SCHEDULE_PRINT_HEIGHT;
+  return {
+    ...options,
+    chart: { ...options.chart, width: SCHEDULE_PRINT_WIDTH, height: Math.min(height, SCHEDULE_PRINT_HEIGHT), animation: false },
+    exporting: { ...options.exporting, enabled: false },
+    plotOptions: { ...options.plotOptions, series: { ...options.plotOptions?.series, animation: false } },
   };
 }

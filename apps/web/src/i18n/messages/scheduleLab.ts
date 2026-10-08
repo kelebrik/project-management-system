@@ -1,7 +1,8 @@
-/** "Schedule 2.0": the lab copy of the project schedule drawn with Highcharts. */
+/** The project's schedule tab, drawn with Highcharts (the first version was "Schedule 2.0" in Development). */
 export const scheduleLabMessages = {
   "ui.lab.title": { en: "Schedule 2.0", ru: "График 2.0" },
-  "ui.lab.subtitle": { en: "A lab copy of the project schedule drawn with Highcharts: zoom by selecting an area, click columns to drill down, every chart has a menu with full screen, print and export (PNG, SVG, CSV, Excel, data table).", ru: "Экспериментальная копия «Графика» на Highcharts: выделите область, чтобы приблизить, кликните по столбцу, чтобы провалиться глубже; у каждого графика меню ≡ — весь экран, печать и экспорт (PNG, SVG, CSV, Excel, таблица данных)." },
+  "ui.lab.subtitle": { en: "Select an area to zoom in, click a column to drill down; every chart has a menu with full screen, print and export (PNG, SVG, CSV, Excel, data table).", ru: "Выделите область, чтобы приблизить; кликните по столбцу, чтобы провалиться глубже; у каждого графика меню ≡ — весь экран, печать и экспорт (PNG, SVG, CSV, Excel, таблица данных)." },
+  "ui.lab.pdf": { en: "Save as PDF", ru: "Сохранить в PDF" },
   "ui.lab.noProject": { en: "Choose a project above", ru: "Выберите проект выше" },
   "ui.lab.goals": { en: "Goals: baseline → forecast", ru: "Цели: базовый план → прогноз" },
   "ui.lab.goalsHint": { en: "Ring — baseline, dot — current forecast; red when the goal moved later, green when earlier", ru: "Кружок — базовый план, точка — текущий прогноз; красная перемычка — цель уехала позже, зелёная — раньше" },

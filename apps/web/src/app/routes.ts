@@ -47,7 +47,7 @@ export type DevelopmentSectionView = Extract<
   | "my-work"
   | "reports"
   | "automation-rules"
-  | "schedule-lab"
+  | "schedule-legacy"
 >;
 
 /** Day-to-day operational tools, open to every signed-in user. */
@@ -96,7 +96,7 @@ export const developmentSectionViews: DevelopmentSectionView[] = [
   "my-work",
   "reports",
   "automation-rules",
-  "schedule-lab",
+  "schedule-legacy",
 ];
 
 export const operationsSectionViews: OperationsSectionView[] = ["leave-schedule", "workload"];
@@ -190,7 +190,7 @@ export const appViewPaths: Record<AppView, string> = {
   "my-page": "/my-page",
   "shared-page": "/shared-page",
   "automation-rules": "/development/rules",
-  "schedule-lab": "/development/schedule-lab",
+  "schedule-legacy": "/development/schedule-legacy",
   "jira-reconciliation": "/development/jira-reconciliation",
   projects: "/projects",
   reports: "/development/reports",
@@ -278,7 +278,7 @@ export const appPathViews: Record<string, AppView> = {
   "/development/my-page": "my-page",
   "/shared-page": "shared-page",
   "/development/rules": "automation-rules",
-  "/development/schedule-lab": "schedule-lab",
+  "/development/schedule-legacy": "schedule-legacy",
   "/development/jira-reconciliation": "jira-reconciliation",
   // Addresses of retired pages lead to the nearest page that still exists.
   "/portfolio-v2": "portfolio",

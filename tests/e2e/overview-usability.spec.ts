@@ -6,9 +6,11 @@ test.beforeEach(async ({ page }) => {
   test.skip(!(await liveApiAvailable(page)), LIVE_API_REASON);
 });
 
-test("the schedule PDF prints one A4 landscape page per part", async ({ page }) => {
+test("the old schedule PDF prints one A4 landscape page per part", async ({ page }) => {
+  // The old schedule with its two-part PDF lives in Development; the project's own tab is the Highcharts one.
   await page.goto(await projectPagePath(page, "schedule"));
-  await expect(page).toHaveURL(/\/[^/]+\/schedule$/);
+  await page.goto("/development/schedule-legacy");
+  await expect(page).toHaveURL(/\/development\/schedule-legacy$/);
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
 
   // The page's "Save as PDF" prints the whole schedule document, one sheet per part.
