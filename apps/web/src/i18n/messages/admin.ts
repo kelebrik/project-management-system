@@ -228,8 +228,8 @@ export const adminMessages = {
     "ru": "дней. Гости различаются по анонимному идентификатору браузера; IP и email не сохраняются."
   },
   "ui.admin.recentSystemEvents": {
-    "en": "Recent system events and data changes",
-    "ru": "Последние системные события и изменения данных"
+    "en": "System events and data changes, newest first",
+    "ru": "Системные события и изменения данных, сначала новые"
   },
   "ui.admin.time": {
     "en": "Time",
@@ -258,6 +258,50 @@ export const adminMessages = {
   "ui.admin.noAuditEvents": {
     "en": "No audit events have been recorded yet.",
     "ru": "События аудита пока не записаны."
+  },
+  "ui.admin.noFilteredAuditEvents": {
+    "en": "No events match the filters.",
+    "ru": "Нет событий по выбранным фильтрам."
+  },
+  "ui.admin.auditFilters": {
+    "en": "Audit log filters",
+    "ru": "Фильтры журнала аудита"
+  },
+  "ui.admin.auditFrom": {
+    "en": "From",
+    "ru": "С"
+  },
+  "ui.admin.auditTo": {
+    "en": "To",
+    "ru": "По"
+  },
+  "ui.admin.auditProject": {
+    "en": "Project",
+    "ru": "Проект"
+  },
+  "ui.admin.auditAll": {
+    "en": "All",
+    "ru": "Все"
+  },
+  "ui.admin.auditActorPlaceholder": {
+    "en": "Name or email",
+    "ru": "Имя или email"
+  },
+  "ui.admin.auditApply": {
+    "en": "Apply",
+    "ru": "Применить"
+  },
+  "ui.admin.auditReset": {
+    "en": "Reset",
+    "ru": "Сбросить"
+  },
+  "ui.admin.auditShown": {
+    "en": "Events shown: {count}",
+    "ru": "Показано событий: {count}"
+  },
+  "ui.admin.auditLoadMore": {
+    "en": "Show more",
+    "ru": "Показать ещё"
   },
   "ui.admin.integrationsDescription": {
     "en": "API tokens, the webhook API, and GitLab settings.",

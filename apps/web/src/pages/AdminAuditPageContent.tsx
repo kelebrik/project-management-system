@@ -1,3 +1,6 @@
+import { useMemo, useState, type FormEvent } from "react";
+import { emptyAuditFilters, useAuditLog, type AuditFilters } from "../hooks/useAuditLog";
+import { auditLabelCatalog } from "../i18n/auditLabels";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 
@@ -22,11 +25,29 @@ export function AdminAuditPageContent() {
   } = useInterfaceTranslation();
   const ctx = usePageContext();
   const {
-    auditEvents,
     dateTime,
     reloadAuditEvents,
     restoreWbsTombstone,
   } = ctx;
+  const projects: Array<{ id: string; code: string; name: string }> = ctx.projects ?? [];
+  const journal = useAuditLog(ctx.auditEvents, reloadAuditEvents);
+  const auditEvents = journal.events;
+  const [draft, setDraft] = useState<AuditFilters>(emptyAuditFilters);
+  const actionOptions = useMemo(
+    () => Object.keys(auditLabelCatalog.actions)
+      .map((action) => ({ action, label: auditActionLabel(action) }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
+    [auditActionLabel],
+  );
+  const updateDraft = (patch: Partial<AuditFilters>) => setDraft((current) => ({ ...current, ...patch }));
+  const submitFilters = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    void journal.applyFilters(draft);
+  };
+  const resetFilters = () => {
+    setDraft(emptyAuditFilters);
+    void journal.applyFilters(emptyAuditFilters);
+  };
 
   return (
                   <article className="panel project-card">
@@ -34,10 +55,47 @@ export function AdminAuditPageContent() {
                       <div>
                         <p>{uiText("ui.admin.recentSystemEvents")}</p>
                       </div>
-                      <button type="button" onClick={() => void reloadAuditEvents()}>
+                      <button type="button" onClick={() => void journal.refresh()} disabled={journal.loading}>
                         {uiText("ui.admin.refresh")}
                       </button>
                     </div>
+                    <form className="audit-filters" onSubmit={submitFilters} aria-label={uiText("ui.admin.auditFilters")}>
+                      <label>
+                        {uiText("ui.admin.auditFrom")}
+                        <input type="date" value={draft.from} max={draft.to || undefined} onChange={(event) => updateDraft({ from: event.target.value })} />
+                      </label>
+                      <label>
+                        {uiText("ui.admin.auditTo")}
+                        <input type="date" value={draft.to} min={draft.from || undefined} onChange={(event) => updateDraft({ to: event.target.value })} />
+                      </label>
+                      <label>
+                        {uiText("ui.admin.auditProject")}
+                        <select value={draft.projectId} onChange={(event) => updateDraft({ projectId: event.target.value })}>
+                          <option value="">{uiText("ui.admin.auditAll")}</option>
+                          {projects.map((project) => (
+                            <option value={project.id} key={project.id}>{project.code} · {project.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label>
+                        {uiText("ui.admin.user")}
+                        <input value={draft.actor} placeholder={uiText("ui.admin.auditActorPlaceholder")} onChange={(event) => updateDraft({ actor: event.target.value })} />
+                      </label>
+                      <label>
+                        {uiText("ui.admin.action")}
+                        <select value={draft.action} onChange={(event) => updateDraft({ action: event.target.value })}>
+                          <option value="">{uiText("ui.admin.auditAll")}</option>
+                          {actionOptions.map((option) => (
+                            <option value={option.action} key={option.action}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="audit-filter-actions">
+                        <button type="submit" className="primary" disabled={journal.loading}>{uiText("ui.admin.auditApply")}</button>
+                        <button type="button" onClick={resetFilters} disabled={journal.loading}>{uiText("ui.admin.auditReset")}</button>
+                      </div>
+                    </form>
+                    {journal.error && <p className="form-error" role="alert">{journal.error}</p>}
                     <div className="audit-table">
                       <div className="audit-head">
                         <span>{uiText("ui.admin.time")}</span>
@@ -96,10 +154,20 @@ export function AdminAuditPageContent() {
                       ))}
                       {auditEvents.length === 0 && (
                         <div className="empty-state">
-                          {uiText("ui.admin.noAuditEvents")}
+                          {uiText(journal.filtered ? "ui.admin.noFilteredAuditEvents" : "ui.admin.noAuditEvents")}
                         </div>
                       )}
                     </div>
+                    {auditEvents.length > 0 && (
+                      <div className="audit-more">
+                        <span>{uiText("ui.admin.auditShown", { count: auditEvents.length })}</span>
+                        {journal.hasMore && (
+                          <button type="button" onClick={() => void journal.loadMore()} disabled={journal.loading}>
+                            {uiText("ui.admin.auditLoadMore")}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </article>
               );
 }

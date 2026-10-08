@@ -89,10 +89,20 @@ export const openApiAdminPaths = {
     "/api/audit-events": {
       get: {
         tags: ["Audit"],
-        summary: "Audit log for administrators",
+        summary: "Audit log for administrators, newest first",
         security: [{ sessionCookie: [] }],
+        parameters: [
+          { name: "limit", in: "query", required: false, schema: { type: "integer", minimum: 1, maximum: 200, default: 100 } },
+          { name: "before", in: "query", required: false, description: "Continue after this event id", schema: { type: "string" } },
+          { name: "from", in: "query", required: false, description: "Inclusive start instant", schema: { type: "string", format: "date-time" } },
+          { name: "to", in: "query", required: false, description: "Exclusive end instant", schema: { type: "string", format: "date-time" } },
+          { name: "projectId", in: "query", required: false, schema: { type: "string" } },
+          { name: "actor", in: "query", required: false, description: "Part of the actor name or email", schema: { type: "string" } },
+          { name: "action", in: "query", required: false, schema: { type: "string" } },
+        ],
         responses: {
           "200": { description: "Audit events" },
+          "400": { description: "Invalid filter or unknown cursor event" },
           "403": { description: "Admin role required" },
         },
       },

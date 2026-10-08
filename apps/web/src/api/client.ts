@@ -4,7 +4,8 @@ import { viewSectionHeaders } from "../app/sectionHeader";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
 
-export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+// Node unit tests import modules that use the client but have no Vite env.
+export const apiBase = import.meta.env?.VITE_API_BASE_URL ?? "";
 
 /** The client is not a React tree, so it reads the persisted choice the provider writes. */
 function clientText() {
