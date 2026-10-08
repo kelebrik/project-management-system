@@ -186,8 +186,9 @@ test("portfolio and projects show work-day weighted progress", async ({ page }) 
     });
   }
 
+  // On the portfolio the same share of work done fills the project's bar in «Прогресс проектов».
   await page.goto("/portfolio");
-  await expect(page.getByLabel(label)).toBeVisible();
+  await expect(page.locator(".portfolio-progress-panel .highcharts-data-labels")).toContainText("40%");
   if (process.env.CAPTURE_PROGRESS === "1") {
     await page.screenshot({
       path: "/private/tmp/pms-progress-portfolio.png",
@@ -238,9 +239,11 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
   await expect(page.getByText("Вторая цель", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Вторая проблема", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Второй риск", { exact: true })).toHaveCount(0);
-  await expect(
-    page.locator(".projects-overview-card", { hasText: "Второй проект" }),
-  ).toBeVisible();
+  // The progress follows the filter too, with each shown project's passport fields next to its bar.
+  await expect(page.locator(".portfolio-progress-passport")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: /Открыть паспорт: TV-FIRST/ })).toBeVisible();
+  // The project cards are no longer on the portfolio (they are in the registry).
+  await expect(page.locator(".projects-overview-card")).toHaveCount(0);
 
   const popover = filter.locator(".portfolio-project-filter-popover");
   const desktopBox = await popover.boundingBox();
@@ -269,11 +272,10 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
 
   await filter.getByRole("button", { name: "Снять все" }).click();
   await expect(summary).toContainText("0 из 2");
-  // Goals, progress, problems and risks say so; the project cards stay.
+  // Goals, progress, problems and risks say so.
   await expect(
     page.getByText("Для отображения не выбран ни один проект."),
   ).toHaveCount(4);
-  await expect(page.locator(".projects-overview-card")).toHaveCount(2);
 
   await filter.getByRole("button", { name: "Выбрать все" }).click();
   await expect(summary).toContainText("Все 2");

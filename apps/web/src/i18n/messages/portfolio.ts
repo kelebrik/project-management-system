@@ -1,7 +1,8 @@
 export const portfolioMessages = {
   "ui.portfolio.goalsChartSubtitle": { "en": "Each goal from its baseline (ring) to its forecast (dot); a red bar means later than the baseline. Click a goal to open its project", "ru": "Каждая цель — от базового плана (кружок) к прогнозу (точка); красная перемычка — позже плана. Клик открывает проект" },
   "ui.portfolio.progressTitle": { "en": "Project progress", "ru": "Прогресс проектов" },
-  "ui.portfolio.progressSubtitle": { "en": "From start to target; the filled part is the share of work done, the colour is the RAG. Click a project to open it", "ru": "От старта до цели; залито — доля выполненных работ, цвет — светофор. Клик открывает проект" },
+  "ui.portfolio.openPassport": { "en": "Open the passport of {project}", "ru": "Открыть паспорт: {project}" },
+  "ui.portfolio.progressSubtitle": { "en": "From start to target; the filled part is the share of work done, the colour is the RAG; on the right, the passport fields. Click a bar to open the project, the fields to open its passport", "ru": "От старта до цели; залито — доля выполненных работ, цвет — светофор; справа — поля паспорта. Клик по полосе открывает проект, по полям — паспорт" },
   "ui.portfolio.raidChartHint": { "en": "Across — days until due (left of today is overdue), up — score, size — schedule impact; click a bubble to open it. Items without a due date are only in the list", "ru": "По горизонтали — дни до срока (левее «сегодня» — просрочено), по вертикали — оценка, размер — влияние на график; клик открывает запись. Без срока — только в списке" },
   "ui.portfolio.chart.today": { "en": "Today", "ru": "Сегодня" },
   "ui.portfolio.chart.baseline": { "en": "Baseline", "ru": "Базовый план" },

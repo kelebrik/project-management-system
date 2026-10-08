@@ -3,7 +3,7 @@ import test from "node:test";
 
 import type { PortfolioGoalTimelineProjectRow, PortfolioRedRaidItem } from "../portfolioModels";
 import type { AppChartColors } from "./appChartTheme";
-import { portfolioDaysUntil, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText } from "./portfolioOptions";
+import { PROGRESS_BOTTOM, PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioDaysUntil, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText } from "./portfolioOptions";
 
 const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
 const text: PortfolioChartText = {
@@ -48,6 +48,14 @@ test("portfolio progress: start to target with the share done filled in; a proje
   const [tv, audio] = series(options);
   assert.deepEqual(tv!.partialFill, { amount: 0.4, fill: "#16a34a" });
   assert.equal("partialFill" in audio!, false);
+  // A row of fixed height per project, so the passport fields beside it line up row for row.
+  assert.equal(options.chart?.height, PROGRESS_TOP + 2 * PROGRESS_ROW + PROGRESS_BOTTOM);
+  assert.deepEqual([options.chart?.marginTop, options.chart?.marginBottom], [PROGRESS_TOP, PROGRESS_BOTTOM]);
+  // The passport list draws the same projects in the same order as the chart.
+  assert.deepEqual(drawableProgressProjects([
+    { id: "a", code: "A", name: "A", rag: "GREEN", startDate: "2026-05-01", targetDate: "2026-04-01", completedPercent: 0 },
+    { id: "b", code: "B", name: "B", rag: "GREEN", startDate: "2026-01-01", targetDate: "2026-04-01", completedPercent: 0 },
+  ]).map((project) => project.id), ["b"]);
 });
 
 const item = (patch: Partial<PortfolioRedRaidItem>): PortfolioRedRaidItem => ({ id: "r", type: "RISK", title: "Late parts", owner: "Anna", dueDate: "2026-10-01", riskScore: 20, scheduleImpactDays: 5, jiraTicketKey: null, jiraTicketUrl: null, status: "OPEN", projectId: "p1", projectName: "TV", ...patch }) as PortfolioRedRaidItem;

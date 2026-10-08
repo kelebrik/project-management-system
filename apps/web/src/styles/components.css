@@ -335,3 +335,24 @@ select.field-invalid {
 .portfolio-chart { width: 100%; min-width: 0; margin: 4px 0 var(--space-3); }
 .portfolio-chart .hc-chart { min-height: 200px; }
 .portfolio-chart-hint { margin: 0 0 4px; color: var(--text-muted); font-size: var(--fs-xs); }
+/* Portfolio progress: the chart and, row for row, each project's passport fields (like the project cards had). */
+.portfolio-progress-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 46%); gap: var(--space-3); align-items: start; }
+.portfolio-progress-layout .portfolio-chart { margin: 0; }
+.portfolio-progress-passports { display: grid; min-width: 0; }
+.portfolio-progress-passport { all: unset; box-sizing: border-box; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 10px; align-items: center; padding: 0 8px; border-top: 1px solid var(--border); cursor: pointer; min-width: 0; }
+.portfolio-progress-passport:last-child { border-bottom: 1px solid var(--border); }
+.portfolio-progress-passport:hover { background: var(--surface-2); }
+.portfolio-progress-passport:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.portfolio-progress-passport span { display: grid; gap: 1px; min-width: 0; }
+/* The project's code is needed only when the fields stand apart from the chart (narrow screens). */
+.portfolio-progress-code { display: none; }
+.portfolio-progress-passport em { color: var(--text-muted); font-size: 11px; font-style: normal; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portfolio-progress-passport strong { font-size: 13px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+/* On a narrow screen the fields go under the chart, each row still for its project. */
+@media (max-width: 1100px) {
+  .portfolio-progress-layout { grid-template-columns: minmax(0, 1fr); }
+  .portfolio-progress-passports { padding-top: 0 !important; }
+  /* Under the chart the rows need not match its bars: they grow, and the fields wrap to the width. */
+  .portfolio-progress-passport { height: auto !important; min-height: 48px; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 6px 10px; padding: 8px; }
+  .portfolio-progress-code { display: block; grid-column: 1 / -1; font-size: 13px; }
+}

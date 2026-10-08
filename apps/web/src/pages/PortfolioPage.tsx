@@ -8,7 +8,8 @@ import {
 } from "react";
 import type { Options } from "highcharts";
 import { useAppChartColors } from "../app/charts/appChartTheme";
-import { portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText, type PortfolioProgressProject } from "../app/charts/portfolioOptions";
+import { PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText, type PortfolioProgressProject } from "../app/charts/portfolioOptions";
+import { compactPassportRows } from "../app/projectPassportRows";
 import { createProjectWorkProgress } from "../app/projectWorkProgress";
 import { HighchartsLabChart } from "../components/charts/HighchartsLabChart";
 import { useHighchartsExtras } from "../components/charts/useHighchartsExtras";
@@ -26,7 +27,6 @@ import {
   selectedPortfolioProjectIds,
 } from "../app/portfolioProjectFilter";
 import { usePageContext } from "./PageContext";
-import { ProjectsOverview } from "./ProjectsOverview";
 import type { Translator } from "../i18n/types";
 
 /** A callback that always calls the latest one, though the charts using it are not drawn anew for it. */
@@ -60,7 +60,7 @@ function dueDateLabel(dueDate: string | null, uiText: Translator) {
 }
 
 export function PortfolioPage() {
-  const { t: uiText, locale, formatters } = useInterfaceTranslation();
+  const { t: uiText, locale, formatters, labels } = useInterfaceTranslation();
   const colors = useAppChartColors();
   const chartsReady = useHighchartsExtras(locale);
   const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
@@ -109,6 +109,11 @@ export function PortfolioPage() {
         }),
     [projects, selectedProjectIds],
   );
+  // Next to each bar of the progress chart, the project's passport fields, row for row.
+  const progressPassports = useMemo(() => {
+    const byId = new Map((projects as ProjectListItem[]).map((project) => [project.id, project]));
+    return drawableProgressProjects(progressProjects).map((entry) => ({ entry, fields: compactPassportRows(byId.get(entry.id)!, uiText, labels) }));
+  }, [labels, progressProjects, projects, uiText]);
   const openProject = useLatest((projectId: string) => selectProject(projectId, firstEnabledProjectView));
   const openRaid = useLatest((item: PortfolioRedRaidItem) => openRaidItemFromOverview(item.id, item.type, item.projectId));
   const chartText = useMemo<PortfolioChartText>(
@@ -345,7 +350,37 @@ export function PortfolioPage() {
           {noProjectsSelected ? (
             <div className="empty-state compact">{uiText("ui.portfolio.portfolioNoProjectsSelected")}</div>
           ) : (
-            <PortfolioChart label={uiText("ui.portfolio.progressTitle")} options={charts?.progress ?? null} />
+            <div className="portfolio-progress-layout">
+              <PortfolioChart label={uiText("ui.portfolio.progressTitle")} options={charts?.progress ?? null} />
+              {charts?.progress && (
+                <div className="portfolio-progress-passports" style={{ paddingTop: PROGRESS_TOP }}>
+                  {progressPassports.map(({ entry, fields }) => (
+                    <button
+                      aria-label={uiText("ui.portfolio.openPassport", { project: `${entry.code} · ${entry.name}` })}
+                      className="portfolio-progress-passport"
+                      key={entry.id}
+                      onClick={() => selectProject(entry.id, "project-passport")}
+                      style={{ height: PROGRESS_ROW }}
+                      type="button"
+                    >
+                      <b className="portfolio-progress-code">{entry.code}</b>
+                      {fields.map((field) => (
+                        <span key={field.id}>
+                          <em title={field.field}>{field.field}</em>
+                          <strong>{field.description}</strong>
+                        </span>
+                      ))}
+                      {fields.length === 0 && (
+                        <span>
+                          <em>{uiText("registry.charter")}</em>
+                          <strong>{uiText("registry.noCharter")}</strong>
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </article>
       </section>
@@ -386,21 +421,7 @@ export function PortfolioPage() {
         </article>
       </section>
 
-      <section className="projects-tree-section">
-        <article className="panel project-tree-panel">
-          <div className="panel-title">
-            <div>
-              <h2>{uiText("ui.admin.projects")}</h2>
-              <p>{uiText("ui.portfolio.portfolioPassportsSummarySubtitle")}</p>
-            </div>
-          </div>
-          <ProjectsOverview
-            date={date}
-            projects={projects as ProjectListItem[]}
-            selectProject={selectProject}
-          />
-        </article>
-      </section>
+
 
     </>
   );

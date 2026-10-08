@@ -37,7 +37,8 @@ test("portfolio to projects selects the largest complete WBS and preserves expli
   await expect(picker(page, "LARGE")).toBeVisible();
 
   await navigation(page).getByRole("button", { name: "Портфель", exact: true }).click();
-  await page.locator(".projects-overview-card").filter({ hasText: "SMALL" }).click();
+  // The passport fields next to the progress open the project's passport, as the cards did.
+  await page.getByRole("button", { name: /Открыть паспорт: SMALL/ }).click();
   await expect(picker(page, "SMALL")).toBeVisible();
   await expect(page).toHaveURL(/\/SMALL\/passport/);
   await navigation(page).getByRole("button", { name: "Проекты", exact: true }).click();

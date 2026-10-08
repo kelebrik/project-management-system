@@ -166,14 +166,29 @@ export type PortfolioProgressProject = { id: string; code: string; name: string;
 
 const ragColor = (rag: string, colors: AppChartColors) => (rag === "GREEN" ? EARLY : rag === "AMBER" ? colors.warning : rag === "RED" ? LATE : colors.muted);
 
+/**
+ * The progress chart's geometry is fixed so its rows line up with the passport
+ * fields shown next to it: a row of this height per project, between a top
+ * margin (room for "Today") and the axis at the bottom.
+ */
+export const PROGRESS_ROW = 56;
+export const PROGRESS_TOP = 28;
+export const PROGRESS_BOTTOM = 34;
+
+/** The projects the progress chart draws, in its order: those with a start and a target not before it. */
+export function drawableProgressProjects(projects: PortfolioProgressProject[]) {
+  return projects.filter((project) => project.startDate && project.targetDate && time(project.targetDate) >= time(project.startDate));
+}
+
 /** Each project from its start to its target, the share of work done filled in, coloured by its RAG; a click opens it. */
 export function portfolioProgressOption(input: { projects: PortfolioProgressProject[]; today: string; colors: AppChartColors; text: PortfolioChartText; onPick: (projectId: string) => void }): Options | null {
   const { colors, text } = input;
-  const projects = input.projects.filter((project) => project.startDate && project.targetDate && time(project.targetDate) >= time(project.startDate));
+  const projects = drawableProgressProjects(input.projects);
   if (projects.length === 0) return null;
-  const options = base(colors, text.titles.progress, Math.max(200, 70 + projects.length * 40));
+  const options = base(colors, text.titles.progress, PROGRESS_TOP + projects.length * PROGRESS_ROW + PROGRESS_BOTTOM);
   return {
     ...options,
+    chart: { ...options.chart, marginTop: PROGRESS_TOP, marginBottom: PROGRESS_BOTTOM, spacingTop: 0, spacingBottom: 0 },
     xAxis: { type: "datetime", gridLineWidth: 1, gridLineColor: colors.grid, lineColor: colors.grid, labels: { style: { color: colors.muted } }, plotLines: [{ ...todayLine(input.today, text), label: { ...todayLine(input.today, text).label, y: 12 } }] },
     yAxis: { categories: projects.map((project) => `${project.code} · ${project.name}`), reversed: true, title: { text: undefined }, gridLineColor: colors.grid, labels: { style: { color: colors.text, fontSize: "12px", textOverflow: "ellipsis", width: 260 } } },
     legend: { ...options.legend, enabled: false },
@@ -191,7 +206,7 @@ export function portfolioProgressOption(input: { projects: PortfolioProgressProj
         type: "xrange",
         name: text.titles.progress,
         borderRadius: 6,
-        pointWidth: 20,
+        pointWidth: 22,
         dataLabels: {
           enabled: true,
           style: { color: colors.text, fontSize: "11px", fontWeight: "600", textOutline: "none" },
@@ -207,6 +222,7 @@ export function portfolioProgressOption(input: { projects: PortfolioProgressProj
           color: `${ragColor(project.rag, colors)}40`,
           // No work, no fill: an empty bar is not "0 % done".
           ...(project.completedPercent === null ? {} : { partialFill: { amount: project.completedPercent / 100, fill: ragColor(project.rag, colors) } }),
+          accessibility: { description: `${project.code} · ${project.name}: ${text.start} ${text.date(project.startDate)}, ${text.target} ${text.date(project.targetDate)}, ${project.completedPercent === null ? text.noWork : text.done(project.completedPercent)}` },
         })),
       },
     ],
