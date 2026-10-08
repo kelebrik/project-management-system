@@ -575,6 +575,22 @@ export const openApiCorePaths = {
         },
       },
     },
+    "/api/open-issues/{issueId}/convert-to-risk": {
+      post: {
+        tags: ["OpenIssues", "Risks"],
+        summary: "Convert open issue to RAID risk",
+        security: [{ sessionCookie: [] }],
+        parameters: [issueIdParam],
+        responses: {
+          "201": { description: "Open issue converted to risk" },
+          "401": { description: "Authentication required" },
+          "403": { description: "Permission denied" },
+          "404": { description: "Resource not found" },
+          "409": { description: "Closed issue cannot be converted" },
+          "423": { description: "Project is closed and read-only" },
+        },
+      },
+    },
     "/api/open-issues/{issueId}/jira-links": {
       post: createOperation(["OpenIssues", "Jira"], "Attach Jira ticket to open issue", [
         issueIdParam,

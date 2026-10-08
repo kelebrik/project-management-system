@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, Pencil, Save, ShieldAlert, Sparkles, Tag, X } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, History, MessageSquare, OctagonAlert, Pencil, Save, ShieldAlert, Sparkles, Tag, X } from "lucide-react";
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
@@ -34,6 +34,7 @@ export function DevelopmentOpenIssuesPage() {
   const {
     closeOpenIssue,
     convertIssueToProblem,
+    convertIssueToRisk,
     addIssueStatusUpdate,
     addIssueThreadLink,
     date,
@@ -624,6 +625,7 @@ export function DevelopmentOpenIssuesPage() {
                         <button type="button" className={action === "jira" ? "active" : ""} onClick={() => toggleAction(issue, "jira")}><ExternalLink size={15} />Jira</button>
                         <button type="button" className={action === "mattermost" ? "active" : ""} onClick={() => toggleAction(issue, "mattermost")}><MessageSquare size={15} />MM</button>
                         <button type="button" onClick={() => void convertIssueToProblem(issue.id)} disabled={isReadOnly}><ShieldAlert size={15} />{t("ui.projects.openIssuesPrototypeConvert")}</button>
+                        <button type="button" onClick={() => void convertIssueToRisk(issue.id)} disabled={isReadOnly}><OctagonAlert size={15} />{t("ui.projects.openIssuesPrototypeConvertRisk")}</button>
                         <button type="button" onClick={() => void closeOpenIssue(issue.id)} disabled={isReadOnly}><X size={15} />{t("ui.projects.openIssuesPrototypeClose")}</button>
                         <button type="button" className={action === "history" ? "active" : ""} onClick={() => toggleAction(issue, "history")}><History size={15} />{t("ui.projects.openIssuesPrototypeHistory")}</button>
                         <div className="open-issues-prototype-status-editor">

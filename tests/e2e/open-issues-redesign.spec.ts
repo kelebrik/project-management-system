@@ -121,7 +121,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");
   expect((await row.getByLabel("Current status").boundingBox())!.height).toBeGreaterThan(32);
   const actionRow = page.locator(".open-issues-prototype-actions-row").first();
-  for (const action of ["Section", "Due date", "Phase", "Jira", "MM", "To problem", "Close", "History"]) {
+  for (const action of ["Section", "Due date", "Phase", "Jira", "MM", "To problem", "To risk", "Close", "History"]) {
     await expect(actionRow.getByRole("button", { name: new RegExp(`^${action}`) })).toBeVisible();
   }
   await expect(actionRow.getByRole("button", { name: "Status", exact: true })).toHaveCount(0);
@@ -172,4 +172,34 @@ test("questions omit the default section heading when every issue is unsectioned
   await page.getByTestId("language-toggle").click();
   await expect(page.locator(".open-issues-prototype-table").first().locator(".open-issues-prototype-group-heading")).toHaveCount(0);
   await expect(page.locator(".open-issues-prototype-row").first()).toBeVisible();
+});
+
+test("an open issue converts to a RAID risk after confirmation", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  let convertCalls = 0;
+  await page.route("**/api/projects/project-1", async (route) => {
+    await route.fulfill({ json: project });
+  });
+  await page.route("**/api/open-issues/issue-1/convert-to-risk", async (route) => {
+    convertCalls += 1;
+    expect(route.request().method()).toBe("POST");
+    await route.fulfill({
+      status: 201,
+      json: { issue: { ...project.issues[0], status: "Resolved" }, raidItem: { id: "risk-from-issue", type: "RISK" } },
+    });
+  });
+
+  await page.goto("/issues");
+  const row = page.locator(".open-issues-prototype-row").first();
+  await row.getByRole("button", { name: "Развернуть", exact: true }).click();
+  const actionRow = page.locator(".open-issues-prototype-actions-row").first();
+  await actionRow.getByRole("button", { name: "В риск", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: "Перевести вопрос в риск?" });
+  await confirmation.getByRole("button", { name: "Отмена" }).click();
+  expect(convertCalls).toBe(0);
+
+  await actionRow.getByRole("button", { name: "В риск", exact: true }).click();
+  await confirmation.getByRole("button", { name: "Перевести" }).click();
+  await expect.poll(() => convertCalls).toBe(1);
+  await expect(page.getByText("Открытый вопрос переведен в риск")).toBeVisible();
 });

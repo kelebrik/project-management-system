@@ -699,6 +699,7 @@ function AppController() {
     saveOpenIssue,
     closeOpenIssue,
     convertIssueToProblem,
+    convertIssueToRisk,
     addIssueStatusUpdate,
     saveOpenIssueWithPayload,
   } = useIssueController({
@@ -896,7 +897,7 @@ function AppController() {
     activeView, activeWbsItemId, collapsedWbsIds, currentUser, firstEnabledProjectView, isAuthenticated, isClosedProject, isReadOnly, openView, project, projects, saveProjectUiState, selectedProjectId, setError, setNotice,
     ...{ adminHealth, adminIntegrations, apiTokenDraft, auditEvents, backupStatus, configTransferText, createdApiToken, creatingUser, currentUser, importingConfig, newUserForm, setNewUserForm, rolePermissions, systemSettings, systemSettingsDraft, userDrafts, users, webhookDraft },
     ...{ artifactDrafts, expandedArtifactId, createArtifactRow, deleteArtifact, moveArtifact, saveArtifact, updateArtifactDraft, setExpandedArtifactId },
-    ...{ closeOpenIssue, convertIssueToProblem, createOpenIssue, creatingIssue, expandedIssueId, issueDrawerMode, issueEditDrafts, issueForm, issueFormErrors, issueLinkDrafts, issueStatusDrafts, removeIssueFormLink, removeIssueJiraLink, removeIssueThreadLink, saveOpenIssue, saveOpenIssueWithPayload, saveTaskJiraLink, taskDrafts, updateIssueDraft, updateIssueFormLink, updateIssueJiraLink, updateIssueThreadLink, updateIssueStatusDraft },
+    ...{ closeOpenIssue, convertIssueToProblem, convertIssueToRisk, createOpenIssue, creatingIssue, expandedIssueId, issueDrawerMode, issueEditDrafts, issueForm, issueFormErrors, issueLinkDrafts, issueStatusDrafts, removeIssueFormLink, removeIssueJiraLink, removeIssueThreadLink, saveOpenIssue, saveOpenIssueWithPayload, saveTaskJiraLink, taskDrafts, updateIssueDraft, updateIssueFormLink, updateIssueJiraLink, updateIssueThreadLink, updateIssueStatusDraft },
     ...{ jiraForm, jiraWorkSectionDrafts, refreshProject, saveJiraIntegration, saveJiraWorkSections, savingJira, savingJiraWorkSections, setJiraForm, setJiraWorkSectionDrafts, syncJira },
     ...{ addPassportRow, deletePassportRow, passportRows, savePassportRows, savingPassportRows, updatePassportRow },
     ...{ addRaidStatusUpdate, closeRaidItem, convertRiskToAssumption, convertRiskToProblem, expandedRaidId, raidDecisionOnly, raidDrafts, raidForm, raidHighOnly, raidOverdueOnly, raidStatusDrafts, raidTypeFilter, saveRaidItem, createRaidItem, deleteRaidItem, updateRaidDraft, updateRaidStatusDraft },

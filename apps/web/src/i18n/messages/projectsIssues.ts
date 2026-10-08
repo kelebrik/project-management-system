@@ -127,6 +127,10 @@ export const projectsIssuesMessages = {
     "en": "To problem",
     "ru": "В проблему"
   },
+  "ui.projects.openIssuesPrototypeConvertRisk": {
+    "en": "To risk",
+    "ru": "В риск"
+  },
   "ui.projects.openIssuesPrototypeClose": {
     "en": "Close",
     "ru": "Закрыть"

@@ -141,7 +141,8 @@ export function useIssueController({
           ...issueForm,
           phaseId: issueForm.phaseId || null,
           riskId: issueForm.riskId || null,
-          category: issueForm.category.trim(),
+          // An empty section lets the server store its default.
+          category: issueForm.category.trim() || undefined,
           title: issueForm.title.trim(),
           referenceLabel: issueForm.referenceLabel.trim(),
           referenceUrl: issueForm.referenceUrl.trim() || null,
@@ -625,6 +626,43 @@ export function useIssueController({
     [confirm, refreshProject, setError, setNotice],
   );
 
+  const convertIssueToRisk = useCallback(
+    async (issueId: string) => {
+      if (
+        !(await confirm({
+          title: "Перевести вопрос в риск?",
+          message:
+            "На основе вопроса будет создан риск RAID, а исходный вопрос будет закрыт и связан с ним.",
+          confirmLabel: "Перевести",
+          tone: "default",
+        }))
+      ) return;
+      setError(null);
+      setNotice(null);
+      try {
+        const response = await authenticatedFetch(
+          `${apiBase}/api/open-issues/${issueId}/convert-to-risk`,
+          { method: "POST" },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(
+            responseErrorMessage(result, "Не удалось перевести вопрос в риск"),
+          );
+        }
+        await refreshProject();
+        setNotice("Открытый вопрос переведен в риск");
+      } catch (convertError) {
+        setError(
+          convertError instanceof Error
+            ? convertError.message
+            : "Не удалось перевести вопрос в риск",
+        );
+      }
+    },
+    [confirm, refreshProject, setError, setNotice],
+  );
+
   const addIssueStatusUpdate = useCallback(
     async (
       issueId: string,
@@ -696,6 +734,7 @@ export function useIssueController({
     saveOpenIssue,
     closeOpenIssue,
     convertIssueToProblem,
+    convertIssueToRisk,
     addIssueStatusUpdate,
     saveOpenIssueWithPayload,
   };

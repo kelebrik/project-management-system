@@ -219,7 +219,7 @@ export const emptySystemSettingsDraft: SystemSettingsDraft = {
 export const emptyIssueForm: IssueFormState = {
   phaseId: "",
   riskId: "",
-  category: "Без раздела",
+  category: "",
   title: "",
   referenceLabel: "",
   referenceUrl: "",

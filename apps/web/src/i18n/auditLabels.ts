@@ -22,6 +22,7 @@ const actions: Record<string, LocalizedLabel> = {
   "issue.create": { ru: "Создание открытого вопроса", en: "Open issue created" },
   "issue.update": { ru: "Изменение открытого вопроса", en: "Open issue updated" },
   "issue.convert_to_problem": { ru: "Перевод вопроса в проблему", en: "Issue converted to problem" },
+  "issue.convert_to_risk": { ru: "Перевод вопроса в риск", en: "Issue converted to risk" },
   "issue.status_update.create": { ru: "Комментарий к открытому вопросу", en: "Open issue comment" },
   "issue.jira_link.create": { ru: "Добавление Jira-связи", en: "Jira link added" },
   "issue.jira_link.update": { ru: "Изменение Jira-связи", en: "Jira link updated" },

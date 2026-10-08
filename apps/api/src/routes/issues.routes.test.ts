@@ -180,6 +180,11 @@ test('project details do not transport the top-level Jira analytics population',
   });
 });
 
+test('open issues convert into either a RAID problem or a RAID risk', () => {
+  findRoute('/open-issues/:issueId/convert-to-problem', 'post');
+  findRoute('/open-issues/:issueId/convert-to-risk', 'post');
+});
+
 test('open issue thread link routes expose create, update, and delete operations', () => {
   findRoute('/open-issues/:issueId/thread-links', 'post');
   findRoute('/open-issues/:issueId/thread-links/:linkId', 'patch');

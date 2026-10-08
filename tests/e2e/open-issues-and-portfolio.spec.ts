@@ -49,6 +49,8 @@ test("new open issue keeps inline register fields in the create request", async 
   await page.getByRole("button", { name: "Создать вопрос" }).click();
   const dialog = page.getByRole("dialog", { name: "Создать открытый вопрос" });
   await dialog.getByLabel("Заголовок").fill("  Проверить выпуск  ");
+  // A new issue starts without a section.
+  await expect(dialog.getByLabel("Раздел")).toHaveValue("");
   await dialog.getByLabel("Раздел").fill("  Новый пульт  ");
   await dialog.getByLabel("Фаза").selectOption("phase-create-issue");
   const phaseConfirmation = page.getByRole("dialog", { name: "Создать пакет работ?" });
@@ -71,6 +73,27 @@ test("new open issue keeps inline register fields in the create request", async 
   expect(createPayload).not.toHaveProperty("jiraTicketUrl");
   await expect(page.locator("#issue-item-issue-created")).toBeVisible();
 });
+test("a new open issue left without a section lets the server apply its default", async ({ page }) => {
+  const project = await mockAdminProject(page);
+  let createPayload: Record<string, unknown> | null = null;
+  await page.route("**/api/projects/project-1/open-issues", async (route) => {
+    createPayload = route.request().postDataJSON() as Record<string, unknown>;
+    const created = { ...project.issues[0], id: "issue-created", ...createPayload, category: "Без раздела", status: "Open", jiraLinks: [], statusUpdates: [] };
+    project.issues.push(created);
+    await route.fulfill({ status: 201, json: created });
+  });
+
+  await page.goto("/TV-OVERVIEW/issues");
+  await page.getByRole("button", { name: "Создать вопрос" }).click();
+  const dialog = page.getByRole("dialog", { name: "Создать открытый вопрос" });
+  await expect(dialog.getByLabel("Раздел")).toHaveValue("");
+  await dialog.getByLabel("Заголовок").fill("Вопрос без раздела");
+  await dialog.getByRole("button", { name: "Создать вопрос" }).click();
+
+  await expect.poll(() => createPayload).toMatchObject({ title: "Вопрос без раздела" });
+  expect(createPayload).not.toHaveProperty("category");
+});
+
 test("an ordinary editor sees the server refuse a WBS phase and the issue keeps its phase", async ({ page }) => {
   await mockAdminProject(page, (fixture) => {
     fixture.currentUserAccessLevel = "EDIT";
