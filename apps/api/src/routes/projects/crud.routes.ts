@@ -9,6 +9,7 @@ import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { shiftActor, trackScheduleShifts } from '../../services/schedule-shifts.js';
 import { runWithWbsWriteQueue } from '../wbs/write-queue.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import { reconcileJiraSystemSetup } from '../../services/jira-system-setup.js';
 import { projectBusinessUnitFields } from '../../services/project-business-unit.js';
 import {
   userProjectAccessLevel,
@@ -261,6 +262,8 @@ export function registerProjectCrudRoutes(
       } else {
         await createDefaultProjectStructure(project.id, project.startDate);
       }
+      // A new project starts with the system Jira aggregates and standard widgets.
+      await reconcileJiraSystemSetup(prisma, project);
 
       const afterSnapshot = await projectAuditSnapshot(project.id);
       await recordAuditEvent({

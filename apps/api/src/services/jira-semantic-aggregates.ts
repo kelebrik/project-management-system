@@ -433,7 +433,15 @@ function definitionData(projectId: string, key: string, definition: JiraSemantic
   } satisfies Prisma.JiraAggregateDefinitionUncheckedCreateInput;
 }
 
-export function withCurrentTicketFields(definition: JiraSemanticAggregateDefinition) {
+/**
+ * Adds the ticket fields an aggregate lacks; a system aggregate also receives
+ * every field of its current code definition. Fields are only ever added, and
+ * only those its own row set provides.
+ */
+export function withCurrentTicketFields(
+  definition: JiraSemanticAggregateDefinition,
+  systemDefinition?: JiraSemanticAggregateDefinition,
+) {
   const existing = new Set(definition.outputFields.map((field) => field.key));
   const available = new Set<JiraAnalyticsFilterField>(JIRA_ANALYTICS_FIELDS_BY_SOURCE[legacySource(definition)]);
   // The fields of issue attributes (status category, epic, components, versions, story points, due date, age) come to every ticket aggregate.
@@ -444,6 +452,13 @@ export function withCurrentTicketFields(definition: JiraSemanticAggregateDefinit
   const added = required
     .filter((field) => available.has(field) && !existing.has(field))
     .map(jiraSemanticDefaultOutputField);
+  const addedKeys = new Set(added.map((field) => field.key));
+  for (const field of systemDefinition?.outputFields ?? []) {
+    if (available.has(field.key) && !existing.has(field.key) && !addedKeys.has(field.key)) {
+      added.push(field);
+      addedKeys.add(field.key);
+    }
+  }
   if (added.length === 0) return definition;
   return {
     ...definition,
@@ -497,13 +512,14 @@ async function upgradePublishedTicketFields(
   projectId: string,
   row: Awaited<ReturnType<Prisma.TransactionClient["jiraAggregateDefinition"]["findUniqueOrThrow"]>>,
 ) {
+  const systemDefinition = row.system ? systemDefinitionForKey(row.aggregateKey) : undefined;
   if (row.publishedVersion !== null) {
     const publishedRevision = await transaction.jiraAggregateDefinitionRevision.findUnique({
       where: { aggregateId_version: { aggregateId: row.id, version: row.publishedVersion } },
     });
     const publishedDefinition = parsedDefinition(publishedRevision?.definition);
     const upgradedPublished = publishedDefinition
-      ? withCurrentTicketFields(publishedDefinition)
+      ? withCurrentTicketFields(publishedDefinition, systemDefinition)
       : null;
     if (
       publishedRevision
@@ -526,7 +542,7 @@ async function upgradePublishedTicketFields(
         },
       });
       if (hasDraft) {
-        const draftDefinition = withCurrentTicketFields(parsedDefinition(row.draftDefinition) ?? upgradedPublished);
+        const draftDefinition = withCurrentTicketFields(parsedDefinition(row.draftDefinition) ?? upgradedPublished, systemDefinition);
         const draftVersion = publishedVersion + 1;
         await transaction.jiraAggregateDefinitionRevision.updateMany({
           where: { aggregateId: row.id, version: row.version, status: "draft" },
@@ -566,12 +582,80 @@ async function upgradePublishedTicketFields(
   return row;
 }
 
+function systemDefinitionForKey(key: string) {
+  return JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === key)?.definition;
+}
+
+/** True when a published system aggregate lacks fields of its current code definition. */
+export function jiraSystemAggregateUpgradeRequired(
+  definitions: ReadonlyArray<{ key: string; system: boolean; published: JiraSemanticAggregateDefinition | null }>,
+) {
+  return definitions.some((definition) => {
+    const systemDefinition = definition.system ? systemDefinitionForKey(definition.key) : undefined;
+    return Boolean(systemDefinition && definition.published
+      && withCurrentTicketFields(definition.published, systemDefinition) !== definition.published);
+  });
+}
+
+type PublishedVersionMove = { aggregateId: string; from: number; to: number };
+
+/**
+ * Widgets that followed the published version of an upgraded aggregate move
+ * to its new published version; a widget pinned to an older one stays there.
+ */
+export function jiraDashboardFollowingPublishedVersions(
+  dashboard: JiraSemanticDashboard,
+  moves: readonly PublishedVersionMove[],
+): JiraSemanticDashboard {
+  const byAggregate = new Map(moves.map((move) => [move.aggregateId, move]));
+  let changed = false;
+  const widgets = dashboard.widgets.map((widget) => {
+    const move = byAggregate.get(widget.aggregateId);
+    if (!move || widget.aggregateVersion !== move.from) return widget;
+    changed = true;
+    return { ...widget, aggregateVersion: move.to };
+  });
+  return changed ? { ...dashboard, widgets } : dashboard;
+}
+
+async function upgradeAndFollow(
+  transaction: Prisma.TransactionClient,
+  projectId: string,
+  row: JiraAggregateDefinition,
+  moves: PublishedVersionMove[],
+) {
+  const upgraded = await upgradePublishedTicketFields(transaction, projectId, row);
+  if (row.publishedVersion !== null && upgraded.publishedVersion !== null && upgraded.publishedVersion !== row.publishedVersion) {
+    moves.push({ aggregateId: row.id, from: row.publishedVersion, to: upgraded.publishedVersion });
+  }
+  return upgraded;
+}
+
+async function followPublishedVersions(
+  transaction: Prisma.TransactionClient,
+  projectId: string,
+  moves: readonly PublishedVersionMove[],
+) {
+  if (moves.length === 0) return;
+  const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
+  const parsed = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
+  if (!settings || !parsed.success) return;
+  const followed = jiraDashboardFollowingPublishedVersions(parsed.data, moves);
+  if (followed === parsed.data) return;
+  await transaction.jiraAnalyticsSettings.update({
+    where: { projectId },
+    data: { dashboardConfig: followed as unknown as Prisma.InputJsonObject },
+  });
+}
+
 /** Brings every published aggregate of a project, system or user-made, up to the current ticket fields. */
 export async function upgradeJiraAggregateTicketFields(client: PrismaClient, projectId: string) {
   await client.$transaction(async (transaction) => {
     await lockJiraAggregateProject(transaction, projectId);
     const rows = await transaction.jiraAggregateDefinition.findMany({ where: { projectId, archivedAt: null, publishedVersion: { not: null } } });
-    for (const row of rows) await upgradePublishedTicketFields(transaction, projectId, row);
+    const moves: PublishedVersionMove[] = [];
+    for (const row of rows) await upgradeAndFollow(transaction, projectId, row, moves);
+    await followPublishedVersions(transaction, projectId, moves);
   });
 }
 
@@ -589,6 +673,7 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
       }),
     ]);
     const references: SystemAggregateReference[] = [];
+    const moves: PublishedVersionMove[] = [];
     for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {
       let row = await transaction.jiraAggregateDefinition.upsert({
         where: { projectId_aggregateKey: { projectId, aggregateKey: aggregate.key } },
@@ -610,9 +695,10 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
         },
         update: {},
       });
-      row = await upgradePublishedTicketFields(transaction, projectId, row);
+      row = await upgradeAndFollow(transaction, projectId, row, moves);
       references[references.length - 1] = row;
     }
+    await followPublishedVersions(transaction, projectId, moves);
     const settings = await transaction.jiraAnalyticsSettings.findUnique({ where: { projectId } });
     if ((settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION) {
       const parsedDashboard = jiraSemanticDashboardSchema.safeParse(settings?.dashboardConfig);
@@ -623,8 +709,12 @@ export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, p
         jiraDefaultSemanticDashboard(references),
         settings?.semanticDefaultWidgetsVersion ?? 0,
       );
+      // Seed 3 once repinned every system widget; later a widget follows its aggregate only
+      // from the version it was on, and a deliberately older pin stays.
       const parsedDashboardConfig = jiraSemanticDashboardSchema.safeParse(
-        jiraDashboardWithCurrentSystemAggregateRevisions(seededDashboard, references),
+        (settings?.semanticDefaultWidgetsVersion ?? 0) < 3
+          ? jiraDashboardWithCurrentSystemAggregateRevisions(seededDashboard, references)
+          : seededDashboard,
       );
       if (!parsedDashboardConfig.success) return;
       const dashboardConfig = parsedDashboardConfig.data;

@@ -21,6 +21,8 @@ import {
   jiraDashboardWithDefaultWidgetsForSeedVersion,
   jiraDashboardWithCurrentSystemAggregateRevisions,
   jiraSemanticExecutableDefinition,
+  jiraDashboardFollowingPublishedVersions,
+  jiraSystemAggregateUpgradeRequired,
   withCurrentTicketFields,
 } from "./jira-semantic-aggregates.js";
 
@@ -644,4 +646,24 @@ test("semantic aggregate mutations serialize project changes and system seeding 
     /from\s+["'][^"']*\/jira(?:\.js|-(?:client|search|data|model|changelog)\.js)["']/u,
   );
   assert.doesNotMatch(route, /\bpayload\s*:\s*true\b/u);
+});
+
+test('a system aggregate gains the fields of its code definition and keeps fields of its own', () => {
+  const code = JIRA_SYSTEM_SEMANTIC_AGGREGATES.find((aggregate) => aggregate.key === 'issues')!.definition;
+  assert.equal(withCurrentTicketFields(code, code), code, 'a current definition is left as it is');
+  const old = { ...code, outputFields: code.outputFields.filter((field) => field.key !== 'reporter' && field.key !== 'storyPoints') };
+  const upgraded = withCurrentTicketFields(old, code);
+  assert.deepEqual(new Set(upgraded.outputFields.map((field) => field.key)), new Set(code.outputFields.map((field) => field.key)));
+  assert.equal(withCurrentTicketFields(old).outputFields.some((field) => field.key === 'reporter'), false, 'user aggregates get ticket fields only');
+  assert.equal(jiraSystemAggregateUpgradeRequired([{ key: 'issues', system: true, published: old }]), true);
+  assert.equal(jiraSystemAggregateUpgradeRequired([{ key: 'issues', system: true, published: code }]), false);
+  assert.equal(jiraSystemAggregateUpgradeRequired([{ key: 'issues', system: false, published: old }]), false);
+});
+
+test('widgets following an upgraded aggregate move to its new version; older pins stay', () => {
+  const widget = (id: string, aggregateId: string, aggregateVersion: number) => ({ id, aggregateId, aggregateVersion });
+  const dashboard = { widgets: [widget('a', 'agg-1', 3), widget('b', 'agg-1', 1), widget('c', 'agg-2', 3)] } as unknown as Parameters<typeof jiraDashboardFollowingPublishedVersions>[0];
+  const followed = jiraDashboardFollowingPublishedVersions(dashboard, [{ aggregateId: 'agg-1', from: 3, to: 4 }]);
+  assert.deepEqual(followed.widgets.map((item) => [item.id, item.aggregateVersion]), [['a', 4], ['b', 1], ['c', 3]]);
+  assert.equal(jiraDashboardFollowingPublishedVersions(dashboard, [{ aggregateId: 'agg-3', from: 1, to: 2 }]), dashboard);
 });

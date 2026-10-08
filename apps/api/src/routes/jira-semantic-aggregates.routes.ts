@@ -33,6 +33,7 @@ import {
   JIRA_SYSTEM_SEMANTIC_AGGREGATES,
   ensureMissingJiraSystemSemanticAggregates,
   ensureJiraSystemSemanticAggregates,
+  jiraSystemAggregateUpgradeRequired,
   jiraSemanticAggregateCost,
   jiraSemanticCreateData,
   jiraSemanticDefinitionUpdateData,
@@ -208,11 +209,12 @@ export function registerJiraSemanticAggregateRoutes(
       dashboardConfigHash: jiraDashboardConfigHash(settings?.dashboardConfig ?? null),
       canEditDashboard: await canEditJiraDashboard(req, req.params.projectId),
       dashboardSeedRequired: (settings?.semanticDefaultWidgetsVersion ?? 0) < JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
+      // Missing system aggregates or published ones behind their code definition.
       systemAggregatesSeedRequired: JIRA_SYSTEM_SEMANTIC_AGGREGATES.some(
         (systemAggregate) => !definitions.some(
           (definition) => definition.system && definition.key === systemAggregate.key,
         ),
-      ),
+      ) || jiraSystemAggregateUpgradeRequired(definitions),
       goals: goals.map((goal) => ({
         ...goal,
         dueDate: goal.dueDate?.toISOString() ?? null,
@@ -331,6 +333,8 @@ export function registerJiraSemanticAggregateRoutes(
     let created: string[];
     try {
       created = await ensureMissingJiraSystemSemanticAggregates(prisma, project.id);
+      // Brings the existing system aggregates and the standard widgets up to the code as well.
+      await ensureJiraSystemSemanticAggregates(prisma, project.id);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         res.status(409).json({ error: "Название системного агрегата уже занято пользовательским агрегатом" });
