@@ -2,6 +2,7 @@ import { CalendarDays, ChevronDown, ChevronUp, CircleAlert, ExternalLink, Histor
 import { Fragment, useMemo, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
 import type { Issue } from "../app/domainTypes";
 import { issueToDraft, type IssueEditDraft } from "../app/formState";
+import { issueSectionGroups } from "../app/issueSections";
 import {
   OPEN_ISSUES_PROTOTYPE_COLUMNS,
   normalizeOpenIssuesPrototypeColumnWidths,
@@ -72,45 +73,14 @@ export function DevelopmentOpenIssuesPage() {
     )),
     [project.issues],
   );
-  const noSectionLabel = t("ui.projects.issueNoSection");
-  const issueGroups = useMemo(() => {
-    const groups = new Map<string, Issue[]>();
-    for (const issue of issues) {
-      const rawCategory = issue.category.trim();
-      const category = rawCategory && rawCategory !== "Без раздела" ? rawCategory : noSectionLabel;
-      groups.set(category, [...(groups.get(category) ?? []), issue]);
-    }
-    return [...groups.entries()];
-  }, [issues, noSectionLabel]);
-  const hasNamedSection = useMemo(
-    () => issues.some((issue) => {
-      const category = issue.category.trim();
-      return category.length > 0 && category !== noSectionLabel && category !== "Без раздела";
-    }),
-    [issues, noSectionLabel],
-  );
+  const issueGroups = useMemo(() => issueSectionGroups(issues), [issues]);
   const closedIssues = useMemo(
     () => [...(project.closedIssues ?? [])].sort((left, right) => (
       (right.updatedAt ?? right.dueDate ?? "").localeCompare(left.updatedAt ?? left.dueDate ?? "")
     )),
     [project.closedIssues],
   );
-  const closedIssueGroups = useMemo(() => {
-    const groups = new Map<string, Issue[]>();
-    for (const issue of closedIssues) {
-      const rawCategory = issue.category.trim();
-      const category = rawCategory && rawCategory !== "Без раздела" ? rawCategory : noSectionLabel;
-      groups.set(category, [...(groups.get(category) ?? []), issue]);
-    }
-    return [...groups.entries()];
-  }, [closedIssues, noSectionLabel]);
-  const hasNamedClosedSection = useMemo(
-    () => closedIssues.some((issue) => {
-      const category = issue.category.trim();
-      return category.length > 0 && category !== noSectionLabel && category !== "Без раздела";
-    }),
-    [closedIssues, noSectionLabel],
-  );
+  const closedIssueGroups = useMemo(() => issueSectionGroups(closedIssues), [closedIssues]);
   const phases = useMemo(
     () => project.wbsItems.filter((item: { type: string }) => item.type === "PHASE"),
     [project.wbsItems],
@@ -488,8 +458,8 @@ export function DevelopmentOpenIssuesPage() {
               </tr>
             </thead>
             {issueGroups.map(([category, groupIssues]) => {
-              const showGroupHeading = hasNamedSection || category !== noSectionLabel;
-              return <tbody className="open-issues-prototype-group" key={category} aria-label={showGroupHeading ? category : undefined}>
+              const showGroupHeading = category !== null;
+              return <tbody className="open-issues-prototype-group" key={category ?? ""} aria-label={category ?? undefined}>
                 {showGroupHeading ? <tr className="open-issues-prototype-group-heading">
                   <th colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length} scope="rowgroup">{category}</th>
                 </tr> : null}
@@ -672,8 +642,8 @@ export function DevelopmentOpenIssuesPage() {
               <colgroup>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <col style={{ width: columnWidths[column.key] }} key={column.key} />)}</colgroup>
               <thead><tr>{OPEN_ISSUES_PROTOTYPE_COLUMNS.map((column) => <th scope="col" key={column.key} aria-label={column.key === "actions" ? t("ui.projects.openIssuesPrototypeActions") : undefined}>{column.key === "actions" ? null : <span>{t(column.labelKey)}</span>}</th>)}</tr></thead>
               {closedIssueGroups.map(([category, groupIssues]) => {
-                const showGroupHeading = hasNamedClosedSection || category !== noSectionLabel;
-                return <tbody className="open-issues-prototype-group" key={category} aria-label={showGroupHeading ? category : undefined}>
+                const showGroupHeading = category !== null;
+                return <tbody className="open-issues-prototype-group" key={category ?? ""} aria-label={category ?? undefined}>
                   {showGroupHeading ? <tr className="open-issues-prototype-group-heading"><th colSpan={OPEN_ISSUES_PROTOTYPE_COLUMNS.length} scope="rowgroup">{category}</th></tr> : null}
                   {groupIssues.map((issue, index) => {
                     const expanded = expandedClosedIssueId === issue.id;

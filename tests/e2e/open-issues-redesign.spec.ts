@@ -174,6 +174,32 @@ test("questions omit the default section heading when every issue is unsectioned
   await expect(page.locator(".open-issues-prototype-row").first()).toBeVisible();
 });
 
+test("unsectioned questions lead the list and only named sections get a heading", async ({ page }) => {
+  await mockAdminProject(page, (fixture) => {
+    const sectioned = fixture.issues[0];
+    // Due earlier, yet still listed after the unsectioned question.
+    sectioned.dueDate = "2026-01-01T00:00:00.000Z";
+    fixture.issues.push({
+      ...sectioned,
+      id: "issue-unsectioned",
+      title: "Вопрос без раздела",
+      category: "",
+      dueDate: "2026-12-31T00:00:00.000Z",
+      statusUpdates: [],
+      jiraLinks: [],
+    });
+  });
+
+  await page.goto("/issues");
+  const openTable = page.locator(".open-issues-prototype-table").first();
+  await expect(openTable.locator(".open-issues-prototype-group-heading")).toHaveCount(1);
+  await expect(openTable.locator(".open-issues-prototype-group-heading")).toHaveText("Организационные задачи");
+  await expect(openTable.getByRole("rowgroup", { name: "Без раздела" })).toHaveCount(0);
+  const rows = openTable.locator(".open-issues-prototype-row");
+  await expect(rows.first().getByLabel("Название вопроса")).toHaveValue("Вопрос без раздела");
+  await expect(rows.nth(1).getByLabel("Название вопроса")).toHaveValue("Согласовать дату запуска");
+});
+
 test("an open issue converts to a RAID risk after confirmation", async ({ page }) => {
   const project = await mockAdminProject(page);
   let convertCalls = 0;
