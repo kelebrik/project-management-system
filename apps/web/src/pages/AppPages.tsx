@@ -49,6 +49,7 @@ const MyWorkPage = lazy(() =>
   })),
 );
 const AutomationRulesPage = lazy(() => import("./AutomationRulesPage"));
+const ScheduleLabPage = lazy(() => import("./ScheduleLabPage"));
 const MyPagePage = lazy(() =>
   import("./MyPagePage").then((module) => ({
     default: module.MyPagePage,
@@ -131,6 +132,11 @@ export function AppPages() {
       {activeView === "automation-rules" && (
         <Suspense fallback={<DevelopmentPageFallback />}>
           <AutomationRulesPage />
+        </Suspense>
+      )}
+      {activeView === "schedule-lab" && (
+        <Suspense fallback={<DevelopmentPageFallback />}>
+          <ScheduleLabPage />
         </Suspense>
       )}
       {activeView === "raci-matrix" && (

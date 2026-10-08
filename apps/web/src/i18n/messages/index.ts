@@ -16,6 +16,7 @@ import { decisionsMessages } from "./decisions";
 import { wbsTableMessages } from "./wbsTable";
 import { automationRulesMessages } from "./automationRules";
 import { pagesMessages } from "./pages";
+import { scheduleLabMessages } from "./scheduleLab";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -35,4 +36,5 @@ export const catalogue = {
   ...wbsTableMessages,
   ...automationRulesMessages,
   ...pagesMessages,
+  ...scheduleLabMessages,
 } as const;

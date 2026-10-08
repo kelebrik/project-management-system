@@ -283,6 +283,11 @@ const developmentNavItems: AdminNavItem[] = [
     label: "view.automation-rules",
     icon: <Workflow size={15} />,
   },
+  {
+    view: "schedule-lab",
+    label: "view.schedule-lab",
+    icon: <GanttChartSquare size={15} />,
+  },
 ];
 
 const operationsNavItems: AdminNavItem[] = [
@@ -518,7 +523,7 @@ export function AppShell({
 
       {shouldShowDevelopmentMenu && (
         <div className="section-navigation development-section-navigation">
-          {(activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules") && (
+          {(activeView === "decision-queue" || activeView === "raci-matrix" || activeView === "my-work" || activeView === "automation-rules" || activeView === "schedule-lab") && (
             <div className="section-project-picker">
               {projectPicker(activeView)}
             </div>
