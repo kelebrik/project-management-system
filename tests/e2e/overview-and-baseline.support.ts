@@ -452,6 +452,8 @@ export async function mockManagedJiraAnalytics(
     system: true,
     version: 1,
     publishedVersion: 1,
+    // The code standard, not the local revision, is what the catalog shows for system aggregates.
+    standard: key === "status-transitions" ? { version: 1, status: "customized" } : { version: key === "issues" ? 2 : 1, status: "current" },
     archivedAt: null,
     draft: definition,
     published: definition,

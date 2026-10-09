@@ -3,7 +3,8 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../../apps/api/src/db.js';
-import { JIRA_SYSTEM_SEMANTIC_AGGREGATES } from '../../apps/api/src/services/jira-semantic-aggregates.js';
+import { JIRA_SYSTEM_SEMANTIC_AGGREGATES, listJiraSemanticAggregates } from '../../apps/api/src/services/jira-semantic-aggregates.js';
+import { JIRA_SYSTEM_AGGREGATE_STANDARD_HISTORY } from '../../apps/api/src/services/jira-system-aggregate-standards.js';
 import { reconcileJiraSystemSetup } from '../../apps/api/src/services/jira-system-setup.js';
 
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
@@ -29,6 +30,10 @@ test('a project nobody has opened receives every system aggregate and the standa
     const rows = await prisma.jiraAggregateDefinition.findMany({ where: { projectId: project.id, system: true } });
     assert.deepEqual(rows.map((row) => row.aggregateKey).sort(), JIRA_SYSTEM_SEMANTIC_AGGREGATES.map((aggregate) => aggregate.key).sort());
     assert.ok(rows.every((row) => row.publishedVersion === 1), 'a fresh copy is already current');
+    const catalog = await listJiraSemanticAggregates(prisma, project.id);
+    for (const definition of catalog.filter((item) => item.system)) {
+      assert.deepEqual(definition.standard, { version: JIRA_SYSTEM_AGGREGATE_STANDARD_HISTORY[definition.key]!.length, status: 'current' });
+    }
     const settings = await prisma.jiraAnalyticsSettings.findUniqueOrThrow({ where: { projectId: project.id } });
     assert.ok((settings.dashboardConfig as unknown as Dashboard).widgets.length > 0);
   } finally {
@@ -81,6 +86,10 @@ test('an outdated system aggregate gains the fields of the code, keeps its own s
     assert.ok(codeIssues.outputFields.some((field) => field.key === 'reporter'));
     for (const field of codeIssues.outputFields) assert.ok(publishedKeys.has(field.key), `issues lacks ${field.key}`);
     assert.deepEqual(publishedIssues.basePopulation.filters, [customFilter], 'the project filter stays');
+    const standardOf = async (key: string) => (await listJiraSemanticAggregates(prisma, project.id)).find((item) => item.key === key)?.standard;
+    // Same standard number as any other project, while the local revision is 2.
+    assert.deepEqual(await standardOf('issues'), { version: JIRA_SYSTEM_AGGREGATE_STANDARD_HISTORY.issues!.length, status: 'customized' });
+    assert.deepEqual(await standardOf('goal-linked-issues'), { version: JIRA_SYSTEM_AGGREGATE_STANDARD_HISTORY['goal-linked-issues']!.length, status: 'current' });
 
     const upgradedTransitions = await prisma.jiraAggregateDefinition.findUniqueOrThrow({ where: { id: transitions.id } });
     assert.equal(upgradedTransitions.publishedVersion, 3);

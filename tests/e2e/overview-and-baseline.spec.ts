@@ -451,6 +451,10 @@ test("Jira v5 separates managed aggregate rows from widget presentation", async 
   for (const name of ["Тикеты", "Переходы статусов", "Активность разработки", "Интервалы статусов", "SLA Critical/Blocker"]) {
     await expect(page.getByRole("button", { name: new RegExp(`^${name}`) })).toBeVisible();
   }
+  const catalog = page.locator(".jira-aggregate-catalog-list");
+  await expect(catalog.getByRole("button", { name: /^Тикеты/ })).toContainText("Тикет · стандарт v2");
+  await expect(catalog.getByRole("button", { name: /^Тикеты/ })).not.toContainText("опубликована");
+  await expect(catalog.getByRole("button", { name: /^Переходы статусов/ })).toContainText("стандарт v1 · изменён в проекте");
 
   await page.getByRole("button", { name: /^Интервалы статусов/ }).click();
   await expect(page.getByRole("combobox", { name: "Правило формирования строк" })).toHaveValue("interval");

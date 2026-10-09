@@ -295,6 +295,34 @@ export const jiraMessages = {
     "en": " · draft",
     "ru": " · черновик"
   },
+  "ui.jira.standardVersion": {
+    "en": "standard v{version}",
+    "ru": "стандарт v{version}"
+  },
+  "ui.jira.standardCustomized": {
+    "en": "changed in this project",
+    "ru": "изменён в проекте"
+  },
+  "ui.jira.standardBehind": {
+    "en": "updating to the standard",
+    "ru": "обновляется до стандарта"
+  },
+  "ui.jira.standardUnpublished": {
+    "en": "not published",
+    "ru": "не опубликован"
+  },
+  "ui.jira.standardHasDraft": {
+    "en": "has a draft",
+    "ru": "есть черновик"
+  },
+  "ui.jira.localVersion": {
+    "en": "v{version} / published v{published}",
+    "ru": "v{version} / опубликована v{published}"
+  },
+  "ui.jira.projectRevisions": {
+    "en": "Revisions in this project",
+    "ru": "Ревизии в проекте"
+  },
   "ui.jira.systemAggregate": {
     "en": "System aggregate",
     "ru": "Системный агрегат"

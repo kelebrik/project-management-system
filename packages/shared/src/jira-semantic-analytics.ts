@@ -367,13 +367,22 @@ export type JiraSemanticDashboard = z.infer<typeof jiraSemanticDashboardSchema>;
 
 export type JiraSemanticAggregateRevisionStatus = (typeof jiraSemanticAggregateRevisionStatuses)[number];
 
+/** The version of a system aggregate's code standard, the same in every project, and how a project's copy relates to it. */
+export type JiraSystemAggregateStandard = {
+  version: number;
+  status: "current" | "customized" | "behind" | "unpublished";
+};
+
 export type JiraSemanticAggregatePublic = {
   id: string;
   projectId: string;
   key: string;
   system: boolean;
+  /** Local revision counter of this project; widget pins refer to it. */
   version: number;
   publishedVersion: number | null;
+  /** Set for system aggregates only. */
+  standard: JiraSystemAggregateStandard | null;
   archivedAt: string | null;
   draft: JiraSemanticAggregateDefinition;
   published: JiraSemanticAggregateDefinition | null;

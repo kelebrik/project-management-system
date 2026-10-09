@@ -24,6 +24,7 @@ import {
 import { Prisma, type JiraAggregateDefinition, type PrismaClient } from "@prisma/client";
 
 import { jiraDashboardConfigHash, lockJiraAggregateProject } from "./jira-aggregates.js";
+import { jiraSystemAggregateStandard } from "./jira-system-aggregate-standards.js";
 import {
   JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2,
@@ -758,6 +759,7 @@ export async function listJiraSemanticAggregates(client: PrismaClient, projectId
       system: row.system,
       version: row.version,
       publishedVersion: row.publishedVersion,
+      standard: row.system ? jiraSystemAggregateStandard(row.aggregateKey, published) : null,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       draft,
       published,
