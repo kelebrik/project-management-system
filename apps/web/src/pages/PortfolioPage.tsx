@@ -1,16 +1,12 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import {
-  useCallback,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { Options } from "highcharts";
 import { useAppChartColors } from "../app/charts/appChartTheme";
-import { PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText, type PortfolioProgressProject } from "../app/charts/portfolioOptions";
-import { compactPassportRows } from "../app/projectPassportRows";
-import { createProjectWorkProgress } from "../app/projectWorkProgress";
+import { usePortfolioChartText } from "../app/charts/usePortfolioChartText";
+import { useLatest } from "../app/useLatest";
+import { ProjectProgressBoard } from "../components/portfolio/ProjectProgressBoard";
+import { portfolioGoalsOption, portfolioRaidBubbleOption, type PortfolioGoalPick } from "../app/charts/portfolioOptions";
+import { appPathForView } from "../app/routes";
 import { HighchartsLabChart } from "../components/charts/HighchartsLabChart";
 import { useHighchartsExtras } from "../components/charts/useHighchartsExtras";
 import { AlertTriangle, ChevronDown } from "lucide-react";
@@ -29,14 +25,6 @@ import {
 import { usePageContext } from "./PageContext";
 import type { Translator } from "../i18n/types";
 
-/** A callback that always calls the latest one, though the charts using it are not drawn anew for it. */
-function useLatest<T extends (...args: never[]) => void>(callback: T) {
-  const current = useRef(callback);
-  useLayoutEffect(() => {
-    current.current = callback;
-  });
-  return useCallback((...args: Parameters<T>) => current.current(...args), []);
-}
 
 function PortfolioChart({ options, label }: { options: Options | null; label: string }) {
   return options ? <div className="portfolio-chart"><HighchartsLabChart label={label} options={options} /></div> : null;
@@ -60,7 +48,7 @@ function dueDateLabel(dueDate: string | null, uiText: Translator) {
 }
 
 export function PortfolioPage() {
-  const { t: uiText, locale, formatters, labels } = useInterfaceTranslation();
+  const { t: uiText, locale } = useInterfaceTranslation();
   const colors = useAppChartColors();
   const chartsReady = useHighchartsExtras(locale);
   const [excludedProjectIds, setExcludedProjectIds] = useState<Set<string>>(
@@ -98,48 +86,20 @@ export function PortfolioPage() {
     () => filterPortfolioRowsByProject<PortfolioRedRaidProject>(visiblePortfolioRiskProjects, selectedProjectIds),
     [selectedProjectIds, visiblePortfolioRiskProjects],
   );
-  // The projects of the filter from their start to their target, with the share of work done (none without work).
-  const progressProjects = useMemo<PortfolioProgressProject[]>(
-    () =>
-      (projects as ProjectListItem[])
-        .filter((project) => project.status !== "CLOSED" && selectedProjectIds.has(project.id))
-        .map((project) => {
-          const progress = createProjectWorkProgress(project.wbsItems ?? []);
-          return { id: project.id, code: project.code, name: project.name, rag: project.rag, startDate: project.startDate, targetDate: project.targetDate, completedPercent: progress.totalDays > 0 ? progress.completedPercent : null };
-        }),
+  // The projects of the filter from their start to their target, with the share of work done.
+  const progressListProjects = useMemo(
+    () => (projects as ProjectListItem[]).filter((project) => project.status !== "CLOSED" && selectedProjectIds.has(project.id)),
     [projects, selectedProjectIds],
   );
-  // Next to each bar of the progress chart, the project's passport fields, row for row.
-  const progressPassports = useMemo(() => {
-    const byId = new Map((projects as ProjectListItem[]).map((project) => [project.id, project]));
-    return drawableProgressProjects(progressProjects).map((entry) => ({ entry, fields: compactPassportRows(byId.get(entry.id)!, uiText, labels) }));
-  }, [labels, progressProjects, projects, uiText]);
-  const openProject = useLatest((projectId: string) => selectProject(projectId, firstEnabledProjectView));
+  // A goal opens its row in the project's structure, the way a work item opens from the workload page.
+  const openGoal = useLatest((goal: PortfolioGoalPick) => {
+    selectProject(goal.projectId, "project-structure");
+    const path = appPathForView("project-structure", goal.projectCode);
+    // Point at the goal only once the structure really opened: a guard may keep the user here.
+    if (window.location.pathname === path) window.history.replaceState(null, "", `${path}?focusWbs=${encodeURIComponent(goal.goalId)}`);
+  });
   const openRaid = useLatest((item: PortfolioRedRaidItem) => openRaidItemFromOverview(item.id, item.type, item.projectId));
-  const chartText = useMemo<PortfolioChartText>(
-    () => ({
-      today: uiText("ui.portfolio.chart.today"),
-      baseline: uiText("ui.portfolio.chart.baseline"),
-      forecast: uiText("ui.portfolio.chart.forecast"),
-      noBaseline: uiText("ui.portfolio.chart.noBaseline"),
-      daysLater: (count) => uiText("ui.portfolio.chart.daysLater", { count }),
-      daysEarlier: (count) => uiText("ui.portfolio.chart.daysEarlier", { count }),
-      onTime: uiText("ui.portfolio.chart.onTime"),
-      start: uiText("ui.portfolio.chart.start"),
-      target: uiText("ui.portfolio.chart.target"),
-      done: (percent) => uiText("ui.portfolio.chart.done", { percent }),
-      noWork: uiText("ui.portfolio.chart.noWork"),
-      overdue: uiText("ui.portfolio.chart.overdue"),
-      daysUntil: uiText("ui.portfolio.chart.daysUntil"),
-      score: uiText("ui.portfolio.chart.score"),
-      impact: (days) => uiText("ui.portfolio.chart.impact", { days }),
-      owner: uiText("ui.portfolio.chart.owner"),
-      dueDate: uiText("ui.portfolio.chart.dueDate"),
-      date: (day) => formatters.date(day),
-      titles: { goals: uiText("ui.portfolio.projectGoals"), progress: uiText("ui.portfolio.progressTitle"), problems: uiText("ui.portfolio.portfolioBlockingIssuesTitle"), risks: uiText("ui.portfolio.portfolioKeyRisksTitle") },
-    }),
-    [formatters, uiText],
-  );
+  const chartText = usePortfolioChartText();
   const today = new Date().toISOString().slice(0, 10);
   // A colour per project from the list of all projects, so filtering never recolours the others.
   const projectColor = useCallback(
@@ -152,12 +112,11 @@ export function PortfolioPage() {
   const charts = useMemo(() => {
     if (!chartsReady) return null;
     return {
-      goals: portfolioGoalsOption({ rows: timelineRows, from: portfolioGoalTimeline.startDate.toISOString(), to: portfolioGoalTimeline.endDate.toISOString(), today, colors, text: chartText, onPick: openProject }),
-      progress: portfolioProgressOption({ projects: progressProjects, today, colors, text: chartText, onPick: openProject }),
+      goals: portfolioGoalsOption({ rows: timelineRows, from: portfolioGoalTimeline.startDate.toISOString(), to: portfolioGoalTimeline.endDate.toISOString(), today, colors, text: chartText, onPick: openGoal }),
       problems: portfolioRaidBubbleOption({ projects: visibleProblemProjects, title: chartText.titles.problems, today, colors, text: chartText, projectColor, onPick: openRaid }),
       risks: portfolioRaidBubbleOption({ projects: visibleRiskProjects, title: chartText.titles.risks, today, colors, text: chartText, projectColor, onPick: openRaid }),
     };
-  }, [chartText, chartsReady, colors, openProject, openRaid, portfolioGoalTimeline, progressProjects, projectColor, timelineRows, today, visibleProblemProjects, visibleRiskProjects]);
+  }, [chartText, chartsReady, colors, openGoal, openRaid, portfolioGoalTimeline, projectColor, timelineRows, today, visibleProblemProjects, visibleRiskProjects]);
   const projectCount = projectFilterOptions.length;
   const selectedProjectCount = selectedProjectIds.size;
   const isProjectFilterActive = selectedProjectCount < projectCount;
@@ -350,37 +309,11 @@ export function PortfolioPage() {
           {noProjectsSelected ? (
             <div className="empty-state compact">{uiText("ui.portfolio.portfolioNoProjectsSelected")}</div>
           ) : (
-            <div className="portfolio-progress-layout">
-              <PortfolioChart label={uiText("ui.portfolio.progressTitle")} options={charts?.progress ?? null} />
-              {charts?.progress && (
-                <div className="portfolio-progress-passports" style={{ paddingTop: PROGRESS_TOP }}>
-                  {progressPassports.map(({ entry, fields }) => (
-                    <button
-                      aria-label={uiText("ui.portfolio.openPassport", { project: `${entry.code} · ${entry.name}` })}
-                      className="portfolio-progress-passport"
-                      key={entry.id}
-                      onClick={() => selectProject(entry.id, "project-passport")}
-                      style={{ height: PROGRESS_ROW }}
-                      type="button"
-                    >
-                      <b className="portfolio-progress-code">{entry.code}</b>
-                      {fields.map((field) => (
-                        <span key={field.id}>
-                          <em title={field.field}>{field.field}</em>
-                          <strong>{field.description}</strong>
-                        </span>
-                      ))}
-                      {fields.length === 0 && (
-                        <span>
-                          <em>{uiText("registry.charter")}</em>
-                          <strong>{uiText("registry.noCharter")}</strong>
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            <ProjectProgressBoard
+              projects={progressListProjects}
+              onOpenProject={(projectId) => selectProject(projectId, firstEnabledProjectView)}
+              onOpenPassport={(projectId) => selectProject(projectId, "project-passport")}
+            />
           )}
         </article>
       </section>

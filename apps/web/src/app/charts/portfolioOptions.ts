@@ -1,4 +1,4 @@
-import type { Options, PointOptionsObject, SeriesOptionsType, XAxisPlotBandsOptions, XrangePointOptionsObject } from "highcharts";
+import type { Chart, Options, PointOptionsObject, SeriesOptionsType, XAxisPlotBandsOptions, XrangePointOptionsObject } from "highcharts";
 import type { PortfolioGoalTimelineProjectRow, PortfolioRedRaidItem, PortfolioRedRaidProject } from "../portfolioModels";
 import type { AppChartColors } from "./appChartTheme";
 
@@ -43,6 +43,27 @@ export type PortfolioChartText = {
   titles: { goals: string; progress: string; problems: string; risks: string };
 };
 
+/** What a click on a goal of the goals chart opens: its row in the project's structure. */
+export type PortfolioGoalPick = { projectId: string; projectCode: string; goalId: string };
+
+/**
+ * Makes the category labels of an axis open what their row shows. Bound on
+ * every render, since Highcharts redraws labels; assigning replaces the last
+ * handler, so one click runs one callback.
+ */
+export function clickableCategoryLabels(axis: "xAxis" | "yAxis", onPick: (index: number) => void) {
+  return function (this: Chart) {
+    for (const [position, tick] of Object.entries(this[axis][0]?.ticks ?? {})) {
+      const label = tick.label;
+      if (!label) continue;
+      label.css({ cursor: "pointer" });
+      // The mouse shortcut to the row's point; from the keyboard, Highcharts' own
+      // navigation reaches the point, and Enter on it does the same.
+      label.element.onclick = () => onPick(Number(position));
+    }
+  };
+}
+
 function base(colors: AppChartColors, title: string, height: number): Options {
   return {
     chart: { backgroundColor: "transparent", height, style: { fontFamily: "inherit" }, zooming: { type: "x" }, animation: { duration: 500 } },
@@ -76,8 +97,8 @@ function slipText(text: PortfolioChartText, slip: number | null) {
   return slip > 0 ? text.daysLater(slip) : slip < 0 ? text.daysEarlier(-slip) : text.onTime;
 }
 
-/** All goals of the shown projects, one row each, grouped by project in bands; a click opens the project. */
-export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProjectRow[]; from: string; to: string; today: string; colors: AppChartColors; text: PortfolioChartText; onPick: (projectId: string) => void }): Options | null {
+/** All goals of the shown projects, one row each, grouped by project in bands; a click on a goal or its name opens its row in the structure. */
+export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProjectRow[]; from: string; to: string; today: string; colors: AppChartColors; text: PortfolioChartText; onPick: (goal: PortfolioGoalPick) => void }): Options | null {
   const { colors, text } = input;
   const goals = input.rows.flatMap((row, band) => row.items.map((item) => ({ item, band, row })));
   if (goals.length === 0) return null;
@@ -94,9 +115,13 @@ export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProject
     else bands.push({ from: index - 0.5, to: index + 0.5, color: row.band % 2 ? "rgba(100, 116, 139, 0.07)" : "transparent", band: row.band } as XAxisPlotBandsOptions);
   });
   const options = base(colors, text.titles.goals, Math.max(240, 80 + rows.length * 34));
+  const pickGoal = (index: number) => {
+    const row = rows[index];
+    if (row) input.onPick({ projectId: row.item.projectId, projectCode: row.item.projectCode, goalId: row.item.id });
+  };
   return {
     ...options,
-    chart: { ...options.chart, inverted: true, zooming: { type: "y" }, spacingTop: 24 },
+    chart: { ...options.chart, inverted: true, zooming: { type: "y" }, spacingTop: 24, events: { render: clickableCategoryLabels("xAxis", (index) => pickGoal(index)) } },
     xAxis: {
       categories: rows.map((row) => `<b>${row.row.projectCode}</b> · ${row.item.goalTitle}`),
       labels: { useHTML: false, style: { color: colors.text, fontSize: "12px", textOverflow: "ellipsis", width: 300 } },
@@ -123,7 +148,7 @@ export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProject
         return `<b>${row.row.projectName}</b><br/>${row.item.goalTitle}<br/>${text.baseline}: ${row.baseline ? text.date(row.baseline) : "—"}<br/>${text.forecast}: <b>${text.date(row.forecast)}</b><br/>${slipText(text, row.slip)}`;
       },
     },
-    plotOptions: { series: { cursor: "pointer", point: { events: { click: function () { const row = rows[this.index]; if (row) input.onPick(row.item.projectId); } } } } },
+    plotOptions: { series: { cursor: "pointer", point: { events: { click: function () { pickGoal(this.index); } } } } },
     series: [
       {
         type: "dumbbell",
@@ -188,7 +213,10 @@ export function portfolioProgressOption(input: { projects: PortfolioProgressProj
   const options = base(colors, text.titles.progress, PROGRESS_TOP + projects.length * PROGRESS_ROW + PROGRESS_BOTTOM);
   return {
     ...options,
-    chart: { ...options.chart, marginTop: PROGRESS_TOP, marginBottom: PROGRESS_BOTTOM, spacingTop: 0, spacingBottom: 0 },
+    chart: {
+      ...options.chart, marginTop: PROGRESS_TOP, marginBottom: PROGRESS_BOTTOM, spacingTop: 0, spacingBottom: 0,
+      events: { render: clickableCategoryLabels("yAxis", (index) => { const project = projects[index]; if (project) input.onPick(project.id); }) },
+    },
     xAxis: { type: "datetime", gridLineWidth: 1, gridLineColor: colors.grid, lineColor: colors.grid, labels: { style: { color: colors.muted } }, plotLines: [{ ...todayLine(input.today, text), label: { ...todayLine(input.today, text).label, y: 12 } }] },
     yAxis: { categories: projects.map((project) => `${project.code} · ${project.name}`), reversed: true, title: { text: undefined }, gridLineColor: colors.grid, labels: { style: { color: colors.text, fontSize: "12px", textOverflow: "ellipsis", width: 260 } } },
     legend: { ...options.legend, enabled: false },

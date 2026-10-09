@@ -16,7 +16,7 @@ const series = (options: ReturnType<typeof portfolioGoalsOption>, index = 0) => 
 const goal = (patch: Partial<PortfolioGoalTimelineProjectRow["items"][number]>) => ({ id: "g", projectId: "p1", projectCode: "TV", projectName: "TV", goalTitle: "Beta", status: "NOT_STARTED" as const, dueDate: "2026-11-11", baselineDueDate: "2026-11-01", delayDays: 10, offset: 0, ...patch });
 
 test("portfolio goals: one row per goal named with its project, bands per project, slip known only with a baseline", () => {
-  const picked: string[] = [];
+  const picked: unknown[] = [];
   const rows: PortfolioGoalTimelineProjectRow[] = [
     { projectId: "p1", projectCode: "TV", projectName: "TV", portfolio: "", items: [goal({}), goal({ id: "g2", goalTitle: "Gamma", baselineDueDate: null, delayDays: null })] },
     { projectId: "p2", projectCode: "AU", projectName: "Audio", portfolio: "", items: [goal({ id: "g3", projectId: "p2", projectCode: "AU", goalTitle: "Alpha", delayDays: -3 })] },
@@ -32,7 +32,15 @@ test("portfolio goals: one row per goal named with its project, bands per projec
   assert.match((gamma!.accessibility as { description: string }).description, /no baseline/);
   const click = options.plotOptions!.series!.point!.events!.click as unknown as (this: { index: number }) => void;
   click.call({ index: 2 });
-  assert.deepEqual(picked, ["p2"]);
+  // A goal opens its own row in its project's structure.
+  assert.deepEqual(picked, [{ projectId: "p2", projectCode: "AU", goalId: "g3" }]);
+  // So does the goal's name on the axis.
+  const labelClicks: Array<() => void> = [];
+  const label = (position: number) => ({ css: () => undefined, element: { set onclick(handler: () => void) { labelClicks[position] = handler; } } });
+  const render = (options.chart!.events!.render as unknown as (this: unknown) => void);
+  render.call({ xAxis: [{ ticks: { 0: { label: label(0) }, 1: { label: label(1) }, 2: { label: label(2) } } }] });
+  labelClicks[0]!();
+  assert.deepEqual(picked.at(-1), { projectId: "p1", projectCode: "TV", goalId: "g" });
   assert.equal(options.exporting?.fallbackToExportServer, false);
   assert.equal(portfolioGoalsOption({ rows: [], from: "2026-06-08", to: "2027-06-08", today, colors, text, onPick: () => undefined }), null);
 });

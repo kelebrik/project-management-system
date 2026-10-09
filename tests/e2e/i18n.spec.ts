@@ -9,7 +9,7 @@ test("English default, language switch and persistence preserve unsaved input an
   await page.goto("/projects");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("heading", { name: "Projects", exact: true })).toBeVisible();
-  await expect(page.locator(".projects-overview-card").first()).toContainText(project.name);
+  await expect(page.getByRole("button", { name: new RegExp(`Open the passport of ${project.code}`) })).toBeVisible();
   await page.getByTestId("language-toggle").click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ru");
   await expect(page.getByRole("heading", { name: "Проекты", exact: true })).toBeVisible();

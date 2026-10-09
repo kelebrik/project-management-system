@@ -197,11 +197,9 @@ test("portfolio and projects show work-day weighted progress", async ({ page }) 
     ];
   });
 
-  const label =
-    "Прогресс: завершено 40%, в работе 30%, не начато 30%";
-
+  // The registry draws the same progress chart as the portfolio: the share done fills the bar.
   await page.goto("/projects");
-  await expect(page.getByLabel(label)).toBeVisible();
+  await expect(page.locator(".projects-overview-panel .highcharts-data-labels")).toContainText("40%");
   if (process.env.CAPTURE_PROGRESS === "1") {
     await page.screenshot({
       path: "/private/tmp/pms-progress-projects.png",
@@ -306,8 +304,113 @@ test("portfolio project filter scopes goals problems and risks only", async ({ p
   await expect(goals.locator(".highcharts-xaxis-labels text")).toHaveCount(2);
 
   await page.goto("/projects");
-  await expect(page.locator(".projects-overview-card")).toHaveCount(2);
+  // The registry draws the projects as the portfolio progress does.
+  await expect(page.locator(".portfolio-progress-passport")).toHaveCount(2);
   await expect(page.getByText("Основной", { exact: true })).toHaveCount(0);
+});
+
+// Goal rows whose codes match their place, so nothing looks like an unsaved structure edit that holds the page.
+function navigableProjects() {
+  return [
+    portfolioProjectFixture("project-1", "TV-FIRST", "Первый проект", "Первая цель", "Первая проблема", "Первый риск"),
+    portfolioProjectFixture("project-2", "TV-SECOND", "Второй проект", "Вторая цель", "Вторая проблема", "Второй риск"),
+  ].map((project) => ({ ...project, wbsItems: project.wbsItems.map((item) => ({ ...item, code: "1", parentId: null, wbsLevel: 1, sortOrder: 10 })) }));
+}
+
+test("registry projects open their passport from the bar, the name or the passport fields", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const [first, second] = navigableProjects();
+  await mockAdminPortfolio(page, [first, second]);
+  await page.route(/\/api\/projects\/(project-1|project-2)(\?.*)?$/, (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").at(-1);
+    return route.fulfill({ json: [first, second].find((project) => project.id === id) });
+  });
+
+  await page.goto("/projects");
+  const board = page.locator(".projects-overview-panel");
+  await expect(board.locator(".highcharts-yaxis-labels text")).toHaveCount(2);
+  // After a re-sort the names still open their own project.
+  await page.getByRole("button", { name: /^Название/ }).click();
+  await page.getByRole("button", { name: /^Название/ }).click();
+  await expect(board.locator(".highcharts-yaxis-labels text").first()).toContainText("TV-FIRST");
+  await board.locator(".highcharts-yaxis-labels text").filter({ hasText: "TV-SECOND" }).click();
+  await expect(page).toHaveURL(/\/TV-SECOND\/passport/);
+
+  await page.goto("/projects");
+  // Off the data label in the middle of the bar.
+  await board.locator(".highcharts-point").first().click({ position: { x: 12, y: 8 }, force: true });
+  await expect(page).toHaveURL(/\/TV-(FIRST|SECOND)\/passport/);
+
+  // From the keyboard: Tab into the chart reaches a bar, and Enter opens its project.
+  await page.goto("/projects");
+  await expect(board.locator(".highcharts-point").first()).toBeVisible();
+  await page.getByRole("button", { name: /^Цель/ }).focus();
+  let onBar = false;
+  for (let step = 0; step < 15 && !onBar; step += 1) {
+    await page.keyboard.press("Tab");
+    onBar = await page.evaluate(() => Boolean(document.activeElement?.closest(".projects-overview-panel .highcharts-point")));
+  }
+  expect(onBar).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/TV-(FIRST|SECOND)\/passport/);
+
+  await page.goto("/projects");
+  await page.getByRole("button", { name: /Открыть паспорт: TV-FIRST/ }).click();
+  await expect(page).toHaveURL(/\/TV-FIRST\/passport/);
+});
+
+test("a registry project whose dates cannot be drawn stays listed and opens its passport", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const [first, second] = navigableProjects();
+  const undated = { ...second, targetDate: "2026-01-01T00:00:00.000Z", startDate: "2026-06-01T00:00:00.000Z" };
+  await mockAdminPortfolio(page, [first, undated]);
+  await page.route(/\/api\/projects\/(project-1|project-2)(\?.*)?$/, (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").at(-1);
+    return route.fulfill({ json: [first, undated].find((project) => project.id === id) });
+  });
+
+  await page.goto("/projects");
+  await expect(page.locator(".portfolio-progress-passport")).toHaveCount(1);
+  const listed = page.locator(".portfolio-progress-undated").getByRole("button", { name: /TV-SECOND/ });
+  await expect(listed).toBeVisible();
+  await listed.click();
+  await expect(page).toHaveURL(/\/TV-SECOND\/passport/);
+});
+
+test("a goal name on the portfolio opens the goal's row in the structure", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const [first, second] = navigableProjects();
+  await mockAdminPortfolio(page, [first, second]);
+  await page.route(/\/api\/projects\/(project-1|project-2)(\?.*)?$/, (route) => {
+    const id = new URL(route.request().url()).pathname.split("/").at(-1);
+    return route.fulfill({ json: [first, second].find((project) => project.id === id) });
+  });
+
+  // From the keyboard: Tab into the goals chart reaches a goal, and Enter opens its row.
+  await page.goto("/portfolio");
+  const goals = page.locator(".portfolio-goal-timeline-panel");
+  await expect(goals.locator(".highcharts-point").first()).toBeVisible();
+  await goals.locator("summary").focus();
+  let onGoal = false;
+  for (let step = 0; step < 15 && !onGoal; step += 1) {
+    await page.keyboard.press("Tab");
+    onGoal = await page.evaluate(() => Boolean(document.activeElement?.closest(".portfolio-goal-timeline-panel .highcharts-point")));
+  }
+  expect(onGoal).toBe(true);
+  const focusedGoal = await page.evaluate(() => document.activeElement?.getAttribute("aria-label") ?? "");
+  const [code, projectId] = focusedGoal.includes("TV-SECOND") ? ["TV-SECOND", "project-2"] : ["TV-FIRST", "project-1"];
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(new RegExp(`/${code}/wbs`));
+  await expect(page.locator(`#wbs-item-${projectId}-goal .wbs-table-row.active`)).toHaveCount(1);
+
+  // And by its name with the mouse.
+  await page.goto("/portfolio");
+  await goals.locator(".highcharts-xaxis-labels text").filter({ hasText: "TV-SECOND" }).click();
+  await expect(page).toHaveURL(/\/TV-SECOND\/wbs/);
+  await expect(page.locator("#wbs-item-project-2-goal")).toBeVisible();
+  // The goal's row is the selected one.
+  await expect(page.locator("#wbs-item-project-2-goal .wbs-table-row.active")).toHaveCount(1);
+  await expect(page.locator("#wbs-item-project-2-goal input[value='Вторая цель']").first()).toBeVisible();
 });
 
 test("risk page keeps the color matrix visible", async ({ page }) => {

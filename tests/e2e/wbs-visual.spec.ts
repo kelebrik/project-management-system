@@ -248,7 +248,7 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
       fullPage: true,
     });
     await page.goto("/projects");
-    await expect(page.locator(".projects-overview-card").first()).toBeVisible();
+    await expect(page.locator(".portfolio-progress-passport").first()).toBeVisible();
     await page.screenshot({
       path: "/private/tmp/pms-design-projects-desktop.png",
       fullPage: true,

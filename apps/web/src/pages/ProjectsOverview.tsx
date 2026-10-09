@@ -3,12 +3,11 @@ import type { Translator } from "../i18n/types";
 import { useMemo } from "react";
 import type { ProjectListItem } from "../app/domainTypes";
 
-import { createProjectWorkProgress } from "../app/projectWorkProgress";
 import { getActiveProjects } from "../app/portfolioModels";
 import type { ProjectSectionView } from "../app/routes";
 import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
-import { compactPassportRows } from "../app/projectPassportRows";
+import { ProjectProgressBoard } from "../components/portfolio/ProjectProgressBoard";
 
 type SortKey = "code" | "name" | "status" | "target";
 
@@ -21,18 +20,15 @@ function sortOptions(t: Translator): { key: SortKey; label: string }[] { return 
 
 
 type ProjectsOverviewProps = {
-  date: (value: string | Date | null) => string;
   projects: ProjectListItem[];
   selectProject: (projectId: string, nextView?: ProjectSectionView) => void;
 };
 
 export function ProjectsOverview({
-  date,
   projects,
   selectProject,
 }: ProjectsOverviewProps) {
-  const { t, labels } = useI18n();
-  const { projectStatusLabel } = labels;
+  const { t } = useI18n();
   const [sortKey, setSortKey] = usePersistedViewState<SortKey>("pms:projects-overview:sort-key", "code");
   const [sortDir, setSortDir] = usePersistedViewState<"asc" | "desc">("pms:projects-overview:sort-dir", "asc");
   const [query, setQuery] = usePersistedViewState("pms:projects-overview:query", "");
@@ -81,81 +77,12 @@ export function ProjectsOverview({
           {sortOptions(t).map((option) => <button type="button" key={option.key} className={sortKey === option.key ? "active" : ""} aria-pressed={sortKey === option.key} onClick={() => onSort(option.key)}>{option.label}{sortKey === option.key ? (sortDir === "asc" ? " ↑" : " ↓") : ""}</button>)}
         </div>
       </ListToolbar>
-      <div className="projects-overview-grid">
-        {sortedItems.map((project) => {
-        const passportRows = compactPassportRows(project, t, labels);
-        const workProgress = createProjectWorkProgress(project.wbsItems ?? []);
-        const progressLabel = workProgress.totalDays > 0
-          ? t("registry.progress", { completed: workProgress.completedPercent, inProgress: workProgress.inProgressPercent, notStarted: workProgress.notStartedPercent })
-          : t("registry.noProgress");
-        return (
-          <button
-            type="button"
-            className="projects-overview-card"
-            key={project.id}
-            onClick={() => selectProject(project.id, "project-passport")}
-          >
-            <span className={`projects-overview-rag ${project.rag.toLowerCase()}`} />
-            <span className="projects-overview-main">
-              <span className="projects-overview-code">{project.code}</span>
-              <b>{project.name}</b>
-            </span>
-            <span className="projects-overview-meta">
-              <span>{projectStatusLabel(project.status)}</span>
-              <span>{project.projectManager}</span>
-              <span>{t("registry.target")} {date(project.targetDate)}</span>
-            </span>
-            <span className="projects-overview-work-progress">
-              <em>{t("fields.progress")}</em>
-              {workProgress.totalDays > 0 ? (
-                <>
-                  <span
-                    className="project-work-progress-bar"
-                    role="img"
-                    aria-label={progressLabel}
-                    title={progressLabel}
-                  >
-                    <i
-                      className="completed"
-                      style={{ width: `${workProgress.completedPercent}%` }}
-                    />
-                    <i
-                      className="in-progress"
-                      style={{ width: `${workProgress.inProgressPercent}%` }}
-                    />
-                    <i
-                      className="not-started"
-                      style={{ width: `${workProgress.notStartedPercent}%` }}
-                    />
-                  </span>
-                  <small className="project-work-progress-legend">
-                    <span className="completed">{workProgress.completedPercent}%</span>
-                    <span className="in-progress">{workProgress.inProgressPercent}%</span>
-                    <span className="not-started">{workProgress.notStartedPercent}%</span>
-                  </small>
-                </>
-              ) : (
-                <small className="project-work-progress-empty">{t("registry.noData")}</small>
-              )}
-            </span>
-            <span className="projects-overview-passport">
-              {passportRows.map((row) => (
-                <span key={row.id}>
-                  <em>{row.field}</em>
-                  <strong>{row.description}</strong>
-                </span>
-              ))}
-              {passportRows.length === 0 && (
-                <span>
-                  <em>{t("registry.charter")}</em>
-                  <strong>{t("registry.noCharter")}</strong>
-                </span>
-              )}
-            </span>
-          </button>
-        );
-        })}
-      </div>
+      {/* The same picture as the portfolio's progress; every project opens its passport, as the cards did. */}
+      <ProjectProgressBoard
+        projects={sortedItems}
+        onOpenProject={(projectId) => selectProject(projectId, "project-passport")}
+        onOpenPassport={(projectId) => selectProject(projectId, "project-passport")}
+      />
     </>
   );
 }
