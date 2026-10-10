@@ -337,9 +337,21 @@ test("registry projects open their passport from the bar, the name or the passpo
   await expect(page).toHaveURL(/\/TV-SECOND\/passport/);
 
   await page.goto("/projects");
-  // Off the data label in the middle of the bar.
-  await board.locator(".highcharts-point").first().click({ position: { x: 12, y: 8 }, force: true });
-  await expect(page).toHaveURL(/\/TV-(FIRST|SECOND)\/passport/);
+  // Once the bar has finished growing, a click on it, away from its label in the middle.
+  const bar = board.locator(".highcharts-point").first();
+  let width = -1;
+  await expect.poll(async () => {
+    const box = await bar.boundingBox();
+    const stable = box !== null && Math.abs(box.width - width) < 0.5;
+    width = box?.width ?? -1;
+    return stable;
+  }).toBe(true);
+  // The project modules of the mocked API may still be loading: the click is repeated until it lands.
+  await expect(async () => {
+    const box = (await bar.boundingBox())!;
+    await page.mouse.click(box.x + box.width * 0.2, box.y + box.height / 2);
+    await expect(page).toHaveURL(/\/TV-(FIRST|SECOND)\/passport/, { timeout: 1500 });
+  }).toPass({ timeout: 10_000 });
 
   // From the keyboard: Tab into the chart reaches a bar, and Enter opens its project.
   await page.goto("/projects");

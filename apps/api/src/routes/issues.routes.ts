@@ -4,6 +4,7 @@ import { registerIssueJiraRoutes } from './issues-jira.routes.js';
 import { registerJiraFieldRoutes } from './issues-jira-fields.routes.js';
 import { registerJiraAnalyticsFacetRoutes } from './jira-analytics-facets.routes.js';
 import { registerJiraFlowSeriesRoutes } from './jira-flow-series.routes.js';
+import { registerJiraProcessRoutes } from './jira-process.routes.js';
 import { registerOpenIssueLinkRoutes } from './issues-open-links.routes.js';
 import { registerOpenIssueRoutes } from './issues-open.routes.js';
 
@@ -32,5 +33,6 @@ export function createIssuesRouter() {
   registerJiraFieldRoutes(router);
   registerJiraAnalyticsFacetRoutes(router);
   registerJiraFlowSeriesRoutes(router);
+  registerJiraProcessRoutes(router);
   return router;
 }

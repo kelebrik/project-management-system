@@ -272,6 +272,37 @@ export const openApiCorePaths = {
         "Project target date updated",
       ),
     },
+    "/api/projects/{projectId}/history": {
+      get: {
+        tags: ["Projects"],
+        summary: "How the project stood at the end of a Moscow day and what changed since: structure, RAID, open issues and project fields, each with its provenance (daily capture, partial, reconstructed from the journals, unknown, unavailable)",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam, { name: "date", in: "query", required: true, description: "YYYY-MM-DD, not in the future", schema: { type: "string", format: "date" } }],
+        responses: { "200": { description: "State at the date and the comparison with now" }, "400": { description: "Invalid or future date" }, "401": { description: "Authentication required" }, "404": { description: "Project not found" } },
+      },
+    },
+    "/api/projects/{projectId}/history/days": {
+      get: {
+        tags: ["Projects"],
+        summary: "Days of the last year with a captured state or journal activity",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: { "200": { description: "Days" }, "401": { description: "Authentication required" }, "404": { description: "Project not found" } },
+      },
+    },
+    "/api/projects/{projectId}/events": {
+      get: {
+        tags: ["Projects"],
+        summary: "Server-sent events: changes others make to the project (who, which section, the writing tab's X-PMS-Client id), a heartbeat comment every 25 s; one API process holds the connections",
+        security: [{ sessionCookie: [] }],
+        parameters: [projectIdParam],
+        responses: {
+          "200": { description: "text/event-stream of `change` events" },
+          "401": { description: "Authentication required" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
     "/api/projects/{projectId}/overview": {
       get: {
         tags: ["Projects", "ExecutiveOverview"],

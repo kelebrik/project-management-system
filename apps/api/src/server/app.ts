@@ -5,6 +5,8 @@ import type { NextFunction, Request, Response } from 'express';
 import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import { openApiDocument } from '../openapi.js';
+import { createProjectEventsRouter, projectLiveEventsMiddleware } from '../routes/project-events.routes.js';
+import { createProjectHistoryRouter } from '../routes/project-history.routes.js';
 import { createAdminRouter } from '../routes/admin.routes.js';
 import { createBusinessUnitsRouter } from '../routes/business-units.routes.js';
 import { createIssuesRouter } from '../routes/issues.routes.js';
@@ -177,7 +179,10 @@ export function createApp() {
   app.use('/api', cloudRouter);
   app.locals.cloudRoutesReady = isCloudProfile() ? loadCloudRoutes(cloudRouter) : Promise.resolve(false);
 
+  app.use('/api', createProjectEventsRouter());
+  app.use('/api', createProjectHistoryRouter());
   app.use('/api', writePermissionMiddleware);
+  app.use('/api', projectLiveEventsMiddleware);
 
   app.use(
     '/api',

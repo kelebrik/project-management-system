@@ -38,6 +38,11 @@ const LeaveSchedulePage = lazy(() =>
     default: module.LeaveSchedulePage,
   })),
 );
+const ProjectHistoryPage = lazy(() =>
+  import("./ProjectHistoryPage").then((module) => ({
+    default: module.ProjectHistoryPage,
+  })),
+);
 const WorkloadPage = lazy(() =>
   import("./WorkloadPage").then((module) => ({
     default: module.WorkloadPage,
@@ -184,6 +189,7 @@ export function AppPages() {
         {project && activeView === "project-changes" && <ProjectChangesPage />}
         {project && (activeView === "project-structure" || activeView === "project-gantt") && <ProjectWorkspacePage />}
         {project && activeView === "project-calendars" && <ProjectCalendarsPage />}
+        {project && activeView === "project-history" && <ProjectHistoryPage />}
         {project && activeView === "project-jira-work" && <ProjectJiraWorkPage key={project.id} />}
         {project && activeView === "project-issues" && <DevelopmentOpenIssuesPage />}
         {project && activeView === "project-decisions" && <ProjectDecisionsPage />}

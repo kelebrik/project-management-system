@@ -537,6 +537,17 @@ export const openApiJiraPaths = {
         },
       },
     },
+    "/api/projects/{projectId}/jira/process": {
+      get: {
+        ...securedOperation(["Jira"], "Process mining of the project's Jira work from its snapshots and status transitions (Jira is not asked): time in each status (median and p85 of stays finished in the period, hours inside the period incl. open stays, share), moves between statuses, returns to a status left before, the usual paths of issues resolved in the period, and open issues waiting longer than the p85 of their status (needs 5 finished stays). Cancelled issues are left out; at most 5000 issues and 100000 events, otherwise 409", [projectIdParam], "Process metrics and data quality"),
+        parameters: [
+          projectIdParam,
+          { name: "periodDays", in: "query", required: false, schema: { type: "integer", enum: [30, 90, 180, 365], default: 90 } },
+          { name: "slice", in: "query", required: false, description: "A slice as base64url of its JSON (see JiraAnalyticsSlice)", schema: { type: "string", maxLength: 20000 } },
+        ],
+        responses: { "200": { description: "Process metrics" }, "400": { description: "Invalid period or slice" }, "404": { description: "Project not found" }, "409": { description: "More issues or events than the analytics limits" } },
+      },
+    },
     "/api/projects/{projectId}/jira/flow-series": {
       get: {
         ...securedOperation(["Jira"], "Flow of the project's Jira work from its snapshots and status transitions (Jira is not asked): per step created, resolved, open at the end, open work by status category (cumulative flow; the category of a past status is the one it has now) and running scope and done for a burnup. Cancelled issues are left out; at most 5000 issues; as-of is not supported", [projectIdParam], "Steps and data quality"),

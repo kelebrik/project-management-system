@@ -1,4 +1,5 @@
 import { upgradeJiraAggregateTicketFields } from './jira-semantic-aggregates.js';
+import { publishProjectLiveEvent } from './project-live-events.js';
 import { randomUUID } from 'node:crypto';
 
 import { JiraSyncRunKind, JiraSyncRunStatus, type PrismaClient } from '@prisma/client';
@@ -136,6 +137,8 @@ export function createJiraSyncRunner(prisma: PrismaClient) {
       // Aggregates made before new ticket fields existed get them now; a failure here does not undo the sync.
       await upgradeJiraAggregateTicketFields(prisma, run.projectId).catch((error) =>
         logEvent('warn', 'jira.aggregates.ticket_fields_upgrade_failed', { projectId: run.projectId, error: error instanceof Error ? error.message : String(error) }));
+      // Open pages of the project learn that fresh Jira data is in.
+      publishProjectLiveEvent({ projectId: run.projectId, section: 'jira', actorId: null, actorName: null, clientId: null });
     } catch (error) {
       const requestSummary = jiraReadOnlyRequestSummaryForError(error) ?? EMPTY_REQUEST_SUMMARY;
       const action = jiraSyncRunnerFailureAction(error, stopping, controller.signal.aborted);

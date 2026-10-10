@@ -289,6 +289,7 @@ model Project {
   scheduleShifts           ScheduleShift[]
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
+  historySnapshots         ProjectHistorySnapshot[]
   lessons                  Lesson[]
   userViewStates           UserProjectViewState[]
   allocations              ProjectAllocation[]
@@ -1622,6 +1623,27 @@ model PlanSnapshot {
   rows          Json
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([projectId, takenAt])
+}
+
+/// How a project stood at the end of a day (Moscow) on which it changed:
+/// structure, RAID, open issues and project fields, captured after writes.
+/// A later capture of the same day replaces the row; `partial` marks a day
+/// whose last changes were captured only with the next day.
+model ProjectHistorySnapshot {
+  id          String   @id @default(cuid())
+  projectId   String
+  day         DateTime @db.Date
+  takenAt     DateTime @default(now())
+  lastWriteAt DateTime
+  contentHash String   @db.Char(64)
+  payload     Json?
+  sizeBytes   Int
+  oversized   Boolean  @default(false)
+  partial     Boolean  @default(false)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, day])
   @@index([projectId, takenAt])
 }
 

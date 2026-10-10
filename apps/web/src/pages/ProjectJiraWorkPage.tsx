@@ -1,6 +1,6 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import { BarChart3, Database, History, Sigma, TrendingUp } from "lucide-react";
-import { useState } from "react";
+import { BarChart3, Database, History, Sigma, TrendingUp, Workflow } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { apiClient } from "../api/client";
 import { useConfirm } from "../hooks/useConfirm";
@@ -9,11 +9,12 @@ import { JiraAnalyticsDashboard } from "./JiraAnalyticsDashboard";
 import { JiraWorkDataSections } from "./JiraWorkDataSections";
 import { JiraExtraFieldsPanel } from "../components/jira/JiraExtraFieldsPanel";
 import { JiraFlowPanel } from "../components/jira/JiraFlowPanel";
+import { JiraProcessPanel } from "../components/jira/JiraProcessPanel";
 import { usePageContext } from "./PageContext";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
-type JiraWorkView = "active" | "retro" | "flow" | "data" | "aggregates";
+type JiraWorkView = "active" | "retro" | "flow" | "process" | "data" | "aggregates";
 
 export function ProjectJiraWorkPage() {
   const { t: uiText } = useInterfaceTranslation();
@@ -30,6 +31,12 @@ export function ProjectJiraWorkPage() {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [clearingProjectId, setClearingProjectId] = useState<string | null>(null);
   const [jiraDataRevision, setJiraDataRevision] = useState(0);
+  // «Обновить» on the live banner reloads the Jira charts too.
+  useEffect(() => {
+    const reload = () => setJiraDataRevision((revision) => revision + 1);
+    window.addEventListener("pms-live-refresh", reload);
+    return () => window.removeEventListener("pms-live-refresh", reload);
+  }, []);
   const dashboardEditing = editingProjectId === project.id;
   const clearing = clearingProjectId === project.id;
   const canEditWidgets = currentUser?.role === "ADMIN" && !isClosedProject;
@@ -99,6 +106,13 @@ export function ProjectJiraWorkPage() {
             </button>
             <button
               type="button"
+              className={view === "process" ? "active" : ""}
+              onClick={() => setView("process")}
+            >
+              <Workflow size={16} /> {uiText("ui.jiraProcess.tab")}
+            </button>
+            <button
+              type="button"
               className={view === "data" ? "active" : ""}
               onClick={() => setView("data")}
             >
@@ -127,6 +141,7 @@ export function ProjectJiraWorkPage() {
         </>
       ) : null}
       {view === "aggregates" ? <JiraAggregatesPage /> : null}
+      {view === "process" ? <JiraProcessPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision} userId={currentUser?.id ?? null} /> : null}
       {view === "flow" ? <JiraFlowPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision} userId={currentUser?.id ?? null} /> : null}
       {view === "active" || view === "retro"
         ? (

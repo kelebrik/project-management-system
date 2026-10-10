@@ -119,6 +119,8 @@ export const projectModuleKeyByView: Record<
   "project-raid": "raid",
   "project-changes": "changes",
   "project-calendars": "calendars",
+  // The history of any project is always there, as its overview is.
+  "project-history": "overview",
   "project-artifacts": "artifacts",
 };
 

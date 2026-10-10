@@ -1,3 +1,4 @@
+import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
@@ -62,6 +63,7 @@ async function request<T>(
       ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
       ...viewSectionHeaders(),
+      ...liveClientHeaders(),
       ...options.headers,
     },
   });
@@ -103,6 +105,7 @@ async function downloadRequest(path: string, options: RequestInit, fallback: str
       ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
       ...viewSectionHeaders(),
+      ...liveClientHeaders(),
       ...options.headers,
     },
   });

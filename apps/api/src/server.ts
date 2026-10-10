@@ -12,6 +12,7 @@ import { trackScheduleShifts } from './services/schedule-shifts.js';
 import { runWithWbsWriteQueue } from './routes/wbs/write-queue.js';
 import { createJiraSyncRunner } from './services/jira-sync-runner.js';
 import { reconcileJiraSystemSetupOnStartup } from './services/jira-system-setup.js';
+import { startProjectHistorySweep } from './services/project-history.js';
 import {
   assertDeploymentProfileConfigured,
   isDeploymentProfileConfigured,
@@ -108,6 +109,7 @@ const jiraBackgroundSync = createJiraBackgroundSync(prisma);
 const server = app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
   void recalculateActiveProjectSchedulesOnStartup();
+  startProjectHistorySweep(prisma);
   void reconcileJiraSystemSetupOnStartup(prisma).catch((error) =>
     logEvent('error', 'jira.system_setup.startup_failed', { message: error instanceof Error ? error.message : String(error) }));
   jiraSyncRunner.start();

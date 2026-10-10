@@ -17,7 +17,7 @@ async function mockWorkload(page: import("@playwright/test").Page, people = 3) {
   );
 }
 
-test("the header search folds to its magnifier and opens on hover or Ctrl K", async ({ page }) => {
+test("the header search folds to its magnifier and opens on hover or click; Ctrl K is the palette", async ({ page }) => {
   await page.clock.install({ time: new Date("2026-10-07T12:00:00") });
   await mockWorkload(page);
   await page.goto("/operations/workload");
@@ -35,10 +35,18 @@ test("the header search folds to its magnifier and opens on hover or Ctrl K", as
   await page.clock.runFor(1_500);
   await expect(search).toHaveClass(/collapsed/);
 
-  // Ctrl K opens it with the cursor in the field; typing keeps it open.
+  // Ctrl K opens the command palette, not the header field.
   await page.keyboard.press("Control+k");
-  await expect(search).toHaveClass(/expanded/);
+  await expect(page.getByRole("dialog", { name: "Палитра команд" })).toBeVisible();
+  await expect(search).toHaveClass(/collapsed/);
+  await page.keyboard.press("Escape");
+
+  // A click opens it with the cursor in the field; typing keeps it open.
   const field = page.getByRole("textbox", { name: /Поиск/ }).first();
+  await search.click();
+  await expect(search).toHaveClass(/expanded/);
+  await field.focus();
+  await page.mouse.move(5, 400);
   await expect(field).toBeFocused();
   await page.clock.runFor(8_000);
   await page.keyboard.type("ab");

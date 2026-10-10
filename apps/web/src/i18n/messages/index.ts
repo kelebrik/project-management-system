@@ -17,6 +17,10 @@ import { wbsTableMessages } from "./wbsTable";
 import { automationRulesMessages } from "./automationRules";
 import { pagesMessages } from "./pages";
 import { scheduleLabMessages } from "./scheduleLab";
+import { paletteMessages } from "./palette";
+import { liveMessages } from "./live";
+import { jiraProcessMessages } from "./jiraProcess";
+import { historyMessages } from "./history";
 export const catalogue = {
   ...commonMessages,
   ...adminMessages,
@@ -37,4 +41,8 @@ export const catalogue = {
   ...automationRulesMessages,
   ...pagesMessages,
   ...scheduleLabMessages,
+  ...paletteMessages,
+  ...liveMessages,
+  ...jiraProcessMessages,
+  ...historyMessages,
 } as const;

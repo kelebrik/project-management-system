@@ -5,6 +5,7 @@ import "highcharts/modules/dumbbell";
 import "highcharts/modules/timeline";
 import "highcharts/modules/xrange";
 import "highcharts/modules/drilldown";
+import "highcharts/modules/heatmap";
 import "highcharts/modules/annotations";
 import "highcharts/modules/exporting";
 import "highcharts/modules/offline-exporting";
@@ -13,6 +14,7 @@ import "highcharts/modules/accessibility";
 
 /**
  * The extra Highcharts modules the schedule lab shows off: dumbbells, Pareto,
+ * heatmaps (the Jira process),
  * a timeline of events, drill-down, annotations and the export menu. Loaded
  * only with the lab. Exporting stays off on every other chart, and when on it
  * happens in the browser only: nothing is ever sent to Highcharts' export

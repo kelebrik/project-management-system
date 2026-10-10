@@ -24,7 +24,7 @@ type SearchScope = "all" | SearchTab;
 
 /**
  * The search folds to its magnifier to leave the header to the sections. It
- * opens on hover, click, Tab or Ctrl K and folds back after this long without
+ * opens on hover, click or Tab (Ctrl K opens the command palette) and folds back after this long without
  * use — typing or moving through results counts as use, a cursor left in the
  * field does not — unless the pointer is over it. A page change folds it at once.
  */
@@ -105,19 +105,6 @@ export function GlobalSearch({
     return Array.from(groups.entries());
   }, [scopedResults]);
 
-  useEffect(() => {
-    const handleShortcut = (event: KeyboardEvent) => {
-      const isSearchShortcut =
-        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
-      if (!isSearchShortcut) return;
-      event.preventDefault();
-      setExpanded(true);
-      inputRef.current?.focus();
-      onOpenChange(normalizedQuery.length >= 2);
-    };
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [normalizedQuery.length, onOpenChange]);
 
   const selectResult = (result: SearchResult) => {
     onSelect(result);
@@ -182,7 +169,6 @@ export function GlobalSearch({
           }}
           placeholder={t("search.placeholder")}
         />
-        <kbd>Ctrl K</kbd>
       </label>
       {shouldShowPopover && (
         <div className="global-search-popover">

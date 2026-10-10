@@ -1,0 +1,18 @@
+export const paletteMessages = {
+  "ui.palette.title": { en: "Command palette", ru: "Палитра команд" },
+  "ui.palette.placeholder": { en: "Type a command, section, project or what to find…", ru: "Команда, раздел, проект или что найти…" },
+  "ui.palette.recent": { en: "Recent", ru: "Недавние" },
+  "ui.palette.actions": { en: "Actions", ru: "Действия" },
+  "ui.palette.sections": { en: "Sections of this project", ru: "Разделы проекта" },
+  "ui.palette.goto": { en: "Go to", ru: "Перейти" },
+  "ui.palette.projects": { en: "Projects", ru: "Проекты" },
+  "ui.palette.newProject": { en: "Create a project", ru: "Создать проект" },
+  "ui.palette.newIssue": { en: "Create an open issue", ru: "Создать открытый вопрос" },
+  "ui.palette.switchLanguage": { en: "Switch the language", ru: "Сменить язык" },
+  "ui.palette.closed": { en: "closed", ru: "закрыт" },
+  "ui.palette.nothing": { en: "Nothing found", ru: "Ничего не найдено" },
+  "ui.palette.searching": { en: "Searching…", ru: "Ищу…" },
+  "ui.palette.move": { en: "move", ru: "выбрать" },
+  "ui.palette.open": { en: "open", ru: "открыть" },
+  "ui.palette.toggle": { en: "open and close", ru: "открыть и закрыть" },
+} as const;

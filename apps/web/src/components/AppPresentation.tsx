@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useI18n } from "../i18n/I18nProvider";
 import type { Translator } from "../i18n/types";
 import type { ComponentProps, FocusEventHandler, KeyboardEventHandler } from "react";
@@ -80,7 +80,11 @@ import {
 } from "./MilestoneSections";
 import { AppShell } from "./AppShell";
 import { AuthPage } from "./AuthPage";
+import { CommandPalette } from "./CommandPalette";
+import { ProjectLiveBanner } from "./ProjectLiveBanner";
+import { useProjectLiveUpdates } from "../app/useProjectLiveUpdates";
 import { GlobalSearch } from "./GlobalSearch";
+import { usePaletteCommands } from "./usePaletteCommands";
 
 type AppPresentationProps = {
   authMode: AuthMode;
@@ -156,6 +160,7 @@ function createViewTitle(project: ProjectDetails | null, t: Translator): Record<
     "project-raid": project?.name ?? t("view.project-raid"),
     "project-changes": project?.name ?? t("view.project-changes"),
     "project-calendars": project?.name ?? t("view.project-calendars"),
+    "project-history": project?.name ?? t("view.project-history"),
     "project-artifacts": project?.name ?? t("view.project-artifacts"),
     "closed-projects": t("view.closed-projects"),
     admin: t("view.admin"),
@@ -240,6 +245,24 @@ export function AppPresentation({
   );
   const shouldShowOperationsMenu = Boolean(canViewOperationsSections && isOperationsSectionView);
   const { t, locale, labels: localizedLabels, formatters } = useI18n();
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const paletteCommands = usePaletteCommands({
+    context, isAuthenticated, isReadOnly, isProjectModuleEnabled, openView, project,
+    projects: (context.projects ?? []) as ProjectListItem[], recentProjects, sectionAccess, selectProject,
+  });
+  // Changes others make to the open project, offered as an update.
+  const live = useProjectLiveUpdates(project?.id ?? null, isAuthenticated);
+  // Ctrl K (⌘K) opens the palette anywhere once signed in, and closes it again.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const onShortcut = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k" || event.altKey || event.shiftKey) return;
+      event.preventDefault();
+      setPaletteOpen((open) => !open);
+    };
+    window.addEventListener("keydown", onShortcut);
+    return () => window.removeEventListener("keydown", onShortcut);
+  }, [isAuthenticated]);
   const viewTitle = useMemo(() => createViewTitle(project, t), [project, t]);
   const renderGlobalSearch = (className = "") => (
     <GlobalSearch
@@ -328,6 +351,7 @@ export function AppPresentation({
   };
 
   return (
+    <>
     <AppShell
       activeView={activeView}
       currentUser={currentUser}
@@ -375,5 +399,24 @@ export function AppPresentation({
       signedDaysLabel={formatters.signedDaysLabel}
       viewTitle={viewTitle}
     />
+    {project && (
+      <ProjectLiveBanner
+        events={live.pending}
+        onDismiss={live.clear}
+        onRefresh={async () => {
+          await context.refreshProject();
+          window.dispatchEvent(new CustomEvent("pms-live-refresh"));
+          live.clear();
+        }}
+      />
+    )}
+    {paletteOpen && (
+      <CommandPalette
+        onClose={() => setPaletteOpen(false)}
+        commands={paletteCommands}
+        onSelectSearchResult={onSelectSearchResult}
+      />
+    )}
+    </>
   );
 }

@@ -45,6 +45,7 @@ export const appViewKeys = [
   "project-raid",
   "project-changes",
   "project-calendars",
+  "project-history",
   "project-artifacts",
   "closed-projects",
   "admin",
@@ -78,6 +79,7 @@ export const projectAppViewKeys = [
   "project-raid",
   "project-changes",
   "project-calendars",
+  "project-history",
   "project-artifacts",
 ] as const satisfies readonly AppViewKey[];
 
@@ -111,6 +113,7 @@ export const appViewLabels: Record<AppViewKey, string> = {
   "project-raid": "Риски",
   "project-changes": "Изменения",
   "project-calendars": "Календари",
+  "project-history": "История",
   "project-artifacts": "Артефакты",
   "closed-projects": "Архив",
   admin: "Администрирование",

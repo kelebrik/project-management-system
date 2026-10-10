@@ -1,3 +1,4 @@
+import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
@@ -15,6 +16,7 @@ export async function authenticatedFetch(
       ...(init.body ? { "Content-Type": "application/json" } : {}),
       ...businessUnitHeaders(),
       ...viewSectionHeaders(),
+      ...liveClientHeaders(),
       ...init.headers,
     },
   });

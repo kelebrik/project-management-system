@@ -88,6 +88,10 @@ export const navigation = {
     "en": "Calendars",
     "ru": "Календари"
   },
+  "view.project-history": {
+    "en": "Project history",
+    "ru": "История проекта"
+  },
   "view.project-artifacts": {
     "en": "Project artifacts",
     "ru": "Артефакты проекта"
@@ -227,6 +231,10 @@ export const navigation = {
   "tab.project-calendars": {
     "en": "Calendars",
     "ru": "Календари"
+  },
+  "tab.project-history": {
+    "en": "History",
+    "ru": "История"
   },
   "tab.project-artifacts": {
     "en": "Artifacts",

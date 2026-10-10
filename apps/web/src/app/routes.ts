@@ -17,6 +17,7 @@ export type ProjectSectionView = Extract<
   | "project-raid"
   | "project-changes"
   | "project-calendars"
+  | "project-history"
   | "project-artifacts"
 >;
 
@@ -176,6 +177,7 @@ export const projectSectionSlugs: Record<ProjectSectionView, string> = {
   "project-raid": "risks",
   "project-changes": "changes",
   "project-calendars": "calendars",
+  "project-history": "history",
   "project-artifacts": "artifacts",
 };
 
@@ -209,6 +211,7 @@ export const appViewPaths: Record<AppView, string> = {
   "project-raid": "/risks",
   "project-changes": "/changes",
   "project-calendars": "/calendars",
+  "project-history": "/history",
   "project-artifacts": "/artifacts",
   "closed-projects": "/development/archive",
   admin: "/admin",
@@ -251,6 +254,7 @@ export const projectPathViews: Record<string, ProjectSectionView> = {
   budget: "project-overview",
   calendars: "project-calendars",
   calendar: "project-calendars",
+  history: "project-history",
   artifacts: "project-artifacts",
 };
 
@@ -330,6 +334,7 @@ export const appPathViews: Record<string, AppView> = {
   "/budget": "project-overview",
   "/calendars": "project-calendars",
   "/calendar": "project-calendars",
+  "/history": "project-history",
   "/artifacts": "project-artifacts",
   "/closed-projects": "closed-projects",
   "/closed": "closed-projects",
