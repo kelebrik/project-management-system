@@ -141,13 +141,15 @@ export function jiraFlowOption(input: { title: string; labels: string[]; series:
   const options = base(colors, input.title, format);
   return {
     ...options,
-    chart: { ...options.chart, type: input.stacked ? "area" : "line" },
+    chart: { ...options.chart, type: input.stacked ? "area" : "line", spacingBottom: 4 },
     // The legend names each line with its latest value, as before.
-    legend: { ...options.legend, enabled: true, align: "center", verticalAlign: "bottom", labelFormatter: function () { const values = input.series[this.index]?.values ?? []; return `${this.name}: <b>${format(values.at(-1) ?? 0)}</b>`; } },
+    // Highcharts keeps more room for slanted dates than they take; the legend sits up into it.
+    legend: { ...options.legend, enabled: true, align: "center", verticalAlign: "bottom", margin: -6, padding: 2, labelFormatter: function () { const values = input.series[this.index]?.values ?? []; return `${this.name}: <b>${format(values.at(-1) ?? 0)}</b>`; } },
     // Dates are long: slanted, they never run into each other however narrow the chart.
     xAxis: (() => {
       const dates = axis(colors, input.labels, Math.max(1, Math.ceil(input.labels.length / 8)));
-      return { ...dates, labels: { ...dates.labels, rotation: -45, autoRotation: undefined, style: { ...dates.labels.style, textOverflow: "none", whiteSpace: "nowrap" } } };
+      // A little air between the plot and the dates.
+      return { ...dates, labels: { ...dates.labels, rotation: -45, autoRotation: undefined, y: 30, style: { ...dates.labels.style, textOverflow: "none", whiteSpace: "nowrap" } } };
     })(),
     // The cumulative flow keeps its first category (done) at the bottom.
     yAxis: { ...valueAxis(colors, format), reversedStacks: false },
