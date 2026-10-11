@@ -88,6 +88,8 @@ test("jira: the cumulative flow is stacked areas, other flows are lines", () => 
   assert.equal(flow.series?.[0]?.type, "area");
   // Done stays at the bottom, and the legend names the latest value.
   assert.equal((flow.yAxis as { reversedStacks: boolean }).reversedStacks, false);
+  // The dates under the flow charts are slanted so they never overlap.
+  assert.equal((flow.xAxis as { labels: { rotation: number } }).labels.rotation, -45);
   const legend = flow.legend?.labelFormatter as unknown as (this: { index: number; name: string }) => string;
   assert.equal(legend.call({ index: 0, name: "To do" }), "To do: <b>2</b>");
   const lines = jiraFlowOption({ title: "t", labels: ["a", "b"], series, stacked: false, colors, format: String });
