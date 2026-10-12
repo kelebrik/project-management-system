@@ -10,8 +10,8 @@ function base(colors: AppChartColors, description: string, height: number): Opti
     chart: { backgroundColor: "transparent", style: { fontFamily: "inherit" }, height, spacing: [8, 6, 12, 4] },
     title: { text: undefined },
     accessibility: { enabled: true, description },
-    // The credit stays while the library is used under its evaluation terms.
-    credits: { enabled: true, style: { color: colors.muted, fontSize: "8px" } },
+    // The Highcharts licence is bought: no "Highcharts.com" credit.
+    credits: { enabled: false },
     exporting: { enabled: false },
     tooltip: { outside: true, backgroundColor: colors.surface, borderColor: colors.grid, style: { color: colors.text, fontSize: "12px" } },
   };

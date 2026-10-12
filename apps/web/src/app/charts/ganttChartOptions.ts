@@ -111,8 +111,8 @@ export function buildGanttOption(input: GanttLayerInput): Options {
   return {
     chart: { backgroundColor: "transparent", margin: [0, 0, 0, 0], spacing: [0, 0, 0, 0], width: input.width, height: rows * input.rowHeight, animation: false, style: { fontFamily: "inherit" } },
     title: { text: undefined },
-    // The credit stays while the library is used under its evaluation terms.
-    credits: { enabled: true, position: { align: "right", verticalAlign: "bottom", x: -4, y: -2 }, style: { color: colors.muted, fontSize: "8px", cursor: "default" } },
+    // The Highcharts licence is bought: no "Highcharts.com" credit.
+    credits: { enabled: false },
     accessibility: { enabled: false },
     legend: { enabled: false },
     tooltip: { enabled: false },

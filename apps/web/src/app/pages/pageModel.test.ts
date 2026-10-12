@@ -132,7 +132,7 @@ test("a source that is not one of ours, even an inherited name, reads as none", 
   }
 });
 
-test("Highcharts draws the same bars in the same order and colours, and keeps its credit", async () => {
+test("Highcharts draws the same bars in the same order and colours, and shows no credit", async () => {
   const { buildHighchartsOption } = await import("./highchartsOption");
   const rag = PAGE_SOURCES.projects.fields.find((field) => field.key === "rag")!;
   const result: Extract<PageQueryResult, { kind: "groups" }> = { kind: "groups", groups: [{ key: "RED", value: 2, count: 2 }, { key: "GREEN", value: 5, count: 5 }], subKeys: [], total: 7, rowCount: 7, multiValued: false, bucket: null, warnings: [] };
@@ -141,7 +141,7 @@ test("Highcharts draws the same bars in the same order and colours, and keeps it
   assert.equal(bars.chart.type, "bar");
   assert.deepEqual(bars.xAxis.categories, ["Красный", "Зелёный"]);
   assert.deepEqual(bars.series[0].data.map((point) => [point.y, point.color]), [[2, "#f00"], [5, "#0f0"]]);
-  assert.equal(bars.credits.enabled, true);
+  assert.equal(bars.credits.enabled, false);
   const donut = buildHighchartsOption({ ...input, kind: "donut" }) as { plotOptions: { pie: { innerSize: string } } };
   assert.equal(donut.plotOptions.pie.innerSize, "58%");
   const stacked = buildHighchartsOption({ ...input, kind: "stacked", result: { ...result, subKeys: ["a", "b"], groups: result.groups.map((group) => ({ ...group, sub: [{ key: "a", value: 1 }, { key: "b", value: 1 }] })) } }) as { series: unknown[] };

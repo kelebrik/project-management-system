@@ -55,8 +55,8 @@ function base(colors: AppChartColors, title: string, height: number): Options {
     chart: { backgroundColor: "transparent", height, style: { fontFamily: "inherit" }, zooming: { type: "x" }, animation: { duration: 500 } },
     title: { text: undefined },
     accessibility: { enabled: true, description: title },
-    // The credit stays while the library is used under its evaluation terms.
-    credits: { enabled: true, style: { color: colors.muted, fontSize: "8px" } },
+    // The Highcharts licence is bought: no "Highcharts.com" credit.
+    credits: { enabled: false },
     exporting: {
       enabled: true,
       fallbackToExportServer: false,

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Highcharts, { type Chart, type Options } from "highcharts";
+import "../../app/charts/highchartsDefaults";
 import "highcharts/modules/xrange";
 import "highcharts/modules/accessibility";
 
@@ -24,9 +25,7 @@ if (!symbols.star) {
 /**
  * One Highcharts picture that follows its box: drawn as SVG, drawn anew when
  * the options change (an update would merge them and keep settings of the
- * previous look), resized with its box, destroyed when it goes away. The
- * "Highcharts.com" credit stays while the library is used under its free
- * evaluation terms, until a commercial licence is bought.
+ * previous look), resized with its box, destroyed when it goes away.
  *
  * `inPlace` updates the drawn chart instead, for a picture whose options keep
  * one shape and only change their data (the Gantt as it scrolls): every new

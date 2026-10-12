@@ -38,7 +38,7 @@ test("gantt: one row per item on the model's own scale, markers at their offset"
   assert.deepEqual(["bars", "summaries", "phases"].map((name) => seriesOf(options, name).minPointLength), [6, 16, 42]);
   // Interaction stays with the Gantt's own rows on top.
   assert.equal(options.plotOptions?.series?.enableMouseTracking, false);
-  assert.equal(options.credits?.enabled, true);
+  assert.equal(options.credits?.enabled, false);
 });
 
 test("gantt: baseline, forecast and the critical edge only when switched on", () => {

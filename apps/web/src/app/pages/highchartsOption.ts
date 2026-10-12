@@ -29,8 +29,8 @@ export function buildHighchartsOption(input: ChartInput & { onPick?: (index: num
   const base: Options = {
     chart: { backgroundColor: "transparent", style: { fontFamily: "inherit" }, spacing: [6, 6, 14, 4], animation: { duration: 350 } },
     title: { text: undefined },
-    // The credit stays while the library is used under its evaluation terms; it sits below the axis.
-    credits: { enabled: true, position: { align: "right", verticalAlign: "bottom", x: -2, y: -1 }, style: { color: colors.muted, fontSize: "8px", cursor: "default" } },
+    // The Highcharts licence is bought: no "Highcharts.com" credit.
+    credits: { enabled: false },
     accessibility: { enabled: true, description: chartSummary(input) },
     tooltip: {
       outside: true,

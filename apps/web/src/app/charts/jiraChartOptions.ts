@@ -16,8 +16,8 @@ function base(colors: AppChartColors, title: string, format: (value: number) => 
     title: { text: undefined },
     // Points are reached from the keyboard through the buttons under the chart; the legend through Highcharts.
     accessibility: { enabled: true, description: title, keyboardNavigation: { order: ["legend"] } },
-    // The credit stays while the library is used under its evaluation terms.
-    credits: { enabled: true, position: { align: "right", verticalAlign: "bottom", x: -2, y: -1 }, style: { color: colors.muted, fontSize: "8px", cursor: "default" } },
+    // The Highcharts licence is bought: no "Highcharts.com" credit.
+    credits: { enabled: false },
     legend: { enabled: false, itemStyle: { color: colors.text, fontSize: "11px", fontWeight: "normal" }, symbolRadius: 2 },
     tooltip: {
       outside: true,
