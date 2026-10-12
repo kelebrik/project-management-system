@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WbsItem } from "./domainTypes";
-import { expandStructureAnswer, forgetStructures, mergeStructureDelta, rememberStructure, trackStructureWrite, type StructureDelta } from "./structureStore";
+import { expandStructureAnswer, forgetStructures, mergeStructureDelta, onStructureChange, rememberStructure, trackStructureWrite, type StructureChange, type StructureDelta } from "./structureStore";
 
 const row = (id: string, code: string, sortOrder: number, title = id) => ({ id, code, sortOrder, title }) as unknown as WbsItem;
 const project = (version: string, items: WbsItem[]) => ({ id: "p", structureVersion: version, wbsItems: items, wbsDependencies: [], criticalPath: null });
@@ -64,4 +64,19 @@ test("an older whole Structure never replaces a newer copy", () => {
   return expandStructureAnswer(delta("5", "6", {}), noReload).then((expanded) => {
     assert.deepEqual((expanded as { wbsItems: WbsItem[] }).wbsItems.map((item) => item.id), ["a"]);
   });
+});
+
+test("each applied change is announced with the rows as they were and as they became, and the write's tag", async () => {
+  forgetStructures();
+  rememberStructure(project("1", [row("a", "1", 10, "Было")]));
+  const heard: StructureChange[] = [];
+  onStructureChange((change) => heard.push(change));
+  await expandStructureAnswer(delta("1", "2", { items: [row("a", "1", 10, "Стало"), row("n", "2", 20)] }), noReload, "/api/wbs-items/a", "step-1");
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0]!.tag, "step-1");
+  assert.equal(heard[0]!.requestPath, "/api/wbs-items/a");
+  assert.deepEqual(heard[0]!.items.map((entry) => [entry.id, entry.before?.title ?? null, entry.after?.title ?? null]), [["a", "Было", "Стало"], ["n", null, "n"]]);
+  // A gap is announced as a change the page could not follow.
+  await expandStructureAnswer(delta("9", "10", {}), async () => project("10", []), "/api/wbs-items/b", "step-2");
+  assert.equal(heard[1]!.complete, false);
 });

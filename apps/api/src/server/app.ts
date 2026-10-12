@@ -108,6 +108,8 @@ export function createApp() {
   // A project list or Structure snapshot is several megabytes of JSON; compressed it is a tenth of that.
   app.use(compression({ threshold: 1024, filter: shouldCompress }));
   app.use('/api/projects/:projectId/artifact-table', express.json({ limit: '4mb' }));
+  // An undo step of a large plan carries its rows twice: as they are and as they were.
+  app.use('/api/projects/:projectId/wbs-snapshot/revert', express.json({ limit: '30mb' }));
   app.use(express.json({ limit: '5mb' }));
   app.use(
     cors({

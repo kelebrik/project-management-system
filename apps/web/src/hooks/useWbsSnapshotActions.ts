@@ -1,17 +1,17 @@
 import { useI18n } from "../i18n/I18nProvider";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useEffect, useRef } from "react";
 import type {
   ProjectDetails,
   WbsCriticalPath,
   WbsDependency,
   WbsItem,
-  WbsSnapshot,
 } from "../app/domainTypes";
 import type { WbsFormState, wbsToForm } from "../app/formState";
 import { mergeWbsDrafts } from "../app/wbsDraftMerge";
 import { apiBase, authenticatedFetch } from "../app/http";
-import { wbsSnapshotsEqual } from "../app/wbsTree";
-import { capUndoHistory } from "../app/undoHistory";
+import { onStructureChange, provideWriteTag } from "../app/structureStore";
+import { capUndoHistory, openUndoStep, rebaseAfterExactRevert, recordChange, revertRequest, stepIsEmpty, type WbsUndoStep } from "../app/undoHistory";
 import { useConfirm } from "./useConfirm";
 
 type WbsSnapshotActionDeps = {
@@ -26,12 +26,15 @@ type WbsSnapshotActionDeps = {
   setRestoringWbsSnapshot: Dispatch<SetStateAction<boolean>>;
   setSavingBaseline: Dispatch<SetStateAction<boolean>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, ReturnType<typeof wbsToForm>>>>;
-  setWbsRedoHistory: (nextStack: WbsSnapshot[]) => void;
-  setWbsUndoHistory: (nextStack: WbsSnapshot[]) => void;
+  setWbsRedoHistory: (nextStack: WbsUndoStep[]) => void;
+  setWbsUndoHistory: (nextStack: WbsUndoStep[]) => void;
   wbsDraftsRef: MutableRefObject<Record<string, ReturnType<typeof wbsToForm>>>;
-  wbsRedoStackRef: MutableRefObject<WbsSnapshot[]>;
-  wbsUndoStackRef: MutableRefObject<WbsSnapshot[]>;
+  wbsRedoStackRef: MutableRefObject<WbsUndoStep[]>;
+  wbsUndoStackRef: MutableRefObject<WbsUndoStep[]>;
 };
+
+/** The requests of Structure edits whose changes join the open step back. */
+const STRUCTURE_EDIT = /\/(wbs-items|wbs-dependencies)(\/|$|\?)/;
 
 export function useWbsSnapshotActions({
   project,
@@ -101,50 +104,78 @@ export function useWbsSnapshotActions({
     applyWbsSnapshotResult(nextItems);
   }
 
-  function getCurrentWbsSnapshot(): WbsSnapshot | null {
-    if (!project) return null;
-    return {
-      wbsItems: project.wbsItems.map((item) => ({ ...item })),
-      wbsDependencies: project.wbsDependencies.map((dependency) => ({
-        predecessorId: dependency.predecessorId,
-        successorId: dependency.successorId,
-        type: dependency.type,
-        lagDays: dependency.lagDays,
-      })),
-    };
-  }
+  // The step the edits of this page are gathered into, and the one an undo or redo in flight records its own change in.
+  const openStepRef = useRef<WbsUndoStep | null>(null);
+  const revertStepRef = useRef<WbsUndoStep | null>(null);
 
-  function rememberWbsSnapshot() {
-    const snapshot = getCurrentWbsSnapshot();
-    if (!snapshot) return null;
-    const previous = wbsUndoStackRef.current.at(-1);
-    if (!previous || !wbsSnapshotsEqual(previous, snapshot)) {
-      setWbsUndoHistory(capUndoHistory([...wbsUndoStackRef.current, snapshot]));
+  // A write leaving now belongs to the open step; its answer is recorded there even when another edit has begun since.
+  useEffect(() => provideWriteTag(() => openStepRef.current), []);
+  useEffect(() => onStructureChange((change) => {
+    if (change.requestPath.includes("/wbs-snapshot/revert")) {
+      if (revertStepRef.current) recordChange(revertStepRef.current, change);
+      return;
     }
+    const step = change.tag as WbsUndoStep | null;
+    if (!step || !STRUCTURE_EDIT.test(change.requestPath)) return;
+    recordChange(step, change);
+    // A step joins the history with its first change, so an edit that changed nothing leaves no step.
+    if (!wbsUndoStackRef.current.includes(step) && (!stepIsEmpty(step) || step.incomplete)) {
+      setWbsUndoHistory(capUndoHistory([...wbsUndoStackRef.current, step]));
+    }
+  }), [setWbsUndoHistory, wbsUndoStackRef]);
+
+  /** Opens a new step back for the edit about to be sent; its changes come with the answers. */
+  function rememberWbsSnapshot() {
+    if (!project) return null;
+    const step = openUndoStep(project.id);
+    openStepRef.current = step;
     setWbsRedoHistory([]);
-    return snapshot;
+    return step;
   }
 
-  async function restoreWbsSnapshot(
-    snapshot: WbsSnapshot,
-    direction: "undo" | "redo",
-  ) {
+  /**
+   * Sends one step back and records what the server did as the step for the
+   * other direction. A step the page could not follow, or that others have
+   * changed since, is dropped with the reason.
+   */
+  async function revertWbsStep(direction: "undo" | "redo") {
     if (!project || restoringWbsSnapshot) return;
-    const currentSnapshot = getCurrentWbsSnapshot();
-    if (!currentSnapshot) return;
+    const from = direction === "undo" ? wbsUndoStackRef : wbsRedoStackRef;
+    const setFrom = direction === "undo" ? setWbsUndoHistory : setWbsRedoHistory;
+    const setTo = direction === "undo" ? setWbsRedoHistory : setWbsUndoHistory;
+    const to = direction === "undo" ? wbsRedoStackRef : wbsUndoStackRef;
+    const stack = from.current.filter((step) => !stepIsEmpty(step) || step.incomplete);
+    const step = stack.at(-1);
+    if (!step) {
+      setFrom([]);
+      return;
+    }
+    // Later edits start a new step; nothing more joins this one.
+    openStepRef.current = null;
+    if (step.incomplete || step.projectId !== project.id) {
+      setFrom(stack.slice(0, -1));
+      setError("Этот шаг отменить нельзя: страница обновила данные проекта");
+      return;
+    }
     setRestoringWbsSnapshot(true);
     setError(null);
     setNotice(null);
+    const recorded = openUndoStep(project.id);
+    revertStepRef.current = recorded;
     try {
       const response = await authenticatedFetch(
-        `${apiBase}/api/projects/${project.id}/wbs-snapshot/restore`,
+        `${apiBase}/api/projects/${project.id}/wbs-snapshot/revert`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(snapshot),
+          body: JSON.stringify(revertRequest(step)),
         },
       );
       const result = await response.json().catch(() => null);
+      if (response.status === 409 && result?.code === "UNDO_CONFLICT") {
+        setFrom(stack.slice(0, -1));
+        throw new Error(result.error);
+      }
       if (!response.ok) {
         throw new Error(result?.error ?? "Не удалось восстановить Структуру");
       }
@@ -157,15 +188,11 @@ export function useWbsSnapshotActions({
       } else {
         await refreshProject(project.id);
       }
-      if (direction === "undo") {
-        setWbsRedoHistory(capUndoHistory([...wbsRedoStackRef.current, currentSnapshot]));
-        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
-        setNotice("Откат Структуры выполнен");
-      } else {
-        setWbsUndoHistory(capUndoHistory([...wbsUndoStackRef.current, currentSnapshot]));
-        setWbsRedoHistory(wbsRedoStackRef.current.slice(0, -1));
-        setNotice("Изменение Структуры восстановлено");
-      }
+      const remaining = stack.slice(0, -1);
+      if (result?.recalculated === false) rebaseAfterExactRevert(remaining.at(-1), step, recorded.afterVersion);
+      setFrom(remaining);
+      if (!stepIsEmpty(recorded) || recorded.incomplete) setTo(capUndoHistory([...to.current, recorded]));
+      setNotice(direction === "undo" ? "Откат Структуры выполнен" : "Изменение Структуры восстановлено");
     } catch (restoreError) {
       setError(
         restoreError instanceof Error
@@ -173,20 +200,17 @@ export function useWbsSnapshotActions({
           : "Не удалось восстановить Структуру",
       );
     } finally {
+      revertStepRef.current = null;
       setRestoringWbsSnapshot(false);
     }
   }
 
   async function undoWbsChange() {
-    const snapshot = wbsUndoStackRef.current.at(-1);
-    if (!snapshot) return;
-    await restoreWbsSnapshot(snapshot, "undo");
+    await revertWbsStep("undo");
   }
 
   async function redoWbsChange() {
-    const snapshot = wbsRedoStackRef.current.at(-1);
-    if (!snapshot) return;
-    await restoreWbsSnapshot(snapshot, "redo");
+    await revertWbsStep("redo");
   }
 
   async function saveWbsBaseline(itemIds?: string[]) {

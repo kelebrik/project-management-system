@@ -1,7 +1,6 @@
 import { useRef, useState } from "react";
 import type {
   GanttLinkDraft,
-  WbsSnapshot,
 } from "../app/domainTypes";
 import {
   GANTT_PANEL_HEIGHT_DEFAULT,
@@ -15,6 +14,7 @@ import {
   type WbsSortState,
   type WbsTableColumnKey,
 } from "../app/wbsTable";
+import type { WbsUndoStep } from "../app/undoHistory";
 import type { WbsFormState } from "../app/formState";
 
 export function useWbsWorkspaceState() {
@@ -56,8 +56,8 @@ export function useWbsWorkspaceState() {
     useState<WbsTableColumnKey | null>(null);
   const [draggedWbsItemId, setDraggedWbsItemId] = useState<string | null>(null);
   const [wbsDropTargetId, setWbsDropTargetId] = useState<string | null>(null);
-  const [wbsUndoStack, setWbsUndoStack] = useState<WbsSnapshot[]>([]);
-  const [wbsRedoStack, setWbsRedoStack] = useState<WbsSnapshot[]>([]);
+  const [wbsUndoStack, setWbsUndoStack] = useState<WbsUndoStep[]>([]);
+  const [wbsRedoStack, setWbsRedoStack] = useState<WbsUndoStep[]>([]);
   const [restoringWbsSnapshot, setRestoringWbsSnapshot] = useState(false);
   const [activeWbsItemId, setActiveWbsItemId] = useState<string | null>(null);
   const [hoveredGanttItemId, setHoveredGanttItemId] = useState<string | null>(
@@ -72,8 +72,8 @@ export function useWbsWorkspaceState() {
     () => new Set(),
   );
   const [savingWbsBulk, setSavingWbsBulk] = useState(false);
-  const wbsUndoStackRef = useRef<WbsSnapshot[]>([]);
-  const wbsRedoStackRef = useRef<WbsSnapshot[]>([]);
+  const wbsUndoStackRef = useRef<WbsUndoStep[]>([]);
+  const wbsRedoStackRef = useRef<WbsUndoStep[]>([]);
 
   return {
     wbsDrafts,

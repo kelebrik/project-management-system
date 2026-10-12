@@ -19,6 +19,7 @@ const STRUCTURE_WRITERS: Record<string, string> = {
   'routes/wbs/item-order.routes.ts': 'runStructureWrite',
   'routes/wbs/append.routes.ts': 'runStructureWrite',
   'routes/wbs/snapshot.routes.ts': 'runStructureWrite',
+  'routes/wbs/revert.routes.ts': 'runStructureWrite',
   'routes/wbs-import.routes.ts': 'structureTransaction, applyWbsImport locks',
   'routes/wbs-draft.routes.ts': 'structureTransaction + lockProjectStructure',
   'routes/automation-rules.routes.ts': 'structureTransaction + lockProjectStructure',

@@ -1,4 +1,4 @@
-import type { WbsSnapshot, WbsTreeItem, WbsItem } from "./domainTypes";
+import type { WbsTreeItem, WbsItem } from "./domainTypes";
 import type { WbsFormState } from "./formState";
 import { startOfDay } from "./dateUtils";
 
@@ -190,10 +190,6 @@ export function resolveDraftPredecessorCode(
   }
 
   return normalizedCode;
-}
-
-export function wbsSnapshotsEqual(left: WbsSnapshot, right: WbsSnapshot) {
-  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 export function parentIdFromWbsLevel(

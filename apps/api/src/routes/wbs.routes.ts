@@ -4,6 +4,7 @@ import { registerWbsDateDriverRoutes } from './wbs/date-drivers.routes.js';
 import { registerWbsDependencyRoutes } from './wbs/dependencies.routes.js';
 import { registerWbsItemOrderRoutes } from './wbs/item-order.routes.js';
 import { registerWbsItemRoutes } from './wbs/items.routes.js';
+import { registerWbsRevertRoutes } from './wbs/revert.routes.js';
 import { registerWbsSnapshotRoutes } from './wbs/snapshot.routes.js';
 import { wbsWriteQueueMiddleware } from './wbs/write-queue.js';
 
@@ -18,6 +19,7 @@ export function createWbsRouter(context: WbsRoutesContext) {
   registerWbsAppendRoutes(router);
   registerWbsItemOrderRoutes(router);
   registerWbsSnapshotRoutes(router);
+  registerWbsRevertRoutes(router);
   registerWbsItemRoutes(router);
   registerWbsDependencyRoutes(router, context);
   registerWbsDateDriverRoutes(router);

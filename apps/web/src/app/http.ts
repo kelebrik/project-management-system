@@ -2,7 +2,7 @@ import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
-import { expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
+import { currentWriteTag, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -10,6 +10,7 @@ export async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ) {
+  const tag = currentWriteTag();
   const { response, body } = await trackStructureWrite(init.method, async () => {
     const response = await fetch(input, {
       ...init,
@@ -33,10 +34,11 @@ export async function authenticatedFetch(
   if (response.ok) noticeScheduleShift(response);
   if (body !== undefined) {
     // The answer carries Structure changes: whoever reads it gets the whole Structure at that version.
+    const requestPath = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
     const expanded = await expandStructureAnswer(body, async (projectId) => {
       const project = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/overview`);
       return project.ok ? project.json() : null;
-    });
+    }, requestPath, tag);
     Object.defineProperty(response, "json", { value: async () => expanded });
     Object.defineProperty(response, "text", { value: async () => JSON.stringify(expanded) });
   }

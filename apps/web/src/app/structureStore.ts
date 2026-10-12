@@ -27,6 +27,78 @@ export type StructureDelta = {
 
 type Answer = Record<string, unknown>;
 
+/** One row or link as a change found it and as it left it; null where it did not exist. */
+export type ChangedEntry<T> = { id: string; before: T | null; after: T | null };
+
+/**
+ * A change this page applied to its copy, for the undo history: what it
+ * changed, the version it left, and the request it answered. `complete` is
+ * false when the copy was read again instead, so the change itself is unknown.
+ */
+export type StructureChange = {
+  projectId: string;
+  /** The version the change started from and the one it left. */
+  baseVersion: string;
+  version: string;
+  requestPath: string;
+  /** What the page said about the write when it sent it (the undo step it belongs to). */
+  tag: unknown;
+  complete: boolean;
+  items: ChangedEntry<WbsItem>[];
+  links: ChangedEntry<WbsDependency>[];
+};
+
+const listeners = new Set<(change: StructureChange) => void>();
+let writeTag: () => unknown = () => null;
+
+/** Lets the page tell, when a write leaves, what it belongs to; the change it brings back carries it. */
+export function provideWriteTag(provider: () => unknown) {
+  writeTag = provider;
+  return () => {
+    if (writeTag === provider) writeTag = () => null;
+  };
+}
+
+/** The tag of a write being sent now. */
+export function currentWriteTag() {
+  return writeTag();
+}
+
+/** Hears every change applied to a copy; answers the function that stops listening. */
+export function onStructureChange(listener: (change: StructureChange) => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function announce(change: StructureChange) {
+  listeners.forEach((listener) => listener(change));
+}
+
+/** What a change did to the copy, row by row, with copies the page cannot alter later. */
+function describeChange(state: StructureState, delta: StructureDelta, requestPath: string, tag: unknown): StructureChange {
+  const itemsBefore = new Map(state.items.map((item) => [item.id, item]));
+  const linksBefore = new Map(state.dependencies.map((link) => [link.id, link]));
+  const copy = <T,>(value: T | undefined | null) => (value ? structuredClone(value) : null);
+  return {
+    projectId: delta.projectId,
+    baseVersion: delta.baseVersion,
+    version: delta.version,
+    requestPath,
+    tag,
+    complete: true,
+    items: [
+      ...delta.items.map((item) => ({ id: item.id, before: copy(itemsBefore.get(item.id)), after: copy(item) })),
+      ...delta.deletedItemIds.map((id) => ({ id, before: copy(itemsBefore.get(id)), after: null })),
+    ],
+    links: [
+      ...delta.dependencies.map((link) => ({ id: link.id, before: copy(linksBefore.get(link.id)), after: copy(link) })),
+      ...delta.deletedDependencyIds.map((id) => ({ id, before: copy(linksBefore.get(id)), after: null })),
+    ],
+  };
+}
+
 /** Sent with every request: Structure writes then answer with their changes only. */
 export const structureDeltaHeaders = { "X-PMS-Structure-Delta": "1" } as const;
 
@@ -122,7 +194,7 @@ function waitForVersion(projectId: string, version: string) {
  * and replaced by the whole Structure at its version; other answers pass,
  * and a whole Structure in them is remembered.
  */
-export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>): Promise<T> {
+export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>, requestPath = "", tag: unknown = null): Promise<T> {
   if (!answer || typeof answer !== "object" || !("structureDelta" in answer)) {
     rememberStructure(answer);
     return answer;
@@ -136,13 +208,16 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
     state = states.get(delta.projectId);
   }
   if (state && state.version === delta.baseVersion) {
+    const change = describeChange(state, delta, requestPath, tag);
     state = mergeStructureDelta(state, delta);
     states.set(delta.projectId, state);
     settle(delta.projectId);
+    announce(change);
   } else if (!state || newer(delta.baseVersion, state.version)) {
     // A change this page never saw: the project is read again, and its Structure includes this one.
     rememberStructure(await reloadProject(delta.projectId));
     state = states.get(delta.projectId);
+    announce({ projectId: delta.projectId, baseVersion: delta.baseVersion, version: delta.version, requestPath, tag, complete: false, items: [], links: [] });
   }
   // Otherwise the copy is already past this change, which it includes.
   if (!state) return answer;
@@ -158,6 +233,8 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
 /** Forgets every copy, for a sign-out or a test. */
 export function forgetStructures() {
   states.clear();
+  listeners.clear();
+  writeTag = () => null;
   waiters.clear();
   writesInFlight = 0;
 }

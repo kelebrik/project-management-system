@@ -8,7 +8,6 @@ import { buildAppPresentationContext } from "./app/appPresentationContext";
 import type {
   RaidItemType,
   SearchResult,
-  WbsSnapshot,
 } from "./app/domainTypes";
 import {
   isProjectSectionViewName,
@@ -49,6 +48,7 @@ import { useWbsRowActions } from "./hooks/useWbsRowActions";
 import { useWbsSnapshotActions } from "./hooks/useWbsSnapshotActions";
 import { useWbsWorkspaceState } from "./hooks/useWbsWorkspaceState";
 import { hasPendingWbsBuffers } from "./app/wbsBuffers";
+import type { WbsUndoStep } from "./app/undoHistory";
 import "./App.css";
 
 function AppController() {
@@ -340,12 +340,12 @@ function AppController() {
     return () => window.clearTimeout(timeoutId);
   }, [notice, setNotice]);
 
-  const setWbsUndoHistory = useCallback((nextStack: WbsSnapshot[]) => {
+  const setWbsUndoHistory = useCallback((nextStack: WbsUndoStep[]) => {
     wbsUndoStackRef.current = nextStack;
     setWbsUndoStack(nextStack);
   }, [setWbsUndoStack, wbsUndoStackRef]);
 
-  const setWbsRedoHistory = useCallback((nextStack: WbsSnapshot[]) => {
+  const setWbsRedoHistory = useCallback((nextStack: WbsUndoStep[]) => {
     wbsRedoStackRef.current = nextStack;
     setWbsRedoStack(nextStack);
   }, [setWbsRedoStack, wbsRedoStackRef]);

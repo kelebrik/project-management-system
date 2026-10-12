@@ -10,7 +10,6 @@ import type {
   WbsCriticalPath,
   WbsDependency,
   WbsItem,
-  WbsSnapshot,
   WbsSnapshotResponse,
   WbsTreeItem,
 } from "../app/domainTypes";
@@ -27,6 +26,7 @@ import {
 import type { WbsScheduleDriver } from "../wbsScheduleDriver";
 import { inferWbsScheduleDriver } from "../wbsScheduleDriver";
 import type { ToastTone } from "./useAppFeedbackState";
+import type { WbsUndoStep } from "../app/undoHistory";
 import { useScheduleOverrideWarning } from "./useScheduleOverrideWarning";
 
 type WbsRowActionsDeps = {
@@ -44,7 +44,7 @@ type WbsRowActionsDeps = {
   project: ProjectDetails | null;
   projectRef: MutableRefObject<ProjectDetails | null>;
   refreshProject: (projectId?: string) => Promise<void>;
-  rememberWbsSnapshot: () => WbsSnapshot | null;
+  rememberWbsSnapshot: () => WbsUndoStep | null;
   selectedWbsIds: Set<string>;
   setCollapsedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setDraggedWbsItemId: Dispatch<SetStateAction<string | null>>;
@@ -55,11 +55,11 @@ type WbsRowActionsDeps = {
   setSavingWbsBulk: Dispatch<SetStateAction<boolean>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
   setWbsDropTargetId: Dispatch<SetStateAction<string | null>>;
-  setWbsUndoHistory: (nextStack: WbsSnapshot[]) => void;
+  setWbsUndoHistory: (nextStack: WbsUndoStep[]) => void;
   visibleWbsTree: WbsTreeItem[];
   wbsDrafts: Record<string, WbsFormState>;
   wbsDraftsRef: MutableRefObject<Record<string, WbsFormState>>;
-  wbsUndoStackRef: MutableRefObject<WbsSnapshot[]>;
+  wbsUndoStackRef: MutableRefObject<WbsUndoStep[]>;
   wbsSaveSequenceRef: MutableRefObject<number>;
   wbsTree: WbsTreeItem[];
 };
@@ -395,7 +395,7 @@ export function useWbsRowActions({
       if (notice) setNotice(notice);
     } catch (reorderError) {
       if (previousSnapshot) {
-        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
+        setWbsUndoHistory(wbsUndoStackRef.current.filter((step) => step !== previousSnapshot));
       }
       await refreshProject(project.id);
       setError(
@@ -714,7 +714,7 @@ export function useWbsRowActions({
       }
     } catch (reorderError) {
       if (previousSnapshot) {
-        setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
+        setWbsUndoHistory(wbsUndoStackRef.current.filter((step) => step !== previousSnapshot));
       }
       await refreshProject(project.id);
       setError(
