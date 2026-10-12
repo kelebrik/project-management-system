@@ -7,6 +7,7 @@ export * from "./wbs-import.js";
 export * from "./automation-rules.js";
 export * from "./project-view.js";
 export * from "./pages/index.js";
+export * from "./schedule/index.js";
 
 /**
  * Identity used for unauthenticated visitors while `PUBLIC_DEMO_MODE` is on.

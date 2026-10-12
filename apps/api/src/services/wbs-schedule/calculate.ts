@@ -1,25 +1,5 @@
-import {
-  addWorkingDays,
-  buildCalendarOverrides,
-  calendarDaysInclusive,
-  normalizedDate,
-  sameDate,
-  sameNumber,
-  workingDaysInclusive,
-} from "./calendar.js";
-import {
-  buildChildrenByParent,
-  maxDate,
-  minDate,
-  resolveDurationWorkDays,
-  isWbsCheckpointType,
-  isWbsZeroDurationItem,
-  sortByPlanOrder,
-  startFromFinish,
-  wbsLevelFromItem,
-} from "./hierarchy.js";
-import { buildWbsPredecessorRefs } from "./predecessors.js";
-import { predecessorConstraints } from "./constraints.js";
+import { calculateScheduleUpdates } from "@pms/shared";
+import { fromPlainDate, toPlainDate } from "./calendar.js";
 import type {
   WbsScheduleCalculationOptions,
   WbsScheduleCalendarOverride,
@@ -27,291 +7,6 @@ import type {
   WbsScheduleItem,
   WbsScheduleUpdate,
 } from "./types.js";
-
-function calculateWbsSchedulePass(
-  items: WbsScheduleItem[],
-  dependencies: WbsScheduleDependency[],
-  calendarOverrides: WbsScheduleCalendarOverride[],
-  options: WbsScheduleCalculationOptions = {},
-) {
-  const overridesByKey = buildCalendarOverrides(calendarOverrides);
-  const changedFieldsByItem = new Map<string, Set<string>>();
-  if (options.changedItemId) {
-    changedFieldsByItem.set(
-      options.changedItemId,
-      new Set(options.changedFields ?? []),
-    );
-  }
-  for (const changedItem of options.changedItems ?? []) {
-    changedFieldsByItem.set(
-      changedItem.itemId,
-      new Set(changedItem.changedFields),
-    );
-  }
-  const itemsById = new Map(items.map((item) => [item.id, item]));
-  const itemsByCode = new Map(items.map((item) => [item.code, item]));
-  const childrenByParent = buildChildrenByParent(items, itemsById, itemsByCode);
-  const predecessorRefsByItem = buildWbsPredecessorRefs(items, dependencies);
-
-  const successorsByPredecessor = new Map<string, string[]>();
-  const incomingCount = new Map<string, number>();
-  for (const item of items) incomingCount.set(item.id, 0);
-  for (const [successorId, predecessorRefs] of predecessorRefsByItem.entries()) {
-    incomingCount.set(successorId, predecessorRefs.length);
-    for (const predecessorRef of predecessorRefs) {
-      successorsByPredecessor.set(predecessorRef.predecessorId, [
-        ...(successorsByPredecessor.get(predecessorRef.predecessorId) ?? []),
-        successorId,
-      ]);
-    }
-  }
-
-  const byOrder = [...items].sort(sortByPlanOrder);
-  const queue = byOrder.filter((item) => (incomingCount.get(item.id) ?? 0) === 0);
-  const scheduledOrder: WbsScheduleItem[] = [];
-  const queued = new Set(queue.map((item) => item.id));
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
-    scheduledOrder.push(current);
-    for (const successorId of successorsByPredecessor.get(current.id) ?? []) {
-      const nextCount = (incomingCount.get(successorId) ?? 0) - 1;
-      incomingCount.set(successorId, nextCount);
-      if (nextCount === 0 && !queued.has(successorId)) {
-        const successor = itemsById.get(successorId);
-        if (successor) {
-          queue.push(successor);
-          queued.add(successorId);
-          queue.sort(sortByPlanOrder);
-        }
-      }
-    }
-  }
-
-  for (const item of byOrder) {
-    if (!queued.has(item.id)) scheduledOrder.push(item);
-  }
-
-  const computedById = new Map<string, WbsScheduleUpdate>();
-  const updatesById = new Map<string, WbsScheduleUpdate>();
-
-  for (const item of scheduledOrder) {
-    const changedFields = changedFieldsByItem.get(item.id) ?? new Set<string>();
-    const predecessorRefs = predecessorRefsByItem.get(item.id) ?? [];
-    let nextStartDate = normalizedDate(item.startDate);
-    let nextDueDate = normalizedDate(item.dueDate);
-    let durationWorkDays = resolveDurationWorkDays(item);
-    const isChangedItem = changedFieldsByItem.has(item.id);
-    const isWorkDaysDrivenChange =
-      isChangedItem && changedFields.has("workDays");
-    const isDateDrivenChange =
-      isChangedItem &&
-      !isWorkDaysDrivenChange &&
-      [
-        "startDate",
-        "dueDate",
-        "forecastStartDate",
-        "forecastDueDate",
-      ].some((field) => changedFields.has(field));
-
-    const earliestStart = options.startNotBeforeById?.get(item.id);
-    const linked = predecessorConstraints(
-      item,
-      predecessorRefs,
-      { item: (id) => itemsById.get(id), computed: (id) => computedById.get(id) },
-      overridesByKey,
-    );
-    const startConstraints: Date[] = [
-      ...(earliestStart ? [earliestStart] : []),
-      ...linked.filter((constraint) => constraint.kind === 'start').map((constraint) => constraint.date),
-    ];
-    const finishConstraints: Date[] = linked.filter((constraint) => constraint.kind === 'finish').map((constraint) => constraint.date);
-
-    if (durationWorkDays !== null && !isDateDrivenChange) {
-      const constrainedDurationWorkDays = durationWorkDays;
-      const requiredStartDates = [
-        ...startConstraints,
-        ...finishConstraints.map((finishConstraint) =>
-          startFromFinish(
-            finishConstraint,
-            constrainedDurationWorkDays,
-            item.calendarCode,
-            overridesByKey,
-          ),
-        ),
-      ];
-      const constrainedStartDate = maxDate(requiredStartDates);
-      if (constrainedStartDate) {
-        nextStartDate = constrainedStartDate;
-      }
-    } else {
-      const constrainedStartDate = maxDate(startConstraints);
-      const constrainedFinishDate = maxDate(finishConstraints);
-      if (constrainedStartDate) nextStartDate = constrainedStartDate;
-      if (constrainedFinishDate) nextDueDate = constrainedFinishDate;
-    }
-
-    if (isDateDrivenChange) {
-      durationWorkDays =
-        isWbsZeroDurationItem(item)
-          ? 0
-          : nextStartDate && nextDueDate
-            ? workingDaysInclusive(
-                nextStartDate,
-                nextDueDate,
-                item.calendarCode,
-                overridesByKey,
-              )
-            : null;
-    } else if (nextStartDate && durationWorkDays !== null) {
-      nextDueDate =
-        durationWorkDays <= 1
-          ? nextStartDate
-          : addWorkingDays(
-              nextStartDate,
-              durationWorkDays - 1,
-              item.calendarCode,
-              overridesByKey,
-            );
-    } else if (nextStartDate && nextDueDate) {
-      durationWorkDays =
-        isWbsZeroDurationItem(item)
-          ? 0
-          : workingDaysInclusive(
-              nextStartDate,
-              nextDueDate,
-              item.calendarCode,
-              overridesByKey,
-            );
-    }
-
-    if (isWbsCheckpointType(item)) {
-      const computedCheckpointDate = maxDate(
-        [...startConstraints, ...finishConstraints, nextDueDate, nextStartDate].filter(
-          (date): date is Date => date !== null,
-        ),
-      );
-      const editedAnchor =
-        isDateDrivenChange && changedFields.has("dueDate")
-          ? nextDueDate
-          : isDateDrivenChange && changedFields.has("startDate")
-            ? nextStartDate
-            : null;
-      const checkpointDate = editedAnchor ?? computedCheckpointDate;
-      nextStartDate = checkpointDate;
-      nextDueDate = checkpointDate;
-      durationWorkDays = 0;
-    } else if (item.status === "CANCELLED") {
-      const cancelledDate = nextStartDate ?? nextDueDate;
-      nextStartDate = cancelledDate;
-      nextDueDate = cancelledDate;
-      durationWorkDays = 0;
-    }
-
-    const nextCalendarDays =
-      nextStartDate && nextDueDate
-        ? calendarDaysInclusive(nextStartDate, nextDueDate)
-        : null;
-
-    const update: WbsScheduleUpdate = {
-      id: item.id,
-      startDate: nextStartDate,
-      dueDate: nextDueDate,
-      forecastStartDate: nextStartDate,
-      forecastDueDate: nextDueDate,
-      workDays: durationWorkDays,
-      calendarDays: nextCalendarDays,
-    };
-    computedById.set(item.id, update);
-
-    if (
-      !sameDate(item.startDate, update.startDate) ||
-      !sameDate(item.dueDate, update.dueDate) ||
-      !sameDate(item.forecastStartDate ?? null, update.forecastStartDate) ||
-      !sameDate(item.forecastDueDate ?? null, update.forecastDueDate) ||
-      !sameNumber(item.workDays, update.workDays) ||
-      !sameNumber(item.calendarDays, update.calendarDays)
-    ) {
-      updatesById.set(item.id, update);
-    }
-  }
-
-  const hierarchyOrder = [...items].sort(
-    (left, right) =>
-      wbsLevelFromItem(right) - wbsLevelFromItem(left) ||
-      right.sortOrder - left.sortOrder,
-  );
-
-  for (const item of hierarchyOrder) {
-    const children = childrenByParent.get(item.id) ?? [];
-    if (children.length === 0) continue;
-
-    const childSchedules = children
-      .map((child) => computedById.get(child.id))
-      .filter((schedule): schedule is WbsScheduleUpdate => Boolean(schedule));
-    const childStartDates = childSchedules
-      .map((schedule) => schedule.startDate)
-      .filter((date): date is Date => date !== null);
-    const childDueDates = childSchedules
-      .map((schedule) => schedule.dueDate)
-      .filter((date): date is Date => date !== null);
-    const childForecastStartDates = childSchedules
-      .map((schedule) => schedule.forecastStartDate ?? schedule.startDate)
-      .filter((date): date is Date => date !== null);
-    const childForecastDueDates = childSchedules
-      .map((schedule) => schedule.forecastDueDate ?? schedule.dueDate)
-      .filter((date): date is Date => date !== null);
-    if (childStartDates.length === 0 && childDueDates.length === 0) {
-      continue;
-    }
-
-    const nextStartDate = minDate(childStartDates);
-    const nextDueDate = maxDate(childDueDates);
-    const nextForecastStartDate = minDate(childForecastStartDates) ?? nextStartDate;
-    const nextForecastDueDate = maxDate(childForecastDueDates) ?? nextDueDate;
-    const nextCalendarDays =
-      nextStartDate && nextDueDate
-        ? calendarDaysInclusive(nextStartDate, nextDueDate)
-        : null;
-    const nextWorkDays =
-      nextStartDate && nextDueDate
-        ? isWbsZeroDurationItem(item)
-          ? 0
-          : workingDaysInclusive(
-              nextStartDate,
-              nextDueDate,
-              item.calendarCode,
-              overridesByKey,
-            )
-        : null;
-    const update: WbsScheduleUpdate = {
-      id: item.id,
-      startDate: nextStartDate,
-      dueDate: nextDueDate,
-      forecastStartDate: nextForecastStartDate,
-      forecastDueDate: nextForecastDueDate,
-      workDays: nextWorkDays,
-      calendarDays: nextCalendarDays,
-    };
-    computedById.set(item.id, update);
-
-    if (
-      !sameDate(item.startDate, update.startDate) ||
-      !sameDate(item.dueDate, update.dueDate) ||
-      !sameDate(item.forecastStartDate ?? null, update.forecastStartDate) ||
-      !sameDate(item.forecastDueDate ?? null, update.forecastDueDate) ||
-      !sameNumber(item.workDays, update.workDays) ||
-      !sameNumber(item.calendarDays, update.calendarDays)
-    ) {
-      updatesById.set(item.id, update);
-    } else {
-      updatesById.delete(item.id);
-    }
-  }
-
-  return [...updatesById.values()];
-}
 
 export function applyScheduleUpdates(
   items: WbsScheduleItem[],
@@ -333,71 +28,35 @@ export function applyScheduleUpdates(
   });
 }
 
+/** The schedule of the shared engine (calculateScheduleUpdates in @pms/shared) on the server's Date rows. */
 export function calculateWbsScheduleUpdates(
   items: WbsScheduleItem[],
   dependencies: WbsScheduleDependency[],
   calendarOverrides: WbsScheduleCalendarOverride[],
   options: WbsScheduleCalculationOptions = {},
-) {
-  let currentItems = items;
-  let previousUpdates: WbsScheduleUpdate[] = [];
-  const initialChangedFields = [...(options.changedFields ?? [])];
-  const initialChangedItems = [...(options.changedItems ?? [])].map(
-    (changedItem) => ({
-      itemId: changedItem.itemId,
-      changedFields: [...changedItem.changedFields],
-    }),
+): WbsScheduleUpdate[] {
+  const updates = calculateScheduleUpdates(
+    items.map((item) => ({
+      ...item,
+      startDate: toPlainDate(item.startDate),
+      dueDate: toPlainDate(item.dueDate),
+      forecastStartDate: item.forecastStartDate === undefined ? undefined : toPlainDate(item.forecastStartDate),
+      forecastDueDate: item.forecastDueDate === undefined ? undefined : toPlainDate(item.forecastDueDate),
+    })),
+    dependencies,
+    calendarOverrides.map((override) => ({ ...override, date: toPlainDate(override.date) })),
+    {
+      ...options,
+      startNotBeforeById: options.startNotBeforeById
+        ? new Map([...options.startNotBeforeById.entries()].map(([id, date]) => [id, toPlainDate(date)]))
+        : undefined,
+    },
   );
-
-  for (let iteration = 0; iteration < 20; iteration += 1) {
-    const updates = calculateWbsSchedulePass(
-      currentItems,
-      dependencies,
-      calendarOverrides,
-      {
-        ...options,
-        changedFields: iteration === 0 ? initialChangedFields : [],
-        changedItems: iteration === 0 ? initialChangedItems : [],
-      },
-    );
-    if (updates.length === 0) break;
-    previousUpdates = updates;
-    currentItems = applyScheduleUpdates(currentItems, updates);
-  }
-
-  if (previousUpdates.length === 0) return [];
-
-  const finalUpdates: WbsScheduleUpdate[] = [];
-  const finalItemsById = new Map(currentItems.map((item) => [item.id, item]));
-
-  for (const originalItem of items) {
-    const finalItem = finalItemsById.get(originalItem.id);
-    if (!finalItem) continue;
-
-    const update: WbsScheduleUpdate = {
-      id: originalItem.id,
-      startDate: normalizedDate(finalItem.startDate),
-      dueDate: normalizedDate(finalItem.dueDate),
-      forecastStartDate: normalizedDate(finalItem.forecastStartDate ?? null),
-      forecastDueDate: normalizedDate(finalItem.forecastDueDate ?? null),
-      workDays: finalItem.workDays ?? null,
-      calendarDays: finalItem.calendarDays ?? null,
-    };
-
-    if (
-      !sameDate(originalItem.startDate, update.startDate) ||
-      !sameDate(originalItem.dueDate, update.dueDate) ||
-      !sameDate(
-        originalItem.forecastStartDate ?? null,
-        update.forecastStartDate,
-      ) ||
-      !sameDate(originalItem.forecastDueDate ?? null, update.forecastDueDate) ||
-      !sameNumber(originalItem.workDays, update.workDays) ||
-      !sameNumber(originalItem.calendarDays, update.calendarDays)
-    ) {
-      finalUpdates.push(update);
-    }
-  }
-
-  return finalUpdates;
+  return updates.map((update) => ({
+    ...update,
+    startDate: fromPlainDate(update.startDate),
+    dueDate: fromPlainDate(update.dueDate),
+    forecastStartDate: fromPlainDate(update.forecastStartDate),
+    forecastDueDate: fromPlainDate(update.forecastDueDate),
+  }));
 }

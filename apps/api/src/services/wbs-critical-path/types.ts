@@ -62,12 +62,3 @@ export type WbsCriticalPathResult = {
   warnings: string[];
   items: WbsCriticalPathItem[];
 };
-
-export type WbsCriticalPathComputedNode = {
-  item: WbsCriticalPathItemInput;
-  durationWorkDays: number;
-  earlyStartDate: Date;
-  earlyFinishDate: Date;
-  lateStartDate: Date;
-  lateFinishDate: Date;
-};

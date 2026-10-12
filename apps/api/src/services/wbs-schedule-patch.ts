@@ -1,3 +1,4 @@
+import { resolveScheduleDateWrites, resolveSchedulePatch } from "@pms/shared";
 import type { ProjectCalendarCode } from "@prisma/client";
 
 export type WbsScheduleDriver = "dates" | "workDays";
@@ -37,22 +38,7 @@ type WbsScheduleExisting = {
   calendarCode: ProjectCalendarCode;
 };
 
-const WBS_SCHEDULE_DATE_FIELDS = [
-  "startDate",
-  "dueDate",
-  "forecastStartDate",
-  "forecastDueDate",
-] as const;
-
-const WBS_SCHEDULE_PREDECESSOR_FIELDS = [
-  "predecessor1",
-  "predecessor2",
-  "predecessor3",
-  "predecessor4",
-  "predecessor5",
-  "predecessor6",
-] as const;
-
+/** A date as its UTC calendar day; an empty or unreadable value is no date. */
 function dateOnly(value: Date | string | null | undefined) {
   if (value === null || value === undefined || value === "") return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -60,99 +46,15 @@ function dateOnly(value: Date | string | null | undefined) {
   return date.toISOString().slice(0, 10);
 }
 
-export function resolveWbsSchedulePatch(
-  patch: WbsSchedulePatch,
-  existing: WbsScheduleExisting,
-) {
-  const fields = new Set<string>();
-  const changedDateFields = WBS_SCHEDULE_DATE_FIELDS.filter(
-    (field) =>
-      patch[field] !== undefined &&
-      dateOnly(patch[field]) !== dateOnly(existing[field]),
+/** Which schedule fields a row edit changes; the rule is resolveSchedulePatch in @pms/shared. */
+export function resolveWbsSchedulePatch(patch: WbsSchedulePatch, existing: WbsScheduleExisting) {
+  const day = (value: Date | string | null | undefined) => (value === undefined ? undefined : dateOnly(value));
+  return resolveSchedulePatch(
+    { ...patch, startDate: day(patch.startDate), dueDate: day(patch.dueDate), forecastStartDate: day(patch.forecastStartDate), forecastDueDate: day(patch.forecastDueDate) },
+    { ...existing, startDate: dateOnly(existing.startDate), dueDate: dateOnly(existing.dueDate), forecastStartDate: dateOnly(existing.forecastStartDate), forecastDueDate: dateOnly(existing.forecastDueDate) },
   );
-  const hasDatePayload = WBS_SCHEDULE_DATE_FIELDS.some(
-    (field) => patch[field] !== undefined,
-  );
-  const hasChangedWorkDays =
-    patch.workDays !== undefined && (patch.workDays ?? null) !== existing.workDays;
-  const hasChangedCalendarDays =
-    patch.calendarDays !== undefined &&
-    (patch.calendarDays ?? null) !== existing.calendarDays;
-
-  const effectiveDriver =
-    patch.scheduleDriver ??
-    (changedDateFields.length > 0 ? ("dates" as const) : undefined);
-
-  // A full-row autosave may arrive after a date edit with unchanged dates but
-  // stale duration values. Explicit workDays edits send scheduleDriver=workDays.
-  const staleDurationFromFullRowSave =
-    effectiveDriver === undefined &&
-    hasDatePayload &&
-    changedDateFields.length === 0 &&
-    (hasChangedWorkDays || hasChangedCalendarDays);
-
-  const writeScheduleDates = effectiveDriver !== "workDays";
-  const writeWorkDays =
-    effectiveDriver !== "dates" && !staleDurationFromFullRowSave;
-  const writeCalendarDays =
-    effectiveDriver === undefined && !staleDurationFromFullRowSave;
-
-  if (writeScheduleDates) {
-    for (const field of changedDateFields) {
-      fields.add(field);
-    }
-  }
-
-  if (writeWorkDays && hasChangedWorkDays) {
-    fields.add("workDays");
-  }
-  if (patch.calendarCode !== undefined && patch.calendarCode !== existing.calendarCode) {
-    fields.add("calendarCode");
-  }
-  if (patch.leadLagDays !== undefined && patch.leadLagDays !== existing.leadLagDays) {
-    fields.add("leadLagDays");
-  }
-
-  for (const field of WBS_SCHEDULE_PREDECESSOR_FIELDS) {
-    if (patch[field] !== undefined && (patch[field] || null) !== existing[field]) {
-      fields.add(field);
-      fields.add("predecessors");
-    }
-  }
-
-  return {
-    changedFields: [...fields],
-    scheduleDriver: effectiveDriver,
-    staleDurationFromFullRowSave,
-    writeCalendarDays,
-    writeScheduleDates,
-    writeWorkDays,
-  };
 }
 
-export function resolveWbsScheduleDateWrites(
-  patch: WbsSchedulePatch,
-  schedulePatch: ReturnType<typeof resolveWbsSchedulePatch>,
-) {
-  if (!schedulePatch.writeScheduleDates) {
-    return {
-      startDate: undefined,
-      dueDate: undefined,
-      forecastStartDate: undefined,
-      forecastDueDate: undefined,
-    };
-  }
-
-  return {
-    startDate: patch.startDate,
-    dueDate: patch.dueDate,
-    forecastStartDate:
-      schedulePatch.scheduleDriver === "dates" && patch.startDate !== undefined
-        ? patch.startDate
-        : patch.forecastStartDate,
-    forecastDueDate:
-      schedulePatch.scheduleDriver === "dates" && patch.dueDate !== undefined
-        ? patch.dueDate
-        : patch.forecastDueDate,
-  };
+export function resolveWbsScheduleDateWrites(patch: WbsSchedulePatch, schedulePatch: ReturnType<typeof resolveWbsSchedulePatch>) {
+  return resolveScheduleDateWrites(patch, schedulePatch);
 }
