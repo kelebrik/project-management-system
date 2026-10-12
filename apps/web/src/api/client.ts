@@ -2,6 +2,7 @@ import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
+import { expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "../app/structureStore";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
 
@@ -56,19 +57,22 @@ async function request<T>(
   options: RequestInit = {},
   fallback = clientText()("ui.common.apiRequestFailed"),
 ): Promise<T> {
-  const response = await fetch(`${apiBase}${path}`, {
-    ...options,
-    credentials: "include",
-    headers: {
-      ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-      ...businessUnitHeaders(),
-      ...viewSectionHeaders(),
-      ...liveClientHeaders(),
-      ...options.headers,
-    },
+  const { response, text } = await trackStructureWrite(options.method, async () => {
+    const response = await fetch(`${apiBase}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+        ...businessUnitHeaders(),
+        ...viewSectionHeaders(),
+        ...liveClientHeaders(),
+        ...structureDeltaHeaders,
+        ...options.headers,
+      },
+    });
+    return { response, text: response.status === 204 ? "" : await response.text() };
   });
   if (response.ok) noticeScheduleShift(response);
-  const text = response.status === 204 ? "" : await response.text();
   let result: unknown = null;
   if (text) {
     try {
@@ -90,7 +94,8 @@ async function request<T>(
     }
     throw new ApiError(errorMessage(result, fallback), response.status, result);
   }
-  return result as T;
+  // A Structure write answers with its changes; the pages receive the whole Structure at that version.
+  return expandStructureAnswer(result as T, (projectId) => request(`/api/projects/${encodeURIComponent(projectId)}/overview`));
 }
 
 async function download(path: string, fallback = clientText()("ui.common.apiDownloadFailed")) {

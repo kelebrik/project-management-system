@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { historyDayEnd, historyDayKey, isPastHistoryDay } from './project-history.js';
-import { compareRows, stateFromJournal, structureFromCommands } from './project-history-read.js';
+import { compareRows, stateFromJournal, structureFromCommands, compareStructureCommands } from './project-history-read.js';
 
 test('days are Moscow days: 21:00 UTC is already the next day there', () => {
   assert.equal(historyDayKey(new Date('2026-10-09T20:59:59.000Z')), '2026-10-09');
@@ -63,4 +63,21 @@ test('only real past calendar days are asked for', () => {
   assert.equal(isPastHistoryDay('2026-02-31', now), false);
   assert.equal(isPastHistoryDay('2026-13-01', now), false);
   assert.equal(isPastHistoryDay('10.10.2026', now), false);
+});
+
+test('the journal is replayed in the order it was written: by version and place, older commands by time', () => {
+  const at = new Date('2026-10-12T10:00:00Z');
+  const base = { type: 'MOVE', createdAt: new Date('2026-10-11T10:00:00Z'), payload: {}, afterSnapshot: { wbsItems: [{ id: 'a', code: '1', title: 'A', dueDate: '2026-10-20' }], wbsDependencies: [] } };
+  // One write: the schedule's partial row, then the final command with everything the write left.
+  // Same instant, ids sorting the other way: the place inside the write decides.
+  const partial = { id: 'z', type: 'BULK_UPDATE', createdAt: at, payload: { automaticSchedule: true }, afterSnapshot: [{ id: 'a', dueDate: '2026-10-25' }], structureVersion: 5n, commandOrdinal: 0 };
+  const final = { id: 'b', type: 'UPDATE', createdAt: at, payload: { structureDelta: { items: [{ id: 'a', code: '1', title: 'A', dueDate: '2026-10-27' }], deletedItemIds: [], dependencies: [{ id: 'd1', predecessorId: 'a', successorId: 'c' }], deletedDependencyIds: [] } }, afterSnapshot: { id: 'a', title: 'A', dueDate: '2026-10-21' }, structureVersion: 5n, commandOrdinal: 1 };
+  const later = { id: 'a', type: 'UPDATE', createdAt: at, payload: { structureDelta: { items: [], deletedItemIds: [], dependencies: [], deletedDependencyIds: ['d1'] } }, afterSnapshot: null, structureVersion: 6n, commandOrdinal: 0 };
+  const replayed = structureFromCommands([later, final, partial, base], new Date('2026-10-13T00:00:00Z'))!;
+  assert.equal(replayed.rows.find((row) => row.id === 'a')!.dueDate, '2026-10-27');
+  assert.deepEqual(replayed.dependencies, []);
+
+  // Older commands without versions keep their time order and come before a new one at the same instant.
+  const old = { id: 'y', type: 'UPDATE', createdAt: at, payload: {}, afterSnapshot: { id: 'a', title: 'Старое' } };
+  assert.deepEqual([final, old, partial].sort(compareStructureCommands).map((command) => command.id), ['y', 'z', 'b']);
 });

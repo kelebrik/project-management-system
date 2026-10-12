@@ -27,13 +27,18 @@ async function apply({ user = { id: 'u1', role: 'ADMIN', email: 'a@x', name: 'A'
       create: async (args: any) => audits.push(args.data),
     },
     wbsItem: {
-      findMany: async () => [{ code: '1', sortOrder: 10 }, { code: '5.2', sortOrder: 80 }],
+      // The draft reads the existing codes and positions; the recalculation that follows sees no rows.
+      findMany: async (args: any) => (args?.select?.code && args?.select?.sortOrder ? [{ code: '1', sortOrder: 10 }, { code: '5.2', sortOrder: 80 }] : []),
       create: async (args: any) => {
         created.push(args.data);
         return { id: `n${++id}` };
       },
     },
-    wbsDependency: { create: async (args: any) => links.push(args.data) },
+    wbsDependency: { create: async (args: any) => links.push(args.data), findMany: async () => [] },
+    // The lock, the recalculation and the changes read back, all in the draft's own transaction.
+    projectStructureVersion: { findUnique: async () => null, upsert: async () => ({}) },
+    projectCalendarOverride: { findMany: async () => [] },
+    wbsCommand: { create: async () => ({}) },
   };
   const previous = prismaClientProvider.get;
   let transactions = 0;

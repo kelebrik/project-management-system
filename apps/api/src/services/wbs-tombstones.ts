@@ -15,6 +15,7 @@ import {
   recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
 } from './wbs.js';
+import { lockProjectStructure, structureTransaction, structureWriteContext } from './wbs-structure-write.js';
 import { recalculateProjectWbsSchedule } from './wbs-schedule.js';
 
 const tombstoneRetentionDays = 30;
@@ -239,184 +240,189 @@ export async function restoreWbsTombstone(input: {
   req?: Request;
 }) {
   await pruneExpiredWbsTombstones();
-  const tombstone = await prisma.wbsTombstone.findUnique({
-    where: { id: input.tombstoneId },
-  });
-  if (!tombstone) {
-    throw new WbsTombstoneRestoreError('Удаленный элемент уже недоступен для восстановления', 404);
-  }
-  if (tombstone.restoredAt) {
-    throw new WbsTombstoneRestoreError('Удаленный элемент уже восстановлен', 409);
-  }
-  if (tombstone.expiresAt.getTime() < Date.now()) {
-    await prisma.wbsTombstone.delete({ where: { id: tombstone.id } }).catch(() => undefined);
-    throw new WbsTombstoneRestoreError('Срок хранения удаленного элемента истек', 410);
-  }
-
-  const items = sortDeletedItems(asArray<SerializedWbsItem>(tombstone.items));
-  if (items.length === 0) {
-    throw new WbsTombstoneRestoreError('В tombstone нет элементов для восстановления', 400);
-  }
-
-  const project = await prisma.project.findUnique({
-    where: { id: tombstone.projectId },
-    select: { id: true, code: true },
-  });
-  if (!project) {
-    throw new WbsTombstoneRestoreError('Проект для восстановления не найден', 404);
-  }
-
-  const maxSort = await prisma.wbsItem.aggregate({
-    where: { projectId: tombstone.projectId },
-    _max: { sortOrder: true },
-  });
-  const restoredAt = new Date();
-  const itemIds = new Set(items.map((item) => item.id));
-  const restoredIdByOriginalId = new Map<string, string>();
-  const restoredLevelByOriginalId = new Map<string, number>();
-  let nextSortOrder = (maxSort._max.sortOrder ?? 0) + 10;
-
-  const restoreResult = await prisma.$transaction(async (tx) => {
-    const claim = await tx.wbsTombstone.updateMany({
-      where: {
-        id: tombstone.id,
-        restoredAt: null,
-        expiresAt: { gt: restoredAt },
-      },
-      data: {
-        restoredAt,
-        restoredById: input.actor?.id ?? null,
-      },
+  // The whole restore, its recalculation and its audit run as one Structure write.
+  return structureTransaction(async (tx) => {
+    const owner = await tx.wbsTombstone.findUnique({ where: { id: input.tombstoneId }, select: { projectId: true } });
+    if (owner) await lockProjectStructure(tx, owner.projectId);
+    const tombstone = await tx.wbsTombstone.findUnique({
+      where: { id: input.tombstoneId },
     });
-    if (claim.count === 0) {
-      throw new WbsTombstoneRestoreError('Удаленный элемент уже восстановлен или недоступен', 409);
+    if (!tombstone) {
+      throw new WbsTombstoneRestoreError('Удаленный элемент уже недоступен для восстановления', 404);
+    }
+    if (tombstone.restoredAt) {
+      throw new WbsTombstoneRestoreError('Удаленный элемент уже восстановлен', 409);
+    }
+    if (tombstone.expiresAt.getTime() < Date.now()) {
+      throw new WbsTombstoneRestoreError('Срок хранения удаленного элемента истек', 410);
     }
 
-    const restoredRoot = await tx.wbsItem.create({
-      data: {
-        projectId: tombstone.projectId,
-        parentId: null,
-        code: `__restore_root_${tombstone.id}`,
-        title: `Восстановленные элементы ${restoredAt.toISOString().slice(0, 16).replace('T', ' ')}`,
-        type: 'PHASE',
-        status: 'NOT_STARTED',
-        owner: input.actor?.name ?? '',
-        wbsLevel: 1,
-        effortPercent: 0,
-        sortOrder: nextSortOrder,
-      },
-    });
-
-    const remaining = [...items];
-    while (remaining.length > 0) {
-      let restoredInPass = 0;
-
-      for (let index = 0; index < remaining.length; index += 1) {
-        const item = remaining[index];
-        const parentOriginalId = typeof item.parentId === 'string' ? item.parentId : null;
-        if (
-          parentOriginalId &&
-          itemIds.has(parentOriginalId) &&
-          !restoredIdByOriginalId.has(parentOriginalId)
-        ) {
-          continue;
-        }
-
-        const parentId =
-          parentOriginalId && restoredIdByOriginalId.has(parentOriginalId)
-            ? restoredIdByOriginalId.get(parentOriginalId)!
-            : restoredRoot.id;
-        const parentLevel =
-          parentOriginalId && restoredLevelByOriginalId.has(parentOriginalId)
-            ? restoredLevelByOriginalId.get(parentOriginalId)!
-            : 1;
-        nextSortOrder += 10;
-        const restoredItem = await tx.wbsItem.create({
-          data: restoreItemData(
-            item,
-            tombstone.projectId,
-            parentId,
-            parentLevel + 1,
-            nextSortOrder,
-          ),
-        });
-        restoredIdByOriginalId.set(item.id, restoredItem.id);
-        restoredLevelByOriginalId.set(item.id, parentLevel + 1);
-        remaining.splice(index, 1);
-        index -= 1;
-        restoredInPass += 1;
-      }
-
-      if (restoredInPass === 0) {
-        const item = remaining.shift();
-        if (!item) break;
-        nextSortOrder += 10;
-        const restoredItem = await tx.wbsItem.create({
-          data: restoreItemData(item, tombstone.projectId, restoredRoot.id, 2, nextSortOrder),
-        });
-        restoredIdByOriginalId.set(item.id, restoredItem.id);
-        restoredLevelByOriginalId.set(item.id, 2);
-      }
+    const items = sortDeletedItems(asArray<SerializedWbsItem>(tombstone.items));
+    if (items.length === 0) {
+      throw new WbsTombstoneRestoreError('В tombstone нет элементов для восстановления', 400);
     }
 
-    const dependencies = asArray<SerializedWbsDependency>(tombstone.dependencies);
-    for (const dependency of dependencies) {
-      const predecessorId = restoredIdByOriginalId.get(dependency.predecessorId);
-      const successorId = restoredIdByOriginalId.get(dependency.successorId);
-      if (!predecessorId || !successorId) continue;
-      await tx.wbsDependency.create({
+    const project = await tx.project.findUnique({
+      where: { id: tombstone.projectId },
+      select: { id: true, code: true },
+    });
+    if (!project) {
+      throw new WbsTombstoneRestoreError('Проект для восстановления не найден', 404);
+    }
+
+    const maxSort = await tx.wbsItem.aggregate({
+      where: { projectId: tombstone.projectId },
+      _max: { sortOrder: true },
+    });
+    const restoredAt = new Date();
+    const itemIds = new Set(items.map((item) => item.id));
+    const restoredIdByOriginalId = new Map<string, string>();
+    const restoredLevelByOriginalId = new Map<string, number>();
+    let nextSortOrder = (maxSort._max.sortOrder ?? 0) + 10;
+
+    const restoreResult = await (async () => {
+      const claim = await tx.wbsTombstone.updateMany({
+        where: {
+          id: tombstone.id,
+          restoredAt: null,
+          expiresAt: { gt: restoredAt },
+        },
         data: {
-          projectId: tombstone.projectId,
-          predecessorId,
-          successorId,
-          type: dependencyType(dependency.type),
-          lagDays: numberValue(dependency.lagDays),
+          restoredAt,
+          restoredById: input.actor?.id ?? null,
         },
       });
-    }
+      if (claim.count === 0) {
+        throw new WbsTombstoneRestoreError('Удаленный элемент уже восстановлен или недоступен', 409);
+      }
 
-    await tx.wbsTombstone.update({
-      where: { id: tombstone.id },
-      data: {
-        restoredRootId: restoredRoot.id,
+      const restoredRoot = await tx.wbsItem.create({
+        data: {
+          projectId: tombstone.projectId,
+          parentId: null,
+          code: `__restore_root_${tombstone.id}`,
+          title: `Восстановленные элементы ${restoredAt.toISOString().slice(0, 16).replace('T', ' ')}`,
+          type: 'PHASE',
+          status: 'NOT_STARTED',
+          owner: input.actor?.name ?? '',
+          wbsLevel: 1,
+          effortPercent: 0,
+          sortOrder: nextSortOrder,
+        },
+      });
+
+      const remaining = [...items];
+      while (remaining.length > 0) {
+        let restoredInPass = 0;
+
+        for (let index = 0; index < remaining.length; index += 1) {
+          const item = remaining[index];
+          const parentOriginalId = typeof item.parentId === 'string' ? item.parentId : null;
+          if (
+            parentOriginalId &&
+            itemIds.has(parentOriginalId) &&
+            !restoredIdByOriginalId.has(parentOriginalId)
+          ) {
+            continue;
+          }
+
+          const parentId =
+            parentOriginalId && restoredIdByOriginalId.has(parentOriginalId)
+              ? restoredIdByOriginalId.get(parentOriginalId)!
+              : restoredRoot.id;
+          const parentLevel =
+            parentOriginalId && restoredLevelByOriginalId.has(parentOriginalId)
+              ? restoredLevelByOriginalId.get(parentOriginalId)!
+              : 1;
+          nextSortOrder += 10;
+          const restoredItem = await tx.wbsItem.create({
+            data: restoreItemData(
+              item,
+              tombstone.projectId,
+              parentId,
+              parentLevel + 1,
+              nextSortOrder,
+            ),
+          });
+          restoredIdByOriginalId.set(item.id, restoredItem.id);
+          restoredLevelByOriginalId.set(item.id, parentLevel + 1);
+          remaining.splice(index, 1);
+          index -= 1;
+          restoredInPass += 1;
+        }
+
+        if (restoredInPass === 0) {
+          const item = remaining.shift();
+          if (!item) break;
+          nextSortOrder += 10;
+          const restoredItem = await tx.wbsItem.create({
+            data: restoreItemData(item, tombstone.projectId, restoredRoot.id, 2, nextSortOrder),
+          });
+          restoredIdByOriginalId.set(item.id, restoredItem.id);
+          restoredLevelByOriginalId.set(item.id, 2);
+        }
+      }
+
+      const dependencies = asArray<SerializedWbsDependency>(tombstone.dependencies);
+      for (const dependency of dependencies) {
+        const predecessorId = restoredIdByOriginalId.get(dependency.predecessorId);
+        const successorId = restoredIdByOriginalId.get(dependency.successorId);
+        if (!predecessorId || !successorId) continue;
+        await tx.wbsDependency.create({
+          data: {
+            projectId: tombstone.projectId,
+            predecessorId,
+            successorId,
+            type: dependencyType(dependency.type),
+            lagDays: numberValue(dependency.lagDays),
+          },
+        });
+      }
+
+      await tx.wbsTombstone.update({
+        where: { id: tombstone.id },
+        data: {
+          restoredRootId: restoredRoot.id,
+        },
+      });
+
+      return {
+        restoredRoot,
+        restoredItemCount: restoredIdByOriginalId.size,
+        restoredIds: [...restoredIdByOriginalId.values()],
+      };
+    })();
+
+    await renumberProjectWbs(tombstone.projectId, tx);
+    await recalculateProjectWbsSchedule(tombstone.projectId, {}, tx);
+    await recalculateProjectWbsHierarchyStatuses(tombstone.projectId, tx);
+    const snapshot = await getProjectWbsSnapshot(tombstone.projectId, tx);
+
+    await recordAuditEvent({
+      req: input.req,
+      actor: input.actor,
+      action: 'wbs_item.restore',
+      objectType: 'WbsTombstone',
+      objectId: tombstone.id,
+      projectId: tombstone.projectId,
+      beforeValue: tombstone,
+      afterValue: {
+        restoredRootId: restoreResult.restoredRoot.id,
+        restoredItemCount: restoreResult.restoredItemCount,
+        restoredIds: restoreResult.restoredIds,
       },
-    });
+      metadata: {
+        sourceAuditEventId: tombstone.auditEventId,
+        itemCount: tombstone.itemCount,
+      },
+    }, tx);
 
     return {
-      restoredRoot,
-      restoredItemCount: restoredIdByOriginalId.size,
-      restoredIds: [...restoredIdByOriginalId.values()],
-    };
-  });
-
-  await renumberProjectWbs(tombstone.projectId);
-  await recalculateProjectWbsSchedule(tombstone.projectId);
-  await recalculateProjectWbsHierarchyStatuses(tombstone.projectId);
-  const snapshot = await getProjectWbsSnapshot(tombstone.projectId);
-
-  await recordAuditEvent({
-    req: input.req,
-    actor: input.actor,
-    action: 'wbs_item.restore',
-    objectType: 'WbsTombstone',
-    objectId: tombstone.id,
-    projectId: tombstone.projectId,
-    beforeValue: tombstone,
-    afterValue: {
+      projectId: tombstone.projectId,
       restoredRootId: restoreResult.restoredRoot.id,
       restoredItemCount: restoreResult.restoredItemCount,
-      restoredIds: restoreResult.restoredIds,
-    },
-    metadata: {
-      sourceAuditEventId: tombstone.auditEventId,
-      itemCount: tombstone.itemCount,
-    },
+      snapshot,
+      structureVersion: (structureWriteContext(tx, tombstone.projectId)?.nextVersion ?? 0n).toString(),
+    };
   });
-
-  return {
-    projectId: tombstone.projectId,
-    restoredRootId: restoreResult.restoredRoot.id,
-    restoredItemCount: restoreResult.restoredItemCount,
-    snapshot,
-  };
 }

@@ -49,6 +49,7 @@ import {
   evaluateGitlabBranchCommitAggregateFromDatabase,
   syncGitlabBranchCommitAggregate,
 } from "../services/gitlab-branch-analytics.js";
+import { lockProjectStructure, structureTransaction } from "../services/wbs-structure-write.js";
 import {
   batchQuerySchema,
   dashboardSaveSchema,
@@ -270,7 +271,9 @@ export function registerJiraSemanticAggregateRoutes(
       res.status(400).json({ error: "Одна цель указана несколько раз" });
       return;
     }
-    const outcome = await prisma.$transaction(async (transaction) => {
+    // Labels live on Structure rows: written under the project's Structure lock.
+    const outcome = await structureTransaction(async (transaction) => {
+      await lockProjectStructure(transaction, project.id);
       const before = await transaction.wbsItem.findMany({
         where: { projectId: project.id, type: "GOAL", id: { in: ids } },
         select: { id: true, title: true, jiraGoalLabels: true },

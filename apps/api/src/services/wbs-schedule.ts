@@ -3,7 +3,7 @@ import { prisma } from "../db.js";
 import { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
 import type { WbsScheduleCalculationOptions } from "./wbs-schedule/types.js";
 import { bulkUpdateWbsItems } from "./wbs-bulk-write.js";
-import { STRUCTURE_WRITE_TIMEOUT_MS, type StructureDb } from "./wbs-structure-write.js";
+import { lockProjectStructure, nextCommandStamp, structureTransaction, type StructureDb } from "./wbs-structure-write.js";
 
 export { calculateWbsBaselineVariance } from "./wbs-schedule/baseline-variance.js";
 export { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
@@ -31,7 +31,10 @@ export async function recalculateProjectWbsSchedule(
   options: WbsScheduleCalculationOptions = {},
   db?: StructureDb,
 ): Promise<number> {
-  if (!db) return prisma.$transaction((tx) => recalculateProjectWbsSchedule(projectId, options, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  if (!db) return structureTransaction(async (tx) => {
+    await lockProjectStructure(tx, projectId);
+    return recalculateProjectWbsSchedule(projectId, options, tx);
+  });
   const [items, dependencies, calendarOverrides] = await Promise.all([
     // Only what the schedule and the history row read: a 5000-row project loads a fraction of its data.
     db.wbsItem.findMany({
@@ -80,7 +83,7 @@ export async function recalculateProjectWbsSchedule(
     ["startDate", "dueDate", "forecastStartDate", "forecastDueDate", "workDays", "calendarDays"],
   );
   await db.wbsCommand.create({ data: {
-    projectId, type: "BULK_UPDATE", payload: { automaticSchedule: true },
+    projectId, type: "BULK_UPDATE", payload: { automaticSchedule: true }, ...nextCommandStamp(db, projectId),
     beforeSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow(beforeById.get(update.id)!)))) as Prisma.InputJsonValue,
     afterSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow({ ...beforeById.get(update.id)!, ...update })))) as Prisma.InputJsonValue,
   } });

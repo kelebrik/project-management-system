@@ -2,6 +2,7 @@ import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
+import { expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -9,21 +10,36 @@ export async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ) {
-  const response = await fetch(input, {
-    ...init,
-    credentials: "include",
-    headers: {
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...businessUnitHeaders(),
-      ...viewSectionHeaders(),
-      ...liveClientHeaders(),
-      ...init.headers,
-    },
+  const { response, body } = await trackStructureWrite(init.method, async () => {
+    const response = await fetch(input, {
+      ...init,
+      credentials: "include",
+      headers: {
+        ...(init.body ? { "Content-Type": "application/json" } : {}),
+        ...businessUnitHeaders(),
+        ...viewSectionHeaders(),
+        ...liveClientHeaders(),
+        ...structureDeltaHeaders,
+        ...init.headers,
+      },
+    });
+    // An answer with Structure changes is read here, so it is counted out before it is expanded.
+    const body = response.ok && response.headers.get("X-PMS-Structure") === "delta" ? await response.json() : undefined;
+    return { response, body };
   });
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("pms-auth-required"));
   }
   if (response.ok) noticeScheduleShift(response);
+  if (body !== undefined) {
+    // The answer carries Structure changes: whoever reads it gets the whole Structure at that version.
+    const expanded = await expandStructureAnswer(body, async (projectId) => {
+      const project = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/overview`);
+      return project.ok ? project.json() : null;
+    });
+    Object.defineProperty(response, "json", { value: async () => expanded });
+    Object.defineProperty(response, "text", { value: async () => JSON.stringify(expanded) });
+  }
   return response;
 }
 

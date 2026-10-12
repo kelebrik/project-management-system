@@ -25,6 +25,7 @@ import { Prisma, type JiraAggregateDefinition, type PrismaClient } from "@prisma
 
 import { jiraDashboardConfigHash, lockJiraAggregateProject } from "./jira-aggregates.js";
 import { jiraSystemAggregateStandard } from "./jira-system-aggregate-standards.js";
+import { ensureSystemGoalLabels } from "./jira-system-goal-labels.js";
 import {
   JIRA_SEMANTIC_DEFAULT_WIDGETS_VERSION,
   JIRA_SEMANTIC_WIDGET_IDS_ADDED_IN_VERSION_2,
@@ -661,18 +662,9 @@ export async function upgradeJiraAggregateTicketFields(client: PrismaClient, pro
 }
 
 export async function ensureJiraSystemSemanticAggregates(client: PrismaClient, projectId: string) {
+  await ensureSystemGoalLabels(client, projectId);
   await client.$transaction(async (transaction) => {
     await lockJiraAggregateProject(transaction, projectId);
-    await Promise.all([
-      transaction.wbsItem.updateMany({
-        where: { projectId, type: "GOAL", title: "Релиз заводской прошивки", jiraGoalLabels: { isEmpty: true } },
-        data: { jiraGoalLabels: ["MP"] },
-      }),
-      transaction.wbsItem.updateMany({
-        where: { projectId, type: "GOAL", title: "Первая ОТА готова", jiraGoalLabels: { isEmpty: true } },
-        data: { jiraGoalLabels: ["ota"] },
-      }),
-    ]);
     const references: SystemAggregateReference[] = [];
     const moves: PublishedVersionMove[] = [];
     for (const aggregate of JIRA_SYSTEM_SEMANTIC_AGGREGATES) {

@@ -1,6 +1,7 @@
 import { Prisma, type WbsCommandType } from "@prisma/client";
 import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { prisma } from "../db.js";
+import { nextCommandStamp } from "./wbs-structure-write.js";
 
 function toJsonValue(value: unknown): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
@@ -23,6 +24,7 @@ export async function recordWbsCommand(input: {
       projectId: input.projectId,
       userId,
       type: input.type,
+      ...nextCommandStamp(db, input.projectId),
       payload: toJsonValue(input.payload),
       beforeSnapshot:
         input.beforeSnapshot === undefined

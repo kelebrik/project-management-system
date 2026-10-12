@@ -27,6 +27,8 @@ import { emitWebhookEvent } from '../services/webhooks.js';
 import { projectModulesConfig } from './admin/project-modules.js';
 import { projectWriter, readableProject } from './project-writer.js';
 import { closedAtForWbsStatus } from './wbs/helpers.js';
+import { lockProjectStructure, structureTransaction } from '../services/wbs-structure-write.js';
+import { finishStructureChange, structureCommandSnapshot, structureResponse } from '../services/wbs-structure-delta.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 
 const isTemplate = (value: string): value is AutomationTemplate => (automationTemplates as readonly string[]).includes(value);
@@ -281,10 +283,12 @@ export function createAutomationRulesRouter() {
       if (proposal.kind === 'SET_WBS_STATUS' && proposal.wbsItemId) {
         const prepared = setStatusPayload.parse(proposal.payload);
         const itemId = proposal.wbsItemId;
-        const { before, after, snapshot } = await runWithWbsWriteQueue(project.id, () =>
+        const { before, after, change } = await runWithWbsWriteQueue(project.id, () =>
           trackScheduleShifts(project.id, { trigger: 'AUTOMATION', sourceItemId: itemId, actor: shiftActor(demo ? null : user) }, async () => {
-            const changed = await prisma.$transaction(
+            // The status, its recalculation and the journal commit together, on the versions the proposal saw.
+            return structureTransaction(
               async (tx) => {
+                await lockProjectStructure(tx, project.id);
                 const item = await tx.wbsItem.findFirst({ where: { id: itemId, projectId: project.id } });
                 if (!item) throw new ProposalConflict(404, 'Строка Структуры не найдена', true);
                 // The proposal rests on one version of the row and of the ticket; anything newer makes it stale.
@@ -296,14 +300,14 @@ export function createAutomationRulesRouter() {
                   data: { status: prepared.status, closedAt: closedAtForWbsStatus(prepared.status, item) },
                 });
                 if ((await claim(tx, { status: 'APPLIED' })).count !== 1) throw new ProposalConflict(409, 'Предложение уже рассмотрено или изменилось');
-                return { before: item, after: updated };
+                await recalculateProjectWbsSchedule(project.id, { changedItems: [{ itemId, changedFields: ['status'] }] }, tx);
+                await recalculateProjectWbsHierarchyStatuses(project.id, tx);
+                const change = await finishStructureChange(tx, project.id, req);
+                await recordWbsCommand({ projectId: project.id, userId: user.id, type: 'UPDATE', payload: { itemId, patch: { status: prepared.status }, automationProposalId: proposal.id, ...structureCommandSnapshot(change) }, beforeSnapshot: item, afterSnapshot: updated }, tx);
+                return { before: item, after: updated, change };
               },
               { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
             );
-            await recordWbsCommand({ projectId: project.id, userId: user.id, type: 'UPDATE', payload: { itemId, patch: { status: prepared.status }, automationProposalId: proposal.id }, beforeSnapshot: changed.before, afterSnapshot: changed.after });
-            await recalculateProjectWbsSchedule(project.id, { changedItems: [{ itemId, changedFields: ['status'] }] });
-            await recalculateProjectWbsHierarchyStatuses(project.id);
-            return { ...changed, snapshot: await getProjectWbsSnapshot(project.id) };
           }),
         );
         await recordAuditEvent({
@@ -319,8 +323,8 @@ export function createAutomationRulesRouter() {
           metadata: { automationProposalId: proposal.id },
         });
         await recordAuditEvent({ req, actor: user, action: 'automation_proposal.apply', objectType: 'AutomationProposal', objectId: proposal.id, projectId: project.id, metadata: { wbsItemId: itemId } });
-        await emitWebhookEvent({ eventType: 'wbs.items.updated', projectId: project.id, payload: { itemIds: [itemId], snapshot } }).catch(() => undefined);
-        res.json({ status: 'APPLIED', ...snapshot });
+        await emitWebhookEvent({ eventType: 'wbs.items.updated', projectId: project.id, payload: async () => ({ itemIds: [itemId], snapshot: await getProjectWbsSnapshot(project.id) }) }).catch(() => undefined);
+        res.json({ status: 'APPLIED', ...structureResponse(change) });
         return;
       }
       throw new ProposalConflict(409, 'Неизвестное предложение');

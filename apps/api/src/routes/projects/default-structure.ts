@@ -1,5 +1,5 @@
-import { prisma } from '../../db.js';
 import { recalculateProjectWbsHierarchyStatuses, renumberProjectWbs } from '../../services/wbs.js';
+import { lockProjectStructure, type StructureDb } from '../../services/wbs-structure-write.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 
 const defaultProjectWbsItems = [
@@ -21,13 +21,14 @@ function addDays(value: Date, days: number) {
   return result;
 }
 
-export async function createDefaultProjectStructure(projectId: string, projectStartDate: Date) {
+export async function createDefaultProjectStructure(projectId: string, projectStartDate: Date, db: StructureDb) {
+  await lockProjectStructure(db, projectId);
   const createdByCode = new Map<string, { id: string }>();
   for (const [index, item] of defaultProjectWbsItems.entries()) {
     const parentCode = item.code.split('.').slice(0, -1).join('.');
     const startDate = addDays(projectStartDate, item.startOffset);
     const dueDate = addDays(startDate, item.duration);
-    const created = await prisma.wbsItem.create({
+    const created = await db.wbsItem.create({
       data: {
         projectId,
         parentId: createdByCode.get(parentCode)?.id ?? null,
@@ -65,7 +66,7 @@ export async function createDefaultProjectStructure(projectId: string, projectSt
     const predecessor = createdByCode.get(predecessorCode);
     const successor = createdByCode.get(successorCode);
     if (!predecessor || !successor) continue;
-    await prisma.wbsDependency.create({
+    await db.wbsDependency.create({
       data: {
         projectId,
         predecessorId: predecessor.id,
@@ -76,7 +77,7 @@ export async function createDefaultProjectStructure(projectId: string, projectSt
     });
   }
 
-  await renumberProjectWbs(projectId);
-  await recalculateProjectWbsSchedule(projectId);
-  await recalculateProjectWbsHierarchyStatuses(projectId);
+  await renumberProjectWbs(projectId, db);
+  await recalculateProjectWbsSchedule(projectId, {}, db);
+  await recalculateProjectWbsHierarchyStatuses(projectId, db);
 }

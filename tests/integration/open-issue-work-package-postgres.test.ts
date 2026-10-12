@@ -4,6 +4,7 @@ import test from 'node:test';
 import { PrismaClient } from '@prisma/client';
 
 import { upsertIssueWorkPackage } from '../../apps/api/src/services/open-issue-work-package.js';
+import { readStructureVersion, structureTransaction } from '../../apps/api/src/services/wbs-structure-write.js';
 
 const testDatabaseUrl = process.env.JIRA_HISTORY_TEST_DATABASE_URL?.trim() ?? '';
 
@@ -98,7 +99,8 @@ test('open issue work package move keeps its subtree and stores a valid renumber
       ],
     });
 
-    const mutation = await prisma.$transaction((tx) => upsertIssueWorkPackage(tx, {
+    const versionBefore = BigInt(await readStructureVersion(projectId));
+    const mutation = await structureTransaction((tx) => upsertIssueWorkPackage(tx, {
       projectId,
       phaseId: `phase-b-${suffix}`,
       workPackageId: `package-${suffix}`,
@@ -107,6 +109,8 @@ test('open issue work package move keeps its subtree and stores a valid renumber
       dueDate: new Date('2026-09-30T00:00:00.000Z'),
     }));
     assert.equal(mutation.kind, 'moved');
+    // The package is moved under the project's Structure lock, which moves the version.
+    assert.equal(await readStructureVersion(projectId), String(versionBefore + 1n));
 
     const items = await prisma.wbsItem.findMany({
       where: { projectId },

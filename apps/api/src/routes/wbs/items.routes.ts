@@ -14,6 +14,12 @@ import {
   renumberProjectWbs,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
+import {
+  finishStructureChange,
+  structureCommandSnapshot,
+  structureResponse,
+  structureRow,
+} from '../../services/wbs-structure-delta.js';
 import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../../services/wbs-schedule-patch.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { invalidIssueLinkedWbsPlan } from '../../services/wbs-issue-links.js';
@@ -138,7 +144,7 @@ export function registerWbsItemRoutes(router: Router) {
 
     const projectId = req.params.projectId;
     try {
-      const { item, snapshot } = await runStructureWrite(projectId, async (db) => {
+      const { item, change } = await runStructureWrite(projectId, async (db) => {
         const validation = await validateWbsProjectAndParent(
           projectId,
           parsed.data.parentId,
@@ -218,16 +224,10 @@ export function registerWbsItemRoutes(router: Router) {
             sortOrder: parsed.data.sortOrder,
           },
         });
-        await recordWbsCommand({
-          projectId: validation.project.id,
-          type: 'CREATE',
-          payload: { itemId: item.id, item },
-        }, db);
-
         await recalculateProjectWbsSchedule(validation.project.id, {}, db);
         await recalculateProjectWbsHierarchyStatuses(validation.project.id, db);
-        const snapshot = await getProjectWbsSnapshot(validation.project.id, db);
-        const recalculatedItem = snapshot.wbsItems.find((wbsItem) => wbsItem.id === item.id) ?? item;
+        const change = await finishStructureChange(db, validation.project.id, req);
+        const recalculatedItem = (await structureRow(db, change, item.id)) ?? item;
         await recordAuditEvent({
           req,
           actor: currentUser(req),
@@ -238,14 +238,19 @@ export function registerWbsItemRoutes(router: Router) {
           afterValue: recalculatedItem,
           changes: buildAuditFieldChanges({}, recalculatedItem, wbsItemAuditFields),
         }, db);
-        return { item, snapshot };
+        await recordWbsCommand({
+          projectId: validation.project.id,
+          type: 'CREATE',
+          payload: { itemId: item.id, item, ...structureCommandSnapshot(change) },
+        }, db);
+        return { item, change };
       });
       await emitWebhookEvent({
         eventType: 'wbs.item.created',
         projectId,
-        payload: { item, snapshot },
+        payload: async () => ({ item, snapshot: await getProjectWbsSnapshot(projectId) }),
       }).catch(() => undefined);
-      res.status(201).json({ item, ...snapshot });
+      res.status(201).json({ item, ...structureResponse(change) });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;
@@ -440,21 +445,6 @@ export function registerWbsItemRoutes(router: Router) {
           );
         }
 
-        for (const updated of updatedItems) {
-          await recordWbsCommand({
-            projectId: project.id,
-            userId: currentUser(req)?.id,
-            type: 'UPDATE',
-            payload: {
-              itemId: updated.id,
-              patch: parsed.data.items.find((item) => item.id === updated.id)?.patch,
-              bulk: true,
-            },
-            beforeSnapshot: existingById.get(updated.id),
-            afterSnapshot: updated,
-          }, db);
-        }
-
         if (parsed.data.renumber) {
           await renumberProjectWbs(project.id, db);
         }
@@ -468,7 +458,24 @@ export function registerWbsItemRoutes(router: Router) {
           }, db);
           await recalculateProjectWbsHierarchyStatuses(project.id, db);
         }
-        return { updatedCount: updatedItems.length, snapshot: await getProjectWbsSnapshot(project.id, db) };
+        const change = await finishStructureChange(db, project.id, req);
+        // One command per row, as before; the last one carries the whole write's changes.
+        for (const [index, updated] of updatedItems.entries()) {
+          await recordWbsCommand({
+            projectId: project.id,
+            userId: currentUser(req)?.id,
+            type: 'UPDATE',
+            payload: {
+              itemId: updated.id,
+              patch: parsed.data.items.find((item) => item.id === updated.id)?.patch,
+              bulk: true,
+              ...(index === updatedItems.length - 1 ? structureCommandSnapshot(change) : {}),
+            },
+            beforeSnapshot: existingById.get(updated.id),
+            afterSnapshot: updated,
+          }, db);
+        }
+        return { updatedCount: updatedItems.length, change };
       }, { isolationLevel: parsed.data.items.some((item) => item.expectedJira) ? Prisma.TransactionIsolationLevel.Serializable : Prisma.TransactionIsolationLevel.ReadCommitted });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
@@ -482,11 +489,11 @@ export function registerWbsItemRoutes(router: Router) {
     await emitWebhookEvent({
       eventType: 'wbs.items.updated',
       projectId,
-      payload: { itemIds, snapshot: result.snapshot },
+      payload: async () => ({ itemIds, snapshot: await getProjectWbsSnapshot(projectId) }),
     }).catch(() => undefined);
 
     res.setHeader('X-WBS-Updated-Count', String(result.updatedCount));
-    res.json({ updatedCount: result.updatedCount, ...result.snapshot });
+    res.json({ updatedCount: result.updatedCount, ...structureResponse(result.change) });
   });
 
   router.delete('/projects/:projectId/wbs-items', async (req, res) => {
@@ -500,7 +507,7 @@ export function registerWbsItemRoutes(router: Router) {
     const projectId = req.params.projectId;
     const actor = currentUser(req);
     try {
-      const snapshot = await runStructureWrite(projectId, async (db) => {
+      const change = await runStructureWrite(projectId, async (db) => {
         const items = await db.wbsItem.findMany({
           where: { projectId },
           orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
@@ -579,23 +586,12 @@ export function registerWbsItemRoutes(router: Router) {
         await renumberProjectWbs(projectId, db);
         await recalculateProjectWbsSchedule(projectId, {}, db);
         await recalculateProjectWbsHierarchyStatuses(projectId, db);
-        const snapshot = await getProjectWbsSnapshot(projectId, db);
+        const change = await finishStructureChange(db, projectId, req);
         const deletedItems = deletedFullItems.map((item) => ({
           id: item.id,
           code: item.code,
           title: item.title,
         }));
-        await recordWbsCommand({
-          projectId,
-          type: 'DELETE',
-          payload: {
-            action: 'bulk-delete',
-            itemIds,
-            deletedItems,
-          },
-          beforeSnapshot: deletedItems,
-          afterSnapshot: snapshot,
-        }, db);
         const auditEvent = await recordAuditEvent({
           req,
           actor,
@@ -614,12 +610,23 @@ export function registerWbsItemRoutes(router: Router) {
         if (auditEvent) {
           await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id, db);
         }
-        return snapshot;
+        await recordWbsCommand({
+          projectId,
+          type: 'DELETE',
+          payload: {
+            action: 'bulk-delete',
+            itemIds,
+            deletedItems,
+            ...structureCommandSnapshot(change),
+          },
+          beforeSnapshot: deletedItems,
+        }, db);
+        return change;
       });
 
       res.json({
         deletedCount: itemIds.length,
-        ...snapshot,
+        ...structureResponse(change),
       });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
@@ -826,14 +833,6 @@ export function registerWbsItemRoutes(router: Router) {
           }
           throw error;
         }
-        await recordWbsCommand({
-          projectId: existing.projectId,
-          type: 'UPDATE',
-          payload: { itemId: existing.id, patch: parsed.data },
-          beforeSnapshot: existing,
-          afterSnapshot: updated,
-        }, db);
-
         // Text, links, owner and cost do not move dates or statuses: such a change skips
         // the recalculation, which reads and checks the whole project.
         if (wbsPatchAffectsSchedule(parsed.data)) {
@@ -843,9 +842,8 @@ export function registerWbsItemRoutes(router: Router) {
           }, db);
           await recalculateProjectWbsHierarchyStatuses(existing.projectId, db);
         }
-        const snapshot = await getProjectWbsSnapshot(existing.projectId, db);
-        const recalculatedItem =
-          snapshot.wbsItems.find((item) => item.id === existing.id) ?? updated;
+        const change = await finishStructureChange(db, existing.projectId, req);
+        const recalculatedItem = (await structureRow(db, change, existing.id)) ?? updated;
         await recordAuditEvent({
           req,
           actor: currentUser(req),
@@ -858,7 +856,14 @@ export function registerWbsItemRoutes(router: Router) {
           metadata: { changedFields: Object.keys(parsed.data) },
           changes: buildAuditFieldChanges(existing, recalculatedItem, wbsItemAuditFields),
         }, db);
-        return { existing, recalculatedItem, snapshot };
+        await recordWbsCommand({
+          projectId: existing.projectId,
+          type: 'UPDATE',
+          payload: { itemId: existing.id, patch: parsed.data, ...structureCommandSnapshot(change) },
+          beforeSnapshot: existing,
+          afterSnapshot: updated,
+        }, db);
+        return { existing, recalculatedItem, change };
       });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
@@ -867,15 +872,15 @@ export function registerWbsItemRoutes(router: Router) {
     await emitWebhookEvent({
       eventType: 'wbs.item.updated',
       projectId: result.existing.projectId,
-      payload: { before: result.existing, after: result.recalculatedItem, snapshot: result.snapshot },
+      payload: async () => ({ before: result.existing, after: result.recalculatedItem, snapshot: await getProjectWbsSnapshot(result.existing.projectId) }),
     }).catch(() => undefined);
-    res.json({ item: result.recalculatedItem, ...result.snapshot });
+    res.json({ item: result.recalculatedItem, ...structureResponse(result.change) });
   });
 
   router.delete('/wbs-items/:itemId', async (req, res) => {
     const actor = currentUser(req);
     try {
-      const snapshot = await runStructureWriteFor(wbsItemProject(req.params.itemId), async (db) => {
+      const change = await runStructureWriteFor(wbsItemProject(req.params.itemId), async (db) => {
         const existing = await db.wbsItem.findUnique({
           where: { id: req.params.itemId },
         });
@@ -928,14 +933,7 @@ export function registerWbsItemRoutes(router: Router) {
         await renumberProjectWbs(existing.projectId, db);
         await recalculateProjectWbsSchedule(existing.projectId, {}, db);
         await recalculateProjectWbsHierarchyStatuses(existing.projectId, db);
-        const snapshot = await getProjectWbsSnapshot(existing.projectId, db);
-        await recordWbsCommand({
-          projectId: existing.projectId,
-          type: 'DELETE',
-          payload: { itemId: existing.id, code: existing.code, title: existing.title },
-          beforeSnapshot: existing,
-          afterSnapshot: snapshot,
-        }, db);
+        const change = await finishStructureChange(db, existing.projectId, req);
         const auditEvent = await recordAuditEvent({
           req,
           actor,
@@ -952,9 +950,15 @@ export function registerWbsItemRoutes(router: Router) {
         if (auditEvent) {
           await attachAuditEventToWbsTombstone(tombstone.id, auditEvent.id, db);
         }
-        return snapshot;
+        await recordWbsCommand({
+          projectId: existing.projectId,
+          type: 'DELETE',
+          payload: { itemId: existing.id, code: existing.code, title: existing.title, ...structureCommandSnapshot(change) },
+          beforeSnapshot: existing,
+        }, db);
+        return change;
       });
-      res.json(snapshot);
+      res.json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;

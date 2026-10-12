@@ -10,6 +10,7 @@ import { buildCalendarOverrides, isWorkingDay } from '../../services/wbs-schedul
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../../services/wbs.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import { finishStructureChange, structureCommandSnapshot, structureResponse, structureRow } from '../../services/wbs-structure-delta.js';
 import {
   rejectStructureWrite,
   respondToStructureRejection,
@@ -82,7 +83,7 @@ export function registerWbsAppendRoutes(router: Router) {
     const projectId = String(req.params.projectId);
     const input = body.data;
     try {
-      const { item, snapshot } = await runStructureWrite(projectId, async (tx) => {
+      const { item, change } = await runStructureWrite(projectId, async (tx) => {
         const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true } });
         if (!project) rejectStructureWrite(404, 'Проект не найден');
         const rows = await tx.wbsItem.findMany({
@@ -128,16 +129,16 @@ export function registerWbsAppendRoutes(router: Router) {
             sortOrder,
           },
         });
-        await recordWbsCommand({ projectId, userId: currentUser(req)?.id, type: 'CREATE', payload: { itemId: created.id, item: created, source: 'workload' } }, tx);
         await recalculateProjectWbsSchedule(projectId, {}, tx);
         await recalculateProjectWbsHierarchyStatuses(projectId, tx);
-        const snapshot = await getProjectWbsSnapshot(projectId, tx);
-        const item = snapshot.wbsItems.find((row) => row.id === created.id) ?? created;
+        const change = await finishStructureChange(tx, projectId, req);
+        const item = (await structureRow(tx, change, created.id)) ?? created;
         await recordAuditEvent({ req, actor: currentUser(req), action: 'wbs_item.create', objectType: 'WbsItem', objectId: created.id, projectId, afterValue: item, metadata: { source: 'workload' } }, tx);
-        return { item, snapshot };
+        await recordWbsCommand({ projectId, userId: currentUser(req)?.id, type: 'CREATE', payload: { itemId: created.id, item: created, source: 'workload', ...structureCommandSnapshot(change) } }, tx);
+        return { item, change };
       });
-      await emitWebhookEvent({ eventType: 'wbs.item.created', projectId, payload: { item, snapshot } }).catch(() => undefined);
-      res.status(201).json({ item, ...snapshot });
+      await emitWebhookEvent({ eventType: 'wbs.item.created', projectId, payload: async () => ({ item, snapshot: await getProjectWbsSnapshot(projectId) }) }).catch(() => undefined);
+      res.status(201).json({ item, ...structureResponse(change) });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       if (error instanceof AppendRefused) {
@@ -158,7 +159,7 @@ type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
  * after it that are in the way move along, each by as little as needed; rows
  * before it never change.
  */
-export async function sortPositionAt(tx: Tx, rows: Array<{ id: string; sortOrder: number }>, plan: AppendPlan) {
+export async function sortPositionAt(tx: Tx, rows: Array<{ id: string; sortOrder: number }>, plan: Pick<AppendPlan, 'insertIndex'>) {
   const before = rows[plan.insertIndex - 1];
   const after = rows[plan.insertIndex];
   if (!after) return (before?.sortOrder ?? 0) + 10;

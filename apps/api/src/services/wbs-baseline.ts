@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import type { StructureDb } from "./wbs-structure-write.js";
+import { lockProjectStructure, structureTransaction, type StructureDb } from "./wbs-structure-write.js";
 
 export async function createWbsBaselineFromCurrentPlan(projectId: string, db?: StructureDb) {
   const run = async (tx: StructureDb) => {
@@ -113,7 +113,8 @@ export async function copyLatestWbsBaselineToProject(input: {
   targetProjectId: string;
   createdById?: string | null;
 }) {
-  return prisma.$transaction(async (tx) => {
+  return structureTransaction(async (tx) => {
+    await lockProjectStructure(tx, input.targetProjectId);
     const baseline = await tx.wbsBaseline.findFirst({
       where: {
         projectId: input.sourceProjectId,

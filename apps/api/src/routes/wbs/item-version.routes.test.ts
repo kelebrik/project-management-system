@@ -32,6 +32,7 @@ async function send(body: Record<string, unknown>, update: (args: { where: unkno
   const client: any = {
     wbsItem: {
       findUnique: async () => row,
+      findMany: async () => [row],
       update: async (args: { where: unknown }) => {
         updates += 1;
         return update(args);
@@ -39,6 +40,9 @@ async function send(body: Record<string, unknown>, update: (args: { where: unkno
     },
     issue: { findMany: async () => [] },
     project: { findUnique: async () => ({ id: 'p', status: 'ACTIVE' }) },
+    // What the lock reads: the Structure version and the ids the write starts from.
+    projectStructureVersion: { findUnique: async () => null },
+    wbsDependency: { findMany: async () => [] },
     // The edit runs in one transaction under the project's lock.
     $transaction: async (work: (db: unknown) => unknown) => work(client),
     $executeRaw: async () => 0,

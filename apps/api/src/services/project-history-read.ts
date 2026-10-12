@@ -100,7 +100,41 @@ function reconstructObjects(events: AuditRow[], current: Row[], end: Date) {
   return { rows, unknown };
 }
 
-type CommandRow = { type: string; createdAt: Date; payload: unknown; afterSnapshot: unknown };
+type CommandRow = {
+  id?: string;
+  type: string;
+  createdAt: Date;
+  payload: unknown;
+  afterSnapshot: unknown;
+  structureVersion?: bigint | null;
+  commandOrdinal?: number | null;
+};
+
+/**
+ * The order the structure journal was written in. Commands of one write share
+ * a version and its time, and keep their place by ordinal; between writes the
+ * version decides. Older commands have neither and keep their time order, and
+ * at one instant an older command comes before a newer one.
+ */
+export function compareStructureCommands(left: CommandRow, right: CommandRow) {
+  if (left.structureVersion != null && right.structureVersion != null) {
+    if (left.structureVersion !== right.structureVersion) return left.structureVersion < right.structureVersion ? -1 : 1;
+    return (left.commandOrdinal ?? 0) - (right.commandOrdinal ?? 0);
+  }
+  const byTime = left.createdAt.getTime() - right.createdAt.getTime();
+  if (byTime !== 0) return byTime;
+  const leftNew = left.structureVersion != null ? 1 : 0;
+  const rightNew = right.structureVersion != null ? 1 : 0;
+  if (leftNew !== rightNew) return leftNew - rightNew;
+  return String(left.id ?? '').localeCompare(String(right.id ?? ''));
+}
+
+type StructureDeltaRecord = { items?: Row[]; deletedItemIds?: string[]; dependencies?: Row[]; deletedDependencyIds?: string[] };
+
+function commandDelta(command: CommandRow): StructureDeltaRecord | null {
+  const delta = (command.payload as { structureDelta?: unknown } | null)?.structureDelta;
+  return delta && typeof delta === 'object' ? delta as StructureDeltaRecord : null;
+}
 
 function fullSnapshotItems(snapshot: unknown): Row[] | null {
   if (snapshot && typeof snapshot === 'object' && Array.isArray((snapshot as { wbsItems?: unknown }).wbsItems)) {
@@ -115,7 +149,7 @@ function fullSnapshotItems(snapshot: unknown): Row[] | null {
  * written after it. Writes that left no journal entry are not seen.
  */
 export function structureFromCommands(commands: CommandRow[], end: Date) {
-  const upToEnd = commands.filter((command) => command.createdAt <= end).sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime());
+  const upToEnd = commands.filter((command) => command.createdAt <= end).sort(compareStructureCommands);
   let baseIndex = -1;
   upToEnd.forEach((command, index) => {
     if (fullSnapshotItems(command.afterSnapshot)) baseIndex = index;
@@ -123,7 +157,7 @@ export function structureFromCommands(commands: CommandRow[], end: Date) {
   if (baseIndex < 0) return null;
   const base = upToEnd[baseIndex]!;
   const rows = new Map(fullSnapshotItems(base.afterSnapshot)!.map((row) => [String(row.id), { ...row }]));
-  const dependencies = ((base.afterSnapshot as { wbsDependencies?: Row[] }).wbsDependencies ?? []).map((row) => ({ ...row }));
+  const dependencies = new Map(((base.afterSnapshot as { wbsDependencies?: Row[] }).wbsDependencies ?? []).map((row, index) => [String(row.id ?? `base-${index}`), { ...row }]));
   for (const command of upToEnd.slice(baseIndex + 1)) {
     const after = command.afterSnapshot;
     if (Array.isArray(after)) {
@@ -138,8 +172,16 @@ export function structureFromCommands(commands: CommandRow[], end: Date) {
       const item = (command.payload as { item?: Row } | null)?.item;
       if (item?.id) rows.set(String(item.id), item);
     }
+    // The last command of a write carries everything the write left, recalculations included.
+    const delta = commandDelta(command);
+    if (delta) {
+      for (const row of delta.items ?? []) rows.set(String(row.id), { ...row });
+      for (const id of delta.deletedItemIds ?? []) rows.delete(String(id));
+      for (const row of delta.dependencies ?? []) dependencies.set(String(row.id), { ...row });
+      for (const id of delta.deletedDependencyIds ?? []) dependencies.delete(String(id));
+    }
   }
-  return { rows: [...rows.values()], dependencies, baseAt: base.createdAt };
+  return { rows: [...rows.values()], dependencies: [...dependencies.values()], baseAt: base.createdAt };
 }
 
 function dependencyKey(row: Row) {
@@ -215,7 +257,7 @@ export async function readProjectHistory(projectId: string, date: string, curren
       select: { objectType: true, objectId: true, action: true, createdAt: true, beforeValue: true, afterValue: true },
       orderBy: { createdAt: 'asc' },
     }),
-    client.wbsCommand.findMany({ where: { projectId, createdAt: { lte: end } }, select: { type: true, createdAt: true, payload: true, afterSnapshot: true }, orderBy: { createdAt: 'asc' } }),
+    client.wbsCommand.findMany({ where: { projectId, createdAt: { lte: end } }, select: { id: true, type: true, createdAt: true, payload: true, afterSnapshot: true, structureVersion: true, commandOrdinal: true }, orderBy: { createdAt: 'asc' } }),
   ]);
   const raid = reconstructObjects(audits.filter((event) => event.objectType === 'RaidItem'), current.raid, end);
   const issues = reconstructObjects(audits.filter((event) => event.objectType === 'Issue'), current.issues, end);

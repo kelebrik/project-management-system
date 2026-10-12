@@ -1,5 +1,6 @@
 import { Prisma, type WbsItem, type WbsItemType } from '@prisma/client';
 
+import { lockProjectStructure } from './wbs-structure-write.js';
 import { buildWbsRenumberPlan, levelFromWbsItem } from './wbs-ordering.js';
 
 type PlacementItem = Pick<
@@ -226,6 +227,7 @@ export async function upsertIssueWorkPackage(
   tx: Prisma.TransactionClient,
   input: UpsertIssueWorkPackageInput,
 ): Promise<IssueWorkPackageMutation> {
+  await lockProjectStructure(tx, input.projectId);
   const items = await tx.wbsItem.findMany({
     where: { projectId: input.projectId },
     orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],

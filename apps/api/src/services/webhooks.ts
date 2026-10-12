@@ -88,21 +88,24 @@ function enqueueWebhookDelivery(input: Parameters<typeof deliverWebhook>[0]) {
 export async function emitWebhookEvent(input: {
   eventType: string;
   projectId?: string | null;
-  payload: unknown;
+  /** The event's data, or a function that reads it: called only when someone subscribed. */
+  payload: unknown | (() => Promise<unknown>);
 }) {
-  const endpoints = await prisma.webhookEndpoint.findMany({
+  const endpoints = (await prisma.webhookEndpoint.findMany({
     where: { isActive: true },
-  });
+  })).filter((endpoint) => shouldDeliver(asEventList(endpoint.events), input.eventType));
+  // Nobody listens: the data, which may be a whole Structure, is never built.
+  if (endpoints.length === 0) return;
+  const data = typeof input.payload === 'function' ? await (input.payload as () => Promise<unknown>)() : input.payload;
   const payload = JSON.stringify({
     eventType: input.eventType,
     projectId: input.projectId ?? null,
     emittedAt: new Date().toISOString(),
-    data: input.payload,
+    data,
   });
 
   const deliveries = await Promise.all(
     endpoints
-      .filter((endpoint) => shouldDeliver(asEventList(endpoint.events), input.eventType))
       .map(async (endpoint) => {
         const delivery = await prisma.webhookDelivery.create({
           data: {

@@ -64,6 +64,7 @@ import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
+import { structureTransaction } from '../services/wbs-structure-write.js';
 import {
   calendarDelayDays,
   ensureIssuePhaseSelectionAccess,
@@ -158,7 +159,7 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
   const { issue, workPackageMutation } = await runWithWbsWriteQueue(
     project.id,
     () => trackScheduleShifts(project.id, { trigger: 'ISSUE', sourceNote: parsed.data.title, actor: shiftActor(currentUser(req)) }, async () => {
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await structureTransaction(async (tx) => {
         const mutation = phaseId
           ? await upsertIssueWorkPackage(tx, {
               projectId: project.id,
@@ -201,12 +202,10 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
           },
           include: issueInclude,
         });
-        return { issue: createdIssue, workPackageMutation: mutation };
-      }, {
-        maxWait: 10_000,
-        timeout: 20_000,
+        const announce = await finalizeIssueWorkPackage(project.id, mutation, tx);
+        return { issue: createdIssue, workPackageMutation: mutation, announce };
       });
-      await finalizeIssueWorkPackage(project.id, result.workPackageMutation);
+      await result.announce?.();
       return result;
     }),
   );
@@ -275,7 +274,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
   const result = await runWithWbsWriteQueue(
     issue.projectId,
     () => trackScheduleShifts(issue.projectId, { trigger: 'ISSUE', sourceIssueId: issue.id, sourceNote: issue.title, actor: shiftActor(currentUser(req)) }, async () => {
-      const transactionResult = await prisma.$transaction(async (tx) => {
+      const transactionResult = await structureTransaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`
           SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE
         `);
@@ -476,17 +475,16 @@ router.patch('/open-issues/:issueId', async (req, res) => {
           },
           include: issueInclude,
         });
+        const announce = await finalizeIssueWorkPackage(issue.projectId, mutation, tx);
         return {
           beforeIssue: currentIssue,
           updated: updatedIssue,
           workPackageMutation: mutation,
+          announce,
         };
-      }, {
-        maxWait: 10_000,
-        timeout: 20_000,
       });
       if (!transactionResult) return null;
-      await finalizeIssueWorkPackage(issue.projectId, transactionResult.workPackageMutation);
+      await transactionResult.announce?.();
       return transactionResult;
     }),
   );

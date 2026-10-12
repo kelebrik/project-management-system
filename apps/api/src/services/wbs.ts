@@ -12,7 +12,7 @@ import {
 } from "./wbs-ordering.js";
 import { assertProjectIssueLinkedWbsPlan } from "./wbs-issue-links.js";
 import { bulkUpdateWbsItems } from "./wbs-bulk-write.js";
-import { STRUCTURE_WRITE_TIMEOUT_MS, type StructureDb } from "./wbs-structure-write.js";
+import { lockProjectStructure, structureTransaction, type StructureDb } from "./wbs-structure-write.js";
 
 export type { WbsOrderingDependency, WbsOrderingItem, WbsRenumberRow };
 export { buildWbsRenumberPlan, levelFromWbsCode, levelFromWbsItem };
@@ -111,7 +111,10 @@ export function calculateWbsHierarchyStatusUpdates(
 }
 
 export async function recalculateProjectWbsHierarchyStatuses(projectId: string, db?: StructureDb): Promise<number> {
-  if (!db) return prisma.$transaction((tx) => recalculateProjectWbsHierarchyStatuses(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  if (!db) return structureTransaction(async (tx) => {
+    await lockProjectStructure(tx, projectId);
+    return recalculateProjectWbsHierarchyStatuses(projectId, tx);
+  });
   const items = await db.wbsItem.findMany({
     where: { projectId },
     select: {
@@ -138,7 +141,10 @@ export async function recalculateProjectWbsHierarchyStatuses(projectId: string, 
 }
 
 export async function renumberProjectWbs(projectId: string, db?: StructureDb): Promise<number> {
-  if (!db) return prisma.$transaction((tx) => renumberProjectWbs(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  if (!db) return structureTransaction(async (tx) => {
+    await lockProjectStructure(tx, projectId);
+    return renumberProjectWbs(projectId, tx);
+  });
   const items = await db.wbsItem.findMany({
     where: { projectId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
@@ -173,7 +179,10 @@ export async function renumberProjectWbs(projectId: string, db?: StructureDb): P
 }
 
 export async function syncWbsPredecessorFields(projectId: string, db?: StructureDb): Promise<void> {
-  if (!db) return prisma.$transaction((tx) => syncWbsPredecessorFields(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  if (!db) return structureTransaction(async (tx) => {
+    await lockProjectStructure(tx, projectId);
+    return syncWbsPredecessorFields(projectId, tx);
+  });
   const dependencies = await db.wbsDependency.findMany({
     where: { projectId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
@@ -210,7 +219,7 @@ export async function getProjectWbsSnapshot(projectId: string, db: StructureDb =
     }),
     db.wbsDependency.findMany({
       where: { projectId },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       include: {
         predecessor: { select: { id: true, code: true, title: true } },
         successor: { select: { id: true, code: true, title: true } },

@@ -6,6 +6,7 @@ import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import { openApiDocument } from '../openapi.js';
 import { createProjectEventsRouter, projectLiveEventsMiddleware } from '../routes/project-events.routes.js';
+import { markStructureDeltaAnswers } from '../services/wbs-structure-delta.js';
 import { createProjectHistoryRouter } from '../routes/project-history.routes.js';
 import { createAdminRouter } from '../routes/admin.routes.js';
 import { createBusinessUnitsRouter } from '../routes/business-units.routes.js';
@@ -113,7 +114,7 @@ export function createApp() {
       origin: corsOrigin(),
       credentials: true,
       // The page reads which journal operation a structure edit made and whether it needs a reason.
-      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed'],
+      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-PMS-Structure'],
     }),
   );
   app.use('/api', (_req, res, next) => {
@@ -183,6 +184,7 @@ export function createApp() {
   app.use('/api', createProjectHistoryRouter());
   app.use('/api', writePermissionMiddleware);
   app.use('/api', projectLiveEventsMiddleware);
+  app.use('/api', markStructureDeltaAnswers);
 
   app.use(
     '/api',

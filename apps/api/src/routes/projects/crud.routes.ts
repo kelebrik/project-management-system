@@ -4,9 +4,13 @@ import { prisma } from '../../db.js';
 import {
   rejectStructureWrite,
   respondToStructureRejection,
+  lockProjectStructure,
   runStructureWrite,
+  structureTransaction,
+  structureWriteContext,
   type StructureDb,
 } from '../../services/wbs-structure-write.js';
+import { readStructureDelta, structureCommandSnapshot } from '../../services/wbs-structure-delta.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
@@ -193,7 +197,8 @@ export function registerProjectCrudRoutes(
     }
 
     try {
-      const { project, copiedStructure, imported } = await prisma.$transaction(async (tx) => {
+      // The project and its first Structure, recalculated, commit together.
+      const { project, copiedStructure, imported, structureVersion } = await structureTransaction(async (tx) => {
         const createdProject = await tx.project.create({
           data: {
             ...projectData,
@@ -212,6 +217,8 @@ export function registerProjectCrudRoutes(
           },
           include: projectInclude,
         });
+        // Locked before its first row is written, like any Structure write.
+        const structure = await lockProjectStructure(tx, createdProject.id);
 
         if (actor && actor.role !== 'ADMIN') {
           await tx.projectAccess.upsert({
@@ -245,29 +252,29 @@ export function registerProjectCrudRoutes(
           structureSource === 'table' && importRows && importKey
             ? await applyWbsImport(tx, { projectId: createdProject.id, rows: importRows, importKey, userId: actor && actor.id !== PUBLIC_DEMO_USER_ID ? actor.id : null })
             : null;
-        return { project: createdProject, copiedStructure: copyResult, imported: importResult };
-      }, { timeout: 60_000 });
+        if (copyResult) {
+          await recalculateProjectWbsSchedule(createdProject.id, {}, tx);
+          const delta = await readStructureDelta(tx, createdProject.id);
+          await recordWbsCommand({
+            projectId: createdProject.id,
+            type: 'BULK_UPDATE',
+            payload: {
+              action: 'copy-current-structures',
+              sources: copyResult.sources,
+              itemCount: copyResult.itemCount,
+              dependencyCount: copyResult.dependencyCount,
+              ...structureCommandSnapshot({ delta, snapshot: null }),
+            },
+          }, tx);
+        } else if (importResult) {
+          await recalculateProjectWbsSchedule(createdProject.id, {}, tx);
+          await recalculateProjectWbsHierarchyStatuses(createdProject.id, tx);
+        } else {
+          await createDefaultProjectStructure(createdProject.id, createdProject.startDate, tx);
+        }
+        return { project: createdProject, copiedStructure: copyResult, imported: importResult, structureVersion: structure.nextVersion.toString() };
+      });
       const createdProjectAccessLevel = actor?.role === 'ADMIN' ? 'ADMIN' : 'EDIT';
-      if (copiedStructure) {
-        await recalculateProjectWbsSchedule(project.id);
-        const snapshot = await getProjectWbsSnapshot(project.id);
-        await recordWbsCommand({
-          projectId: project.id,
-          type: 'BULK_UPDATE',
-          payload: {
-            action: 'copy-current-structures',
-            sources: copiedStructure.sources,
-            itemCount: copiedStructure.itemCount,
-            dependencyCount: copiedStructure.dependencyCount,
-          },
-          afterSnapshot: snapshot,
-        });
-      } else if (imported) {
-        await recalculateProjectWbsSchedule(project.id);
-        await recalculateProjectWbsHierarchyStatuses(project.id);
-      } else {
-        await createDefaultProjectStructure(project.id, project.startDate);
-      }
       // A new project starts with the system Jira aggregates and standard widgets.
       await reconcileJiraSystemSetup(prisma, project);
 
@@ -300,6 +307,7 @@ export function registerProjectCrudRoutes(
         ...project,
         currentUserAccessLevel: actor ? createdProjectAccessLevel : null,
         copiedStructure,
+        structureVersion,
       });
     } catch (error) {
       if (
@@ -552,7 +560,8 @@ export function registerProjectCrudRoutes(
           shiftContext.sourceItemId = activeGoal?.id ?? null;
           const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
           if (dateKey(previousTargetDate) === dateKey(nextTargetDate)) {
-            return { changed: false as const, project };
+            const unchanged = await db.project.findUnique({ where: { id: project.id }, include: projectDetailsInclude });
+            return { changed: false as const, project, unchanged, structureVersion: structureWriteContext(db, project.id)!.nextVersion.toString() };
           }
 
           const beforeSnapshot = await projectAuditSnapshot(project.id, db);
@@ -620,7 +629,13 @@ export function registerProjectCrudRoutes(
               },
             ],
           }, db);
-          return { changed: true as const, project, previousTargetDate, beforeSnapshot, afterSnapshot };
+          // The answer's project is read in the write, so it matches the version the write produces.
+          const updated = await db.project.findUnique({
+            where: { id: project.id },
+            include: projectDetailsInclude,
+          });
+          const structureVersion = structureWriteContext(db, project.id)!.nextVersion.toString();
+          return { changed: true as const, project, previousTargetDate, beforeSnapshot, afterSnapshot, updated, structureVersion };
         })),
       );
     } catch (error) {
@@ -629,19 +644,10 @@ export function registerProjectCrudRoutes(
     }
 
     if (!outcome.changed) {
-      const unchanged = await prisma.project.findUnique({
-        where: { id: outcome.project.id },
-        include: projectDetailsInclude,
-      });
-      res.json(unchanged);
+      res.json(outcome.unchanged ? { ...outcome.unchanged, structureVersion: outcome.structureVersion } : outcome.unchanged);
       return;
     }
-    const { project, previousTargetDate, beforeSnapshot, afterSnapshot } = outcome;
-
-    const updated = await prisma.project.findUnique({
-      where: { id: project.id },
-      include: projectDetailsInclude,
-    });
+    const { project, previousTargetDate, beforeSnapshot, afterSnapshot, updated, structureVersion } = outcome;
     await emitWebhookEvent({
       eventType: 'project.target_date.updated',
       projectId: project.id,
@@ -653,7 +659,7 @@ export function registerProjectCrudRoutes(
       },
     }).catch(() => undefined);
 
-    res.json(updated);
+    res.json(updated ? { ...updated, structureVersion } : updated);
   });
 
   router.post('/projects/:projectId/close', requireAdmin, async (req, res) => {

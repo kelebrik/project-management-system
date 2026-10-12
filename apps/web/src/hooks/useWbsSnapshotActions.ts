@@ -11,6 +11,7 @@ import type { WbsFormState, wbsToForm } from "../app/formState";
 import { mergeWbsDrafts } from "../app/wbsDraftMerge";
 import { apiBase, authenticatedFetch } from "../app/http";
 import { wbsSnapshotsEqual } from "../app/wbsTree";
+import { capUndoHistory } from "../app/undoHistory";
 import { useConfirm } from "./useConfirm";
 
 type WbsSnapshotActionDeps = {
@@ -118,7 +119,7 @@ export function useWbsSnapshotActions({
     if (!snapshot) return null;
     const previous = wbsUndoStackRef.current.at(-1);
     if (!previous || !wbsSnapshotsEqual(previous, snapshot)) {
-      setWbsUndoHistory([...wbsUndoStackRef.current, snapshot].slice(-10));
+      setWbsUndoHistory(capUndoHistory([...wbsUndoStackRef.current, snapshot]));
     }
     setWbsRedoHistory([]);
     return snapshot;
@@ -157,11 +158,11 @@ export function useWbsSnapshotActions({
         await refreshProject(project.id);
       }
       if (direction === "undo") {
-        setWbsRedoHistory([...wbsRedoStackRef.current, currentSnapshot].slice(-10));
+        setWbsRedoHistory(capUndoHistory([...wbsRedoStackRef.current, currentSnapshot]));
         setWbsUndoHistory(wbsUndoStackRef.current.slice(0, -1));
         setNotice("Откат Структуры выполнен");
       } else {
-        setWbsUndoHistory([...wbsUndoStackRef.current, currentSnapshot].slice(-10));
+        setWbsUndoHistory(capUndoHistory([...wbsUndoStackRef.current, currentSnapshot]));
         setWbsRedoHistory(wbsRedoStackRef.current.slice(0, -1));
         setNotice("Изменение Структуры восстановлено");
       }

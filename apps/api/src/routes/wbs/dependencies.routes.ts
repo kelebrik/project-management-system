@@ -1,6 +1,7 @@
 import type { Router } from 'express';
 import { getProjectWbsSnapshot, syncWbsPredecessorFields } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
+import { finishStructureChange, structureCommandSnapshot, structureResponse } from '../../services/wbs-structure-delta.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import {
   rejectStructureWrite,
@@ -100,27 +101,26 @@ export function registerWbsDependencyRoutes(
 
     const projectId = req.params.projectId;
     try {
-      const snapshot = await runStructureWrite(projectId, async (db) => {
+      const change = await runStructureWrite(projectId, async (db) => {
         await assertDependencyAllowed(db, projectId, parsed.data);
         await upsertDependency(db, projectId, parsed.data);
         await syncWbsPredecessorFields(projectId, db);
         await recalculateProjectWbsSchedule(projectId, {}, db);
-        const snapshot = await getProjectWbsSnapshot(projectId, db);
+        const change = await finishStructureChange(db, projectId, req);
         await recordWbsCommand({
           projectId,
           type: 'UPDATE',
-          payload: { action: 'upsert-dependency', dependency: parsed.data },
-          afterSnapshot: snapshot,
+          payload: { action: 'upsert-dependency', dependency: parsed.data, ...structureCommandSnapshot(change) },
         }, db);
-        return snapshot;
+        return change;
       });
       await emitWebhookEvent({
         eventType: 'wbs.dependency.updated',
         projectId,
-        payload: { action: 'upsert-dependency', dependency: parsed.data, snapshot },
+        payload: async () => ({ action: 'upsert-dependency', dependency: parsed.data, snapshot: await getProjectWbsSnapshot(projectId) }),
       }).catch(() => undefined);
 
-      res.status(201).json(snapshot);
+      res.status(201).json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       console.error(error);
@@ -138,7 +138,7 @@ export function registerWbsDependencyRoutes(
     }
 
     try {
-      const { dependency, snapshot } = await runStructureWriteFor(dependencyProject(req.params.dependencyId), async (db) => {
+      const { dependency, change } = await runStructureWriteFor(dependencyProject(req.params.dependencyId), async (db) => {
         const dependency = await db.wbsDependency.findUnique({
           where: { id: req.params.dependencyId },
         });
@@ -149,23 +149,22 @@ export function registerWbsDependencyRoutes(
         await upsertDependency(db, dependency.projectId, parsed.data);
         await syncWbsPredecessorFields(dependency.projectId, db);
         await recalculateProjectWbsSchedule(dependency.projectId, {}, db);
-        const snapshot = await getProjectWbsSnapshot(dependency.projectId, db);
+        const change = await finishStructureChange(db, dependency.projectId, req);
         await recordWbsCommand({
           projectId: dependency.projectId,
           type: 'UPDATE',
-          payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data },
+          payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data, ...structureCommandSnapshot(change) },
           beforeSnapshot: dependency,
-          afterSnapshot: snapshot,
         }, db);
-        return { dependency, snapshot };
+        return { dependency, change };
       });
       await emitWebhookEvent({
         eventType: 'wbs.dependency.updated',
         projectId: dependency.projectId,
-        payload: { action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data, snapshot },
+        payload: async () => ({ action: 'move-dependency', dependencyId: dependency.id, dependency: parsed.data, snapshot: await getProjectWbsSnapshot(dependency.projectId) }),
       }).catch(() => undefined);
 
-      res.json(snapshot);
+      res.json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       console.error(error);
@@ -177,7 +176,7 @@ export function registerWbsDependencyRoutes(
 
   router.delete('/wbs-dependencies/:dependencyId', async (req, res) => {
     try {
-      const { dependency, snapshot } = await runStructureWriteFor(dependencyProject(req.params.dependencyId), async (db) => {
+      const { dependency, change } = await runStructureWriteFor(dependencyProject(req.params.dependencyId), async (db) => {
         const dependency = await db.wbsDependency.findUnique({
           where: { id: req.params.dependencyId },
         });
@@ -186,22 +185,21 @@ export function registerWbsDependencyRoutes(
         await db.wbsDependency.delete({ where: { id: dependency.id } });
         await syncWbsPredecessorFields(dependency.projectId, db);
         await recalculateProjectWbsSchedule(dependency.projectId, {}, db);
-        const snapshot = await getProjectWbsSnapshot(dependency.projectId, db);
+        const change = await finishStructureChange(db, dependency.projectId, req);
         await recordWbsCommand({
           projectId: dependency.projectId,
           type: 'UPDATE',
-          payload: { action: 'delete-dependency', dependencyId: dependency.id },
+          payload: { action: 'delete-dependency', dependencyId: dependency.id, ...structureCommandSnapshot(change) },
           beforeSnapshot: dependency,
-          afterSnapshot: snapshot,
         }, db);
-        return { dependency, snapshot };
+        return { dependency, change };
       });
       await emitWebhookEvent({
         eventType: 'wbs.dependency.deleted',
         projectId: dependency.projectId,
-        payload: { dependency, snapshot },
+        payload: async () => ({ dependency, snapshot: await getProjectWbsSnapshot(dependency.projectId) }),
       }).catch(() => undefined);
-      res.json(snapshot);
+      res.json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;

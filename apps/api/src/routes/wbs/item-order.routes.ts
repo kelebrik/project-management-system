@@ -10,12 +10,14 @@ import {
   WbsIssueLinkViolationError,
 } from '../../services/wbs-issue-links.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
+import { finishStructureChange, structureCommandSnapshot, structureResponse, structureRow } from '../../services/wbs-structure-delta.js';
 import {
   createWbsBaselineFromCurrentPlan,
   updateSelectedWbsBaselineFromCurrentPlan,
 } from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { bulkUpdateWbsItems } from '../../services/wbs-bulk-write.js';
+import { sortPositionAt } from './append.routes.js';
 import {
   rejectStructureWrite,
   respondToStructureRejection,
@@ -75,7 +77,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     const projectId = req.params.projectId;
     try {
-      const { created, snapshot } = await runStructureWrite(projectId, async (db) => {
+      const { created, change } = await runStructureWrite(projectId, async (db) => {
         const project = await db.project.findUnique({
           where: { id: projectId },
           select: { id: true },
@@ -116,12 +118,9 @@ export function registerWbsItemOrderRoutes(router: Router) {
           }
         }
 
-        // Rows keep steps of ten with a gap at the insertion point; only rows whose order moves are written.
-        const shiftedRows = items
-          .map((item, index) => ({ id: item.id, sortOrder: (index < insertIndex ? index + 1 : index + 2) * 10, current: item.sortOrder }))
-          .filter((row) => row.sortOrder !== row.current)
-          .map(({ id, sortOrder }) => ({ id, sortOrder }));
-        await bulkUpdateWbsItems(db, project.id, shiftedRows, ['sortOrder']);
+        // The new row takes a free position between its neighbours, as an appended one does: other rows
+        // keep theirs, so the change and its answer stay small. Only when there is no gap do the rows in the way move.
+        const sortOrder = await sortPositionAt(db, items, { insertIndex });
 
         const temporaryCode = `__insert_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
         const created = await db.wbsItem.create({
@@ -135,35 +134,36 @@ export function registerWbsItemOrderRoutes(router: Router) {
             owner: '',
             wbsLevel: insertedLevel,
             effortPercent: 0,
-            sortOrder: (insertIndex + 1) * 10,
+            sortOrder,
           },
         });
 
         await renumberProjectWbs(project.id, db);
         await recalculateProjectWbsSchedule(project.id, {}, db);
         await recalculateProjectWbsHierarchyStatuses(project.id, db);
-        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
           projectId: project.id,
           type: 'CREATE',
           payload: {
+            ...structureCommandSnapshot(change),
             action: 'insert-after',
             insertedItemId: created.id,
+            item: await structureRow(db, change, created.id),
             afterItemId: parsed.data.afterItemId,
             beforeItemId: parsed.data.beforeItemId,
           },
-          afterSnapshot: snapshot,
         }, db);
-        return { created, snapshot };
+        return { created, change };
       });
       await emitWebhookEvent({
         eventType: 'wbs.item.created',
         projectId,
-        payload: { action: 'insert-after', itemId: created.id, snapshot },
+        payload: async () => ({ action: 'insert-after', itemId: created.id, snapshot: await getProjectWbsSnapshot(projectId) }),
       }).catch(() => undefined);
       res.status(201).json({
         insertedItemId: created.id,
-        ...snapshot,
+        ...structureResponse(change),
       });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
@@ -177,7 +177,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-items/renumber', async (req, res) => {
     const projectId = req.params.projectId;
     try {
-      const { updatedCount, snapshot } = await runStructureWrite(projectId, async (db) => {
+      const { updatedCount, change } = await runStructureWrite(projectId, async (db) => {
         const project = await db.project.findUnique({
           where: { id: projectId },
           select: { id: true },
@@ -187,18 +187,17 @@ export function registerWbsItemOrderRoutes(router: Router) {
         const updatedCount = await renumberProjectWbs(project.id, db);
         await recalculateProjectWbsSchedule(project.id, {}, db);
         await recalculateProjectWbsHierarchyStatuses(project.id, db);
-        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
           projectId: project.id,
           type: 'BULK_UPDATE',
-          payload: { action: 'renumber', updatedCount },
-          afterSnapshot: snapshot,
+          payload: { ...structureCommandSnapshot(change), action: 'renumber', updatedCount },
         }, db);
-        return { updatedCount, snapshot };
+        return { updatedCount, change };
       });
       res.json({
         updatedCount,
-        ...snapshot,
+        ...structureResponse(change),
       });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
@@ -238,35 +237,35 @@ export function registerWbsItemOrderRoutes(router: Router) {
               missingItemIds: result.missingItemIds,
             });
           }
-          const snapshot = await getProjectWbsSnapshot(project.id, db);
+          const change = await finishStructureChange(db, project.id, req);
           await recordWbsCommand({
             projectId: project.id,
             type: 'BASELINE',
             payload: {
+              ...structureCommandSnapshot(change),
               action: 'update-selected-baseline-from-current-dates',
               itemIds: selectedItemIds,
               updatedCount: result.updatedCount,
             },
-            afterSnapshot: snapshot,
-          }, db);
-          return { updatedCount: result.updatedCount, snapshot };
+            }, db);
+          return { updatedCount: result.updatedCount, change };
         }
 
         const baseline = await createWbsBaselineFromCurrentPlan(project.id, db);
-        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
           projectId: project.id,
           type: 'BASELINE',
           payload: {
+            ...structureCommandSnapshot(change),
             action: 'set-baseline-from-current-structure',
             baselineId: baseline.id,
             version: baseline.version,
           },
-          afterSnapshot: snapshot,
         }, db);
-        return { snapshot };
+        return { change };
       });
-      res.json('updatedCount' in result ? { updatedCount: result.updatedCount, ...result.snapshot } : result.snapshot);
+      res.json('updatedCount' in result ? { updatedCount: result.updatedCount, ...structureResponse(result.change) } : structureResponse(result.change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;
@@ -282,7 +281,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
 
     const projectId = req.params.projectId;
     try {
-      const snapshot = await runStructureWrite(projectId, async (db) => {
+      const change = await runStructureWrite(projectId, async (db) => {
         const project = await db.project.findUnique({
           where: { id: projectId },
           select: { id: true },
@@ -344,20 +343,20 @@ export function registerWbsItemOrderRoutes(router: Router) {
         await renumberProjectWbs(project.id, db);
         await recalculateProjectWbsSchedule(project.id, {}, db);
         await recalculateProjectWbsHierarchyStatuses(project.id, db);
-        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
           projectId: project.id,
           type: 'MOVE',
           payload: {
+            ...structureCommandSnapshot(change),
             orderedIds: parsed.data.orderedIds,
             levelsById: parsed.data.levelsById,
             typesById: parsed.data.typesById,
           },
-          afterSnapshot: snapshot,
         }, db);
-        return snapshot;
+        return change;
       });
-      res.json(snapshot);
+      res.json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;

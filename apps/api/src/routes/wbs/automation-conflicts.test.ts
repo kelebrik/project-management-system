@@ -20,6 +20,8 @@ for (const failure of ['stale-work', 'retired-jira', 'stale-jira', 'concurrent-w
       $queryRaw: async () => [],
       project: { findUnique: async () => ({ id: 'p', jiraIntegration: null }) },
       issue: { findMany: async () => [] },
+      projectStructureVersion: { findUnique: async () => null },
+      wbsDependency: { findMany: async () => [] },
       jiraIssueSnapshot: { findUnique: async () => ({ updatedAt: now, syncedAt: failure === 'stale-jira' ? new Date(0) : now, retiredAt: failure === 'retired-jira' ? now : null }) },
       wbsItem: {
         findMany: async () => [row],

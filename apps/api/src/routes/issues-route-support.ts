@@ -61,6 +61,8 @@ import {
 } from '../services/jira-project-data.js';
 import { emitWebhookEvent } from '../services/webhooks.js';
 import { registerJiraSemanticAggregateRoutes } from './jira-semantic-aggregates.routes.js';
+import { readStructureDelta, structureCommandSnapshot } from '../services/wbs-structure-delta.js';
+import type { StructureDb } from '../services/wbs-structure-write.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 
 export const JIRA_CAPACITY_DEFAULT_STORAGE_GIB = 5;
@@ -231,14 +233,20 @@ export async function ensureIssuePhaseSelectionAccess(
   return false;
 }
 
+/**
+ * The rest of a work package change, in the issue's transaction: the
+ * recalculation and the command journal. Answers what to announce after the
+ * commit (the webhook), or null when the package did not change.
+ */
 export async function finalizeIssueWorkPackage(
   projectId: string,
   mutation: IssueWorkPackageMutation | null,
+  db: StructureDb,
 ) {
-  if (!mutation || mutation.kind === 'unchanged') return;
-  await recalculateProjectWbsSchedule(projectId);
-  await recalculateProjectWbsHierarchyStatuses(projectId);
-  const snapshot = await getProjectWbsSnapshot(projectId);
+  if (!mutation || mutation.kind === 'unchanged') return null;
+  await recalculateProjectWbsSchedule(projectId, {}, db);
+  await recalculateProjectWbsHierarchyStatuses(projectId, db);
+  const delta = await readStructureDelta(db, projectId);
   await recordWbsCommand({
     projectId,
     type: mutation.kind === 'created' ? 'CREATE' : 'UPDATE',
@@ -249,16 +257,16 @@ export async function finalizeIssueWorkPackage(
           ? 'open-issue-work-package-moved'
           : 'open-issue-work-package-updated',
       workPackageId: mutation.workPackageId,
+      ...structureCommandSnapshot({ delta, snapshot: null }),
     },
-    afterSnapshot: snapshot,
-  });
-  await emitWebhookEvent({
+  }, db);
+  return () => emitWebhookEvent({
     eventType: mutation.kind === 'created' ? 'wbs.item.created' : 'wbs.item.updated',
     projectId,
-    payload: {
+    payload: async () => ({
       action: 'open-issue-phase-link',
       itemId: mutation.workPackageId,
-      snapshot,
-    },
+      snapshot: await getProjectWbsSnapshot(projectId),
+    }),
   }).catch(() => undefined);
 }

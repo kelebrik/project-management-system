@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import { readStructureVersion } from '../../services/wbs-structure-write.js';
 import { recordAuditEvent } from '../../services/audit.js';
 import {
   exportFilePart,
@@ -25,20 +27,25 @@ export function registerProjectOverviewRoutes(
 ) {
   router.get('/projects/:projectId/overview', async (req, res) => {
     await ensureDefaultJiraWorkSections(req.params.projectId);
-    const [project, criticalPath, closedIssues] = await Promise.all([
-      prisma.project.findUnique({
-        where: { id: req.params.projectId },
-        include: projectDetailsInclude,
-      }),
-      calculateProjectCriticalPath(req.params.projectId),
-      prisma.issue.findMany({
-        ...closedIssuesInclude,
-        where: {
-          ...closedIssuesInclude.where,
-          projectId: req.params.projectId,
-        },
-      }),
-    ]);
+    // The version, the rows and the critical path come from one snapshot of the database.
+    const { structureVersion, project, criticalPath, closedIssues } = await prisma.$transaction(async (tx) => {
+      const structureVersion = await readStructureVersion(req.params.projectId, tx);
+      const [project, criticalPath, closedIssues] = await Promise.all([
+        tx.project.findUnique({
+          where: { id: req.params.projectId },
+          include: projectDetailsInclude,
+        }),
+        calculateProjectCriticalPath(req.params.projectId, tx),
+        tx.issue.findMany({
+          ...closedIssuesInclude,
+          where: {
+            ...closedIssuesInclude.where,
+            projectId: req.params.projectId,
+          },
+        }),
+      ]);
+      return { structureVersion, project, criticalPath, closedIssues };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 60_000, maxWait: 10_000 });
 
     if (!project) {
       res.status(404).json({ error: 'Проект не найден' });
@@ -57,7 +64,7 @@ export function registerProjectOverviewRoutes(
 
     // The person's own view comes with the project, so the page opens with their layout at once.
     const myViewState = await loadProjectViewState(user?.id, project.id);
-    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState });
+    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion });
   });
 
   router.post('/projects/:projectId/executive-overviews/generate', async (req, res) => {

@@ -47,9 +47,9 @@ export function safeCalculateWbsCriticalPath(
   }
 }
 
-export async function calculateProjectCriticalPath(projectId: string) {
+export async function calculateProjectCriticalPath(projectId: string, db: Pick<typeof prisma, 'wbsItem' | 'wbsDependency' | 'projectCalendarOverride'> = prisma) {
   const [items, dependencies, calendarOverrides] = await Promise.all([
-    prisma.wbsItem.findMany({
+    db.wbsItem.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       select: {
@@ -72,7 +72,7 @@ export async function calculateProjectCriticalPath(projectId: string) {
         leadLagDays: true,
       },
     }),
-    prisma.wbsDependency.findMany({
+    db.wbsDependency.findMany({
       where: { projectId },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
@@ -83,7 +83,7 @@ export async function calculateProjectCriticalPath(projectId: string) {
         lagDays: true,
       },
     }),
-    prisma.projectCalendarOverride.findMany({
+    db.projectCalendarOverride.findMany({
       where: { projectId },
       select: {
         calendarCode: true,

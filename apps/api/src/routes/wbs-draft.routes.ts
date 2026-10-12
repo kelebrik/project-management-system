@@ -6,11 +6,12 @@ import { prisma } from '../db.js';
 import { currentApiToken, currentUser, isPublicDemoMode } from '../server/auth.js';
 import { userCanWriteProject } from '../server/project-access.js';
 import { normalizeWbsDraft, type WbsDraftItem } from '../services/ai/wbs-draft.js';
-import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../services/wbs.js';
+import { recalculateProjectWbsHierarchyStatuses } from '../services/wbs.js';
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
-import { lockProjectStructure } from '../services/wbs-structure-write.js';
+import { lockProjectStructure, structureTransaction } from '../services/wbs-structure-write.js';
+import { finishStructureChange, structureResponse } from '../services/wbs-structure-delta.js';
 
 const applySchema = z.object({
   items: z.array(z.unknown()).min(1).max(500),
@@ -76,10 +77,11 @@ export function createWbsDraftRouter() {
     const startDate = new Date(`${body.data.startDate ?? new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
     const draftKey = body.data.draftKey;
 
-    const { createdIds, replayed, snapshot } = await runWithWbsWriteQueue(project.id, () =>
+    const { createdIds, replayed, change } = await runWithWbsWriteQueue(project.id, () =>
       trackScheduleShifts(project.id, { trigger: 'DRAFT', actor: shiftActor(demo ? null : user) }, async () => {
-      const written = await prisma.$transaction(
-        async (tx) => {
+      // The rows, their recalculation and the record of the draft commit together.
+      return structureTransaction(async (tx) => {
+        const written = await (async () => {
           await lockProjectStructure(tx, project.id);
           const applied = await tx.auditEvent.findFirst({
             where: { projectId: project.id, action: 'wbs_draft.apply', metadata: { path: ['draftKey'], equals: draftKey } },
@@ -150,15 +152,14 @@ export function createWbsDraftRouter() {
             },
           });
           return { createdIds: ids, replayed: false };
-        },
-        { timeout: 30_000 },
-      );
-      await recalculateProjectWbsSchedule(project.id);
-      await recalculateProjectWbsHierarchyStatuses(project.id);
-      return { ...written, snapshot: await getProjectWbsSnapshot(project.id) };
+        })();
+        await recalculateProjectWbsSchedule(project.id, {}, tx);
+        await recalculateProjectWbsHierarchyStatuses(project.id, tx);
+        return { ...written, change: await finishStructureChange(tx, project.id, req) };
+      });
     }),
     );
-    res.status(replayed ? 200 : 201).json({ createdIds, replayed, ...snapshot });
+    res.status(replayed ? 200 : 201).json({ createdIds, replayed, ...structureResponse(change) });
   });
 
   return router;

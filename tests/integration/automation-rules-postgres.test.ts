@@ -4,6 +4,7 @@ import test from 'node:test';
 import { prisma } from '../../apps/api/src/db.js';
 import { createApp } from '../../apps/api/src/server/app.js';
 import { hashPassword } from '../../apps/api/src/server/auth.js';
+import { readStructureVersion } from '../../apps/api/src/services/wbs-structure-write.js';
 import { runAutomationRule, runAutomationTick } from '../../apps/api/src/services/automation/engine.js';
 
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
@@ -119,8 +120,11 @@ test('rules fire once on recorded events and schedules, tell recipients, and pre
     assert.deepEqual([issue.title, issue.severity, issue.impact, issue.status], ['2 Сборка: Нет стенда', 'CRITICAL', 'Нет стенда', 'Open']);
     assert.equal((await asPm(`/api/projects/${project.id}/automation/proposals/${issueProposal.id}/apply`, 'POST', { version: issueProposal.version })).status, 409);
 
+    const versionBefore = BigInt(await readStructureVersion(project.id));
     const done = await asPm(`/api/projects/${project.id}/automation/proposals/${statusProposal.id}/apply`, 'POST', { version: statusProposal.version });
     assert.equal(done.status, 200);
+    // The applied status is a Structure write: the version moves, so open pages learn of it.
+    assert.equal(await readStructureVersion(project.id), String(versionBefore + 1n));
     assert.equal((await prisma.wbsItem.findUniqueOrThrow({ where: { id: task.id } })).status, 'DONE');
     assert.equal((await prisma.automationProposal.findUniqueOrThrow({ where: { id: statusProposal.id } })).status, 'APPLIED');
 

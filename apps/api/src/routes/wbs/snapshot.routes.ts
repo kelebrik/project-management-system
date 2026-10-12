@@ -1,13 +1,13 @@
 import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import {
-  getProjectWbsSnapshot,
   recalculateProjectWbsHierarchyStatuses,
   renumberProjectWbs,
   wbsItemSnapshotData,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { bulkUpdateWbsItems } from '../../services/wbs-bulk-write.js';
+import { finishStructureChange, structureCommandSnapshot, structureResponse } from '../../services/wbs-structure-delta.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import {
   rejectStructureWrite,
@@ -54,7 +54,7 @@ export function registerWbsSnapshotRoutes(router: Router) {
 
     const projectId = req.params.projectId;
     try {
-      const snapshot = await runStructureWrite(projectId, async (db) => {
+      const change = await runStructureWrite(projectId, async (db) => {
         const project = await db.project.findUnique({
           where: { id: projectId },
           select: { id: true },
@@ -135,20 +135,20 @@ export function registerWbsSnapshotRoutes(router: Router) {
         await renumberProjectWbs(project.id, db);
         await recalculateProjectWbsSchedule(project.id, {}, db);
         await recalculateProjectWbsHierarchyStatuses(project.id, db);
-        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
           projectId: project.id,
           type: 'RESTORE',
           payload: {
+            ...structureCommandSnapshot(change),
             itemCount: parsed.data.wbsItems.length,
             dependencyCount: parsed.data.wbsDependencies.length,
           },
-          afterSnapshot: snapshot,
         }, db);
-        return snapshot;
+        return change;
       });
 
-      res.json(snapshot);
+      res.json(structureResponse(change));
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;

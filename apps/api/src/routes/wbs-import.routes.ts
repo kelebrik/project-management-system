@@ -5,12 +5,13 @@ import { z } from 'zod';
 import { prisma } from '../db.js';
 import { recordAuditEvent } from '../services/audit.js';
 import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
-import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../services/wbs.js';
+import { recalculateProjectWbsHierarchyStatuses } from '../services/wbs.js';
 import { PREDECESSOR_FIELDS, planWbsImport, type ImportExistingRow } from '../services/wbs-import.js';
 import { levelFromWbsItem } from '../services/wbs-ordering.js';
 import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../services/wbs-schedule-patch.js';
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
-import { lockProjectStructure } from '../services/wbs-structure-write.js';
+import { lockProjectStructure, structureTransaction } from '../services/wbs-structure-write.js';
+import { finishStructureChange, structureResponse } from '../services/wbs-structure-delta.js';
 import { closedAtForWbsStatus } from './wbs/helpers.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 import { projectWriter } from './project-writer.js';
@@ -191,13 +192,30 @@ export function createWbsImportRouter() {
 
     const outcome = await runWithWbsWriteQueue(project.id, () =>
       trackScheduleShifts(project.id, { trigger: 'IMPORT', actor: shiftActor(demo ? null : user) }, async () => {
-        const written = await prisma.$transaction(
-          (tx) => applyWbsImport(tx, { projectId: project.id, rows, importKey, userId: demo ? null : user.id }),
-          { timeout: 60_000 },
-        );
-        await recalculateProjectWbsSchedule(project.id, { changedItems: written.changedItems });
-        await recalculateProjectWbsHierarchyStatuses(project.id);
-        return { ...written, snapshot: await getProjectWbsSnapshot(project.id) };
+        // The import, its recalculation and its audit commit together or not at all.
+        return structureTransaction(async (tx) => {
+          const written = await applyWbsImport(tx, { projectId: project.id, rows, importKey, userId: demo ? null : user.id });
+          await recalculateProjectWbsSchedule(project.id, { changedItems: written.changedItems }, tx);
+          await recalculateProjectWbsHierarchyStatuses(project.id, tx);
+          if (!written.replayed) {
+            await recordAuditEvent({
+              req,
+              actor: user,
+              action: 'wbs.import',
+              objectType: 'Project',
+              objectId: project.id,
+              projectId: project.id,
+              metadata: {
+                importKey,
+                created: written.summary.creates.length,
+                updated: written.summary.updates.length,
+                unchanged: written.summary.unchanged,
+                createdIds: written.createdIds,
+              },
+            }, tx);
+          }
+          return { ...written, change: await finishStructureChange(tx, project.id, req) };
+        });
       }),
     ).catch((error: unknown) => {
       if (error instanceof ImportRejected) {
@@ -212,24 +230,7 @@ export function createWbsImportRouter() {
     });
     if (!outcome) return;
 
-    if (!outcome.replayed) {
-      await recordAuditEvent({
-        req,
-        actor: user,
-        action: 'wbs.import',
-        objectType: 'Project',
-        objectId: project.id,
-        projectId: project.id,
-        metadata: {
-          importKey,
-          created: outcome.summary.creates.length,
-          updated: outcome.summary.updates.length,
-          unchanged: outcome.summary.unchanged,
-          createdIds: outcome.createdIds,
-        },
-      });
-    }
-    res.status(outcome.replayed ? 200 : 201).json({ summary: outcome.summary, createdIds: outcome.createdIds, replayed: outcome.replayed, ...outcome.snapshot });
+    res.status(outcome.replayed ? 200 : 201).json({ summary: outcome.summary, createdIds: outcome.createdIds, replayed: outcome.replayed, ...structureResponse(outcome.change) });
   });
 
   return router;

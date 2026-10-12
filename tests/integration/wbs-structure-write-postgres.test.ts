@@ -8,7 +8,7 @@ import { registerWbsSnapshotRoutes } from '../../apps/api/src/routes/wbs/snapsho
 import { recordAuditEvent } from '../../apps/api/src/services/audit.js';
 import { bulkUpdateWbsItems } from '../../apps/api/src/services/wbs-bulk-write.js';
 import { recalculateProjectWbsSchedule } from '../../apps/api/src/services/wbs-schedule.js';
-import { runStructureWrite } from '../../apps/api/src/services/wbs-structure-write.js';
+import { readStructureVersion, runStructureWrite } from '../../apps/api/src/services/wbs-structure-write.js';
 import { getProjectWbsSnapshot, renumberProjectWbs } from '../../apps/api/src/services/wbs.js';
 
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
@@ -190,8 +190,11 @@ test('a failed audit record of a new target date undoes the date, the goal and t
 
     // The same change by a real user goes through, so the refusal above came from the audit row.
     actor = { id: user.id, email: user.email, name: 'Ответственный', role: 'ADMIN' };
+    const versionBefore = BigInt(await readStructureVersion(project.id));
     const accepted = await call(changeTarget, { projectId: project.id }, { targetDate: '2026-12-21', reason: 'Перенос поставки' });
     assert.equal(accepted.statusCode, 200);
+    assert.equal(accepted.body.structureVersion, String(versionBefore + 1n));
+    assert.equal(await readStructureVersion(project.id), String(versionBefore + 1n));
     assert.equal((await prisma.wbsItem.findUniqueOrThrow({ where: { id: goal.id } })).dueDate?.toISOString(), '2026-12-21T00:00:00.000Z');
     assert.equal(await prisma.auditEvent.count({ where: { projectId: project.id, action: 'project.target_date.update' } }), 1);
   } finally {
