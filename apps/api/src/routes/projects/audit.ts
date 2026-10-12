@@ -1,7 +1,8 @@
 import { prisma } from '../../db.js';
+import type { StructureDb } from '../../services/wbs-structure-write.js';
 
-export async function projectAuditSnapshot(projectId: string) {
-  return prisma.project.findUnique({
+export async function projectAuditSnapshot(projectId: string, db: StructureDb = prisma) {
+  return db.project.findUnique({
     where: { id: projectId },
     include: {
       jiraIntegration: true,

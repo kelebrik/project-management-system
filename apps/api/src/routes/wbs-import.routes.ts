@@ -10,6 +10,7 @@ import { PREDECESSOR_FIELDS, planWbsImport, type ImportExistingRow } from '../se
 import { levelFromWbsItem } from '../services/wbs-ordering.js';
 import { resolveWbsScheduleDateWrites, resolveWbsSchedulePatch } from '../services/wbs-schedule-patch.js';
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
+import { lockProjectStructure } from '../services/wbs-structure-write.js';
 import { closedAtForWbsStatus } from './wbs/helpers.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 import { projectWriter } from './project-writer.js';
@@ -48,7 +49,7 @@ export async function applyWbsImport(
   tx: Prisma.TransactionClient,
   { projectId, rows, importKey, userId }: { projectId: string; rows: WbsImportRow[]; importKey: string; userId: string | null },
 ) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${projectId}`}))`;
+    await lockProjectStructure(tx, projectId);
     const done = await tx.wbsImport.findUnique({ where: { projectId_importKey: { projectId: projectId, importKey } } });
     if (done) return { summary: done.summary as unknown as WbsImportPlanSummary, createdIds: done.createdIds, replayed: true, changedItems: [] };
     const { items, managedIds } = await loadImportBase(tx, projectId);

@@ -13,12 +13,12 @@ export async function recordWbsCommand(input: {
   payload: unknown;
   beforeSnapshot?: unknown;
   afterSnapshot?: unknown;
-}) {
+}, db: Pick<typeof prisma, 'wbsCommand'> = prisma) {
   // The public demo identity is intentionally virtual and has no User row.
   // Keep the audit entry, but leave the nullable FK empty instead of causing
   // every demo WBS save to fail with PostgreSQL P2003.
   const userId = input.userId === PUBLIC_DEMO_USER_ID ? undefined : input.userId;
-  await prisma.wbsCommand.create({
+  await db.wbsCommand.create({
     data: {
       projectId: input.projectId,
       userId,

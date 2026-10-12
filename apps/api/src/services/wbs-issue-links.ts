@@ -36,8 +36,9 @@ export function invalidIssueLinkedWbsPlan(
 export async function assertProjectIssueLinkedWbsPlan(
   projectId: string,
   orderedItems: IssueLinkedWbsPlanItem[],
+  db: Pick<typeof prisma, 'issue'> = prisma,
 ) {
-  const linkedIssues = await prisma.issue.findMany({
+  const linkedIssues = await db.issue.findMany({
     where: {
       projectId,
       status: { notIn: ['Done', 'Closed', 'Resolved'] },

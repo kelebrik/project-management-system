@@ -11,6 +11,8 @@ import {
   type WbsRenumberRow,
 } from "./wbs-ordering.js";
 import { assertProjectIssueLinkedWbsPlan } from "./wbs-issue-links.js";
+import { bulkUpdateWbsItems } from "./wbs-bulk-write.js";
+import { STRUCTURE_WRITE_TIMEOUT_MS, type StructureDb } from "./wbs-structure-write.js";
 
 export type { WbsOrderingDependency, WbsOrderingItem, WbsRenumberRow };
 export { buildWbsRenumberPlan, levelFromWbsCode, levelFromWbsItem };
@@ -44,7 +46,7 @@ function predecessorFieldPatch(predecessors: string[]) {
       field,
       predecessors[index] ?? null,
     ]),
-  );
+  ) as Record<(typeof WBS_PREDECESSOR_FIELDS)[number], string | null>;
 }
 
 function aggregateParentStatus(statuses: WbsItemStatus[]): WbsItemStatus | null {
@@ -108,8 +110,9 @@ export function calculateWbsHierarchyStatusUpdates(
     .filter((update) => update.status !== itemById.get(update.id)?.status);
 }
 
-export async function recalculateProjectWbsHierarchyStatuses(projectId: string) {
-  const items = await prisma.wbsItem.findMany({
+export async function recalculateProjectWbsHierarchyStatuses(projectId: string, db?: StructureDb): Promise<number> {
+  if (!db) return prisma.$transaction((tx) => recalculateProjectWbsHierarchyStatuses(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  const items = await db.wbsItem.findMany({
     where: { projectId },
     select: {
       id: true,
@@ -123,65 +126,55 @@ export async function recalculateProjectWbsHierarchyStatuses(projectId: string) 
   const updates = calculateWbsHierarchyStatusUpdates(items);
   if (updates.length === 0) return 0;
 
-  await prisma.$transaction(
-    updates.map((update) =>
-      prisma.wbsItem.update({
-        where: { id: update.id },
-        data: {
-          status: update.status,
-          closedAt: update.status === "DONE" ? new Date() : null,
-        },
-      }),
-    ),
+  const closedAt = new Date();
+  await bulkUpdateWbsItems(
+    db,
+    projectId,
+    updates.map((update) => ({ id: update.id, status: update.status, closedAt: update.status === "DONE" ? closedAt : null })),
+    ["status", "closedAt"],
   );
 
   return updates.length;
 }
 
-export async function renumberProjectWbs(projectId: string) {
-  const items = await prisma.wbsItem.findMany({
+export async function renumberProjectWbs(projectId: string, db?: StructureDb): Promise<number> {
+  if (!db) return prisma.$transaction((tx) => renumberProjectWbs(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  const items = await db.wbsItem.findMany({
     where: { projectId },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
-  const dependencies = await prisma.wbsDependency.findMany({
+  const dependencies = await db.wbsDependency.findMany({
     where: { projectId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
   });
 
-  await assertProjectIssueLinkedWbsPlan(projectId, items);
+  await assertProjectIssueLinkedWbsPlan(projectId, items, db);
 
   const { normalizedRows, predecessorsBySuccessor } = buildWbsRenumberPlan(
     items,
     dependencies,
   );
 
-  await prisma.$transaction(async (tx) => {
-    for (const row of normalizedRows) {
-      await tx.wbsItem.update({
-        where: { id: row.id },
-        data: { code: `__renumber_${row.id}` },
-      });
-    }
-
-    for (const row of normalizedRows) {
-      const predecessors = predecessorsBySuccessor.get(row.id) ?? [];
-      await tx.wbsItem.update({
-        where: { id: row.id },
-        data: {
-          code: row.code,
-          parentId: row.parentId,
-          wbsLevel: row.level,
-          ...predecessorFieldPatch(predecessors),
-        },
-      });
-    }
-  });
+  // Only rows whose code, parent, level or predecessors move are written. A
+  // moving code first takes a temporary one, so no two rows share a code mid-way.
+  const itemsById = new Map(items.map((item) => [item.id, item]));
+  const changedRows = normalizedRows
+    .map((row) => ({ id: row.id, code: row.code, parentId: row.parentId, wbsLevel: row.level, ...predecessorFieldPatch(predecessorsBySuccessor.get(row.id) ?? []) }))
+    .filter((row) => {
+      const item = itemsById.get(row.id);
+      return !item || item.code !== row.code || item.parentId !== row.parentId || item.wbsLevel !== row.wbsLevel
+        || WBS_PREDECESSOR_FIELDS.some((field) => item[field] !== row[field]);
+    });
+  const movingCodes = changedRows.filter((row) => itemsById.get(row.id)?.code !== row.code);
+  await bulkUpdateWbsItems(db, projectId, movingCodes.map((row) => ({ id: row.id, code: `__renumber_${row.id}` })), ["code"]);
+  await bulkUpdateWbsItems(db, projectId, changedRows, ["code", "parentId", "wbsLevel", ...WBS_PREDECESSOR_FIELDS]);
 
   return normalizedRows.length;
 }
 
-export async function syncWbsPredecessorFields(projectId: string) {
-  const dependencies = await prisma.wbsDependency.findMany({
+export async function syncWbsPredecessorFields(projectId: string, db?: StructureDb): Promise<void> {
+  if (!db) return prisma.$transaction((tx) => syncWbsPredecessorFields(projectId, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
+  const dependencies = await db.wbsDependency.findMany({
     where: { projectId },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     include: {
@@ -197,28 +190,25 @@ export async function syncWbsPredecessorFields(projectId: string) {
     predecessorsBySuccessor.set(dependency.successorId, current.slice(0, 6));
   }
 
-  const items = await prisma.wbsItem.findMany({
+  const items = await db.wbsItem.findMany({
     where: { projectId },
-    select: { id: true },
+    select: { id: true, predecessor1: true, predecessor2: true, predecessor3: true, predecessor4: true, predecessor5: true, predecessor6: true },
   });
 
-  await prisma.$transaction(async (tx) => {
-    for (const item of items) {
-      await tx.wbsItem.update({
-        where: { id: item.id },
-        data: predecessorFieldPatch(predecessorsBySuccessor.get(item.id) ?? []),
-      });
-    }
-  });
+  const changedRows = items
+    .map((item) => ({ item, row: { id: item.id, ...predecessorFieldPatch(predecessorsBySuccessor.get(item.id) ?? []) } }))
+    .filter(({ item, row }) => WBS_PREDECESSOR_FIELDS.some((field) => item[field] !== row[field]))
+    .map(({ row }) => row);
+  await bulkUpdateWbsItems(db, projectId, changedRows, [...WBS_PREDECESSOR_FIELDS]);
 }
 
-export async function getProjectWbsSnapshot(projectId: string) {
+export async function getProjectWbsSnapshot(projectId: string, db: StructureDb = prisma) {
   const [wbsItems, wbsDependencies, calendarOverrides] = await Promise.all([
-    prisma.wbsItem.findMany({
+    db.wbsItem.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
     }),
-    prisma.wbsDependency.findMany({
+    db.wbsDependency.findMany({
       where: { projectId },
       orderBy: { createdAt: "asc" },
       include: {
@@ -226,7 +216,7 @@ export async function getProjectWbsSnapshot(projectId: string) {
         successor: { select: { id: true, code: true, title: true } },
       },
     }),
-    prisma.projectCalendarOverride.findMany({
+    db.projectCalendarOverride.findMany({
       where: { projectId },
       select: {
         calendarCode: true,

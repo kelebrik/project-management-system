@@ -97,11 +97,11 @@ export async function recordAuditEvent(input: {
   afterValue?: unknown;
   metadata?: unknown;
   changes?: AuditFieldChangeInput[];
-}) {
+}, db: Pick<typeof prisma, 'auditEvent'> = prisma) {
   // The public demo identity is not a row in User, so it cannot be the actor's
   // foreign key; its name and e-mail still say who acted.
   const actorId = input.actor && input.actor.id !== PUBLIC_DEMO_USER_ID ? input.actor.id : null;
-  return prisma.auditEvent
+  return db.auditEvent
     .create({
       data: {
         actorId,
@@ -143,6 +143,9 @@ export async function recordAuditEvent(input: {
       },
     })
     .catch((error) => {
+      // Inside a Structure transaction a failed statement has already aborted it:
+      // the error must undo the whole change rather than let it commit as empty.
+      if (db !== prisma) throw error;
       console.error("Не удалось записать audit event", error);
       return null;
     });

@@ -2,6 +2,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 import { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
 import type { WbsScheduleCalculationOptions } from "./wbs-schedule/types.js";
+import { bulkUpdateWbsItems } from "./wbs-bulk-write.js";
+import { STRUCTURE_WRITE_TIMEOUT_MS, type StructureDb } from "./wbs-structure-write.js";
 
 export { calculateWbsBaselineVariance } from "./wbs-schedule/baseline-variance.js";
 export { calculateWbsScheduleUpdates } from "./wbs-schedule/calculate.js";
@@ -27,15 +29,17 @@ const SCHEDULE_COLUMNS = {
 export async function recalculateProjectWbsSchedule(
   projectId: string,
   options: WbsScheduleCalculationOptions = {},
-) {
+  db?: StructureDb,
+): Promise<number> {
+  if (!db) return prisma.$transaction((tx) => recalculateProjectWbsSchedule(projectId, options, tx), { timeout: STRUCTURE_WRITE_TIMEOUT_MS });
   const [items, dependencies, calendarOverrides] = await Promise.all([
     // Only what the schedule and the history row read: a 5000-row project loads a fraction of its data.
-    prisma.wbsItem.findMany({
+    db.wbsItem.findMany({
       where: { projectId },
       orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
       select: SCHEDULE_COLUMNS,
     }),
-    prisma.wbsDependency.findMany({
+    db.wbsDependency.findMany({
       where: { projectId },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: {
@@ -45,7 +49,7 @@ export async function recalculateProjectWbsSchedule(
         lagDays: true,
       },
     }),
-    prisma.projectCalendarOverride.findMany({
+    db.projectCalendarOverride.findMany({
       where: { projectId },
       select: {
         calendarCode: true,
@@ -69,19 +73,17 @@ export async function recalculateProjectWbsSchedule(
     startDate: item.startDate, dueDate: item.dueDate, forecastDueDate: item.forecastDueDate,
     baselineDueDate: item.baselineDueDate, progress: item.progress,
   });
-  await prisma.$transaction([
-    ...updates.map((update) => prisma.wbsItem.update({
-      where: { id: update.id },
-      data: { startDate: update.startDate, dueDate: update.dueDate,
-        forecastStartDate: update.forecastStartDate, forecastDueDate: update.forecastDueDate,
-        workDays: update.workDays, calendarDays: update.calendarDays },
-    })),
-    prisma.wbsCommand.create({ data: {
-      projectId, type: "BULK_UPDATE", payload: { automaticSchedule: true },
-      beforeSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow(beforeById.get(update.id)!)))) as Prisma.InputJsonValue,
-      afterSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow({ ...beforeById.get(update.id)!, ...update })))) as Prisma.InputJsonValue,
-    } }),
-  ]);
+  await bulkUpdateWbsItems(
+    db,
+    projectId,
+    updates.map((update) => ({ ...update })),
+    ["startDate", "dueDate", "forecastStartDate", "forecastDueDate", "workDays", "calendarDays"],
+  );
+  await db.wbsCommand.create({ data: {
+    projectId, type: "BULK_UPDATE", payload: { automaticSchedule: true },
+    beforeSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow(beforeById.get(update.id)!)))) as Prisma.InputJsonValue,
+    afterSnapshot: JSON.parse(JSON.stringify(updates.map((update) => historyRow({ ...beforeById.get(update.id)!, ...update })))) as Prisma.InputJsonValue,
+  } });
 
   return updates.length;
 }

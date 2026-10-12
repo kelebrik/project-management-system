@@ -1,5 +1,5 @@
+import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
-import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
   recalculateProjectWbsHierarchyStatuses,
@@ -7,8 +7,42 @@ import {
   wbsItemSnapshotData,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
+import { bulkUpdateWbsItems } from '../../services/wbs-bulk-write.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
+import {
+  rejectStructureWrite,
+  respondToStructureRejection,
+  runStructureWrite,
+  type StructureDb,
+} from '../../services/wbs-structure-write.js';
 import { wbsSnapshotSchema } from './schemas.js';
+
+type SnapshotRow = ReturnType<typeof wbsItemSnapshotData>;
+
+/**
+ * Writes every row of the snapshot in one statement: new rows are inserted,
+ * rows of this project are overwritten, and a row id that belongs to another
+ * project is left alone, which the row count then refuses.
+ */
+async function upsertSnapshotRows(db: StructureDb, rows: SnapshotRow[]) {
+  if (rows.length === 0) return;
+  const columns = Object.keys(rows[0]!) as Array<keyof SnapshotRow>;
+  const names = columns.map((column) => `"${column}"`).join(', ');
+  const picked = columns.map((column) => `r."${column}"`).join(', ');
+  const updates = columns
+    .filter((column) => column !== 'id' && column !== 'projectId')
+    .map((column) => `"${column}" = EXCLUDED."${column}"`)
+    .join(', ');
+  const written = await db.$executeRaw`
+    INSERT INTO "WbsItem" (${Prisma.raw(names)}, "createdAt", "updatedAt")
+    SELECT ${Prisma.raw(picked)}, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3)
+    FROM jsonb_populate_recordset(NULL::"WbsItem", ${JSON.stringify(rows)}::jsonb) AS r
+    ON CONFLICT ("id") DO UPDATE SET ${Prisma.raw(updates)}, "updatedAt" = CURRENT_TIMESTAMP(3)
+    WHERE "WbsItem"."projectId" = EXCLUDED."projectId"`;
+  if (written !== rows.length) {
+    rejectStructureWrite(409, 'Снимок Структуры содержит элементы другого проекта');
+  }
+}
 
 export function registerWbsSnapshotRoutes(router: Router) {
   router.post('/projects/:projectId/wbs-snapshot/restore', async (req, res) => {
@@ -18,130 +52,106 @@ export function registerWbsSnapshotRoutes(router: Router) {
       return;
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.projectId },
-      select: { id: true },
-    });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return;
-    }
+    const projectId = req.params.projectId;
+    try {
+      const snapshot = await runStructureWrite(projectId, async (db) => {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true },
+        });
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
 
-    const snapshotItemIds = new Set(parsed.data.wbsItems.map((item) => item.id));
-    if (snapshotItemIds.size !== parsed.data.wbsItems.length) {
-      res.status(400).json({ error: 'Снимок Структуры содержит повторяющиеся идентификаторы элементов' });
-      return;
-    }
+        const snapshotItemIds = new Set(parsed.data.wbsItems.map((item) => item.id));
+        if (snapshotItemIds.size !== parsed.data.wbsItems.length) {
+          rejectStructureWrite(400, 'Снимок Структуры содержит повторяющиеся идентификаторы элементов');
+        }
+        for (const item of parsed.data.wbsItems) {
+          if (item.parentId && !snapshotItemIds.has(item.parentId)) {
+            rejectStructureWrite(400, `Родительский элемент Структуры ${item.parentId} отсутствует в снимке`);
+          }
+        }
+        for (const dependency of parsed.data.wbsDependencies) {
+          if (!snapshotItemIds.has(dependency.predecessorId) || !snapshotItemIds.has(dependency.successorId)) {
+            rejectStructureWrite(400, 'Связь в снимке Структуры ссылается на отсутствующий элемент');
+          }
+        }
 
-    for (const item of parsed.data.wbsItems) {
-      if (item.parentId && !snapshotItemIds.has(item.parentId)) {
-        res.status(400).json({ error: `Родительский элемент Структуры ${item.parentId} отсутствует в снимке` });
-        return;
-      }
-    }
-
-    for (const dependency of parsed.data.wbsDependencies) {
-      if (!snapshotItemIds.has(dependency.predecessorId) || !snapshotItemIds.has(dependency.successorId)) {
-        res.status(400).json({ error: 'Связь в снимке Структуры ссылается на отсутствующий элемент' });
-        return;
-      }
-    }
-
-    const linkedIssues = await prisma.issue.findMany({
-      where: {
-        projectId: project.id,
-        status: { notIn: ['Done', 'Closed', 'Resolved'] },
-        OR: [
-          { phaseId: { not: null } },
-          { workPackageId: { not: null } },
-        ],
-      },
-      select: { title: true, phaseId: true, workPackageId: true },
-    });
-    const snapshotItemsById = new Map(parsed.data.wbsItems.map((item) => [item.id, item]));
-    const invalidLinkedIssue = linkedIssues.find((issue) => {
-      const phase = issue.phaseId ? snapshotItemsById.get(issue.phaseId) : null;
-      const workPackage = issue.workPackageId
-        ? snapshotItemsById.get(issue.workPackageId)
-        : null;
-      return (issue.phaseId && phase?.type !== 'PHASE')
-        || (issue.workPackageId && (
-          workPackage?.type !== 'WORK_PACKAGE'
-          || workPackage.parentId !== issue.phaseId
-        ));
-    });
-    if (invalidLinkedIssue) {
-      res.status(409).json({
-        error: `Снимок нарушает связь Структуры с открытым вопросом «${invalidLinkedIssue.title}»`,
-      });
-      return;
-    }
-
-    await prisma.$transaction(async (tx) => {
-      await tx.wbsDependency.deleteMany({ where: { projectId: project.id } });
-
-      const existingItems = await tx.wbsItem.findMany({
-        where: { projectId: project.id },
-        select: { id: true },
-      });
-
-      for (const item of existingItems) {
-        await tx.wbsItem.update({
-          where: { id: item.id },
-          data: {
-            parentId: null,
-            code: `__restore_${item.id}`,
+        const linkedIssues = await db.issue.findMany({
+          where: {
+            projectId: project.id,
+            status: { notIn: ['Done', 'Closed', 'Resolved'] },
+            OR: [
+              { phaseId: { not: null } },
+              { workPackageId: { not: null } },
+            ],
           },
+          select: { title: true, phaseId: true, workPackageId: true },
         });
-      }
-
-      await tx.wbsItem.deleteMany({
-        where: { projectId: project.id, id: { notIn: [...snapshotItemIds] } },
-      });
-
-      for (const item of parsed.data.wbsItems) {
-        const data = wbsItemSnapshotData(project.id, item);
-        await tx.wbsItem.upsert({
-          where: { id: item.id },
-          update: data,
-          create: data,
+        const snapshotItemsById = new Map(parsed.data.wbsItems.map((item) => [item.id, item]));
+        const invalidLinkedIssue = linkedIssues.find((issue) => {
+          const phase = issue.phaseId ? snapshotItemsById.get(issue.phaseId) : null;
+          const workPackage = issue.workPackageId
+            ? snapshotItemsById.get(issue.workPackageId)
+            : null;
+          return (issue.phaseId && phase?.type !== 'PHASE')
+            || (issue.workPackageId && (
+              workPackage?.type !== 'WORK_PACKAGE'
+              || workPackage.parentId !== issue.phaseId
+            ));
         });
-      }
+        if (invalidLinkedIssue) {
+          rejectStructureWrite(409, `Снимок нарушает связь Структуры с открытым вопросом «${invalidLinkedIssue.title}»`);
+        }
 
-      for (const item of parsed.data.wbsItems) {
-        await tx.wbsItem.update({
-          where: { id: item.id },
-          data: { parentId: item.parentId || null },
+        // Kept rows give up their codes and parents first, so the snapshot's codes
+        // and hierarchy can be written in any order without meeting the old ones.
+        await db.wbsDependency.deleteMany({ where: { projectId: project.id } });
+        await db.$executeRaw`
+          UPDATE "WbsItem" SET "parentId" = NULL, "code" = '__restore_' || "id", "updatedAt" = CURRENT_TIMESTAMP(3)
+          WHERE "projectId" = ${project.id}`;
+        await db.wbsItem.deleteMany({
+          where: { projectId: project.id, id: { notIn: [...snapshotItemIds] } },
         });
-      }
 
-      for (const dependency of parsed.data.wbsDependencies) {
-        await tx.wbsDependency.create({
-          data: {
+        const rows = parsed.data.wbsItems.map((item) => wbsItemSnapshotData(project.id, item));
+        await upsertSnapshotRows(db, rows.map((row) => ({ ...row, parentId: null })));
+        await bulkUpdateWbsItems(
+          db,
+          project.id,
+          rows.filter((row) => row.parentId).map((row) => ({ id: row.id, parentId: row.parentId })),
+          ['parentId'],
+        );
+
+        await db.wbsDependency.createMany({
+          data: parsed.data.wbsDependencies.map((dependency) => ({
             projectId: project.id,
             predecessorId: dependency.predecessorId,
             successorId: dependency.successorId,
             type: dependency.type,
             lagDays: dependency.lagDays,
-          },
+          })),
         });
-      }
-    });
 
-    await renumberProjectWbs(project.id);
-    await recalculateProjectWbsSchedule(project.id);
-    await recalculateProjectWbsHierarchyStatuses(project.id);
-    const snapshot = await getProjectWbsSnapshot(project.id);
-    await recordWbsCommand({
-      projectId: project.id,
-      type: 'RESTORE',
-      payload: {
-        itemCount: parsed.data.wbsItems.length,
-        dependencyCount: parsed.data.wbsDependencies.length,
-      },
-      afterSnapshot: snapshot,
-    });
+        await renumberProjectWbs(project.id, db);
+        await recalculateProjectWbsSchedule(project.id, {}, db);
+        await recalculateProjectWbsHierarchyStatuses(project.id, db);
+        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        await recordWbsCommand({
+          projectId: project.id,
+          type: 'RESTORE',
+          payload: {
+            itemCount: parsed.data.wbsItems.length,
+            dependencyCount: parsed.data.wbsDependencies.length,
+          },
+          afterSnapshot: snapshot,
+        }, db);
+        return snapshot;
+      });
 
-    res.json(snapshot);
+      res.json(snapshot);
+    } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
+      throw error;
+    }
   });
 }

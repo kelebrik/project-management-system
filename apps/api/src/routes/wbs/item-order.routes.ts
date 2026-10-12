@@ -1,5 +1,4 @@
 import type { Router } from 'express';
-import { prisma } from '../../db.js';
 import {
   getProjectWbsSnapshot,
   levelFromWbsItem,
@@ -16,6 +15,12 @@ import {
   updateSelectedWbsBaselineFromCurrentPlan,
 } from '../../services/wbs-baseline.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
+import { bulkUpdateWbsItems } from '../../services/wbs-bulk-write.js';
+import {
+  rejectStructureWrite,
+  respondToStructureRejection,
+  runStructureWrite,
+} from '../../services/wbs-structure-write.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import { currentUser } from '../../server/auth.js';
 import { wbsBaselineSchema, wbsInsertAfterSchema, wbsReorderSchema } from './schemas.js';
@@ -68,62 +73,58 @@ export function registerWbsItemOrderRoutes(router: Router) {
       return;
     }
 
+    const projectId = req.params.projectId;
     try {
-      const project = await prisma.project.findUnique({
-        where: { id: req.params.projectId },
-        select: { id: true },
-      });
-      if (!project) {
-        res.status(404).json({ error: 'Проект не найден' });
-        return;
-      }
+      const { created, snapshot } = await runStructureWrite(projectId, async (db) => {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true },
+        });
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
 
-      const items = await prisma.wbsItem.findMany({
-        where: { projectId: project.id },
-        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-      });
-      const afterIndex = items.findIndex((item) => item.id === parsed.data.afterItemId);
-      if (afterIndex === -1) {
-        res.status(404).json({ error: 'Элемент Структуры не найден в этом проекте' });
-        return;
-      }
-
-      let insertIndex = afterIndex + 1;
-      if (parsed.data.beforeItemId) {
-        const beforeIndex = items.findIndex((item) => item.id === parsed.data.beforeItemId);
-        if (beforeIndex === -1) {
-          res.status(404).json({ error: 'Следующий элемент Структуры не найден в этом проекте' });
-          return;
+        const items = await db.wbsItem.findMany({
+          where: { projectId: project.id },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        });
+        const afterIndex = items.findIndex((item) => item.id === parsed.data.afterItemId);
+        if (afterIndex === -1) {
+          rejectStructureWrite(404, 'Элемент Структуры не найден в этом проекте');
         }
-        if (beforeIndex > afterIndex) {
-          insertIndex = beforeIndex;
-        }
-      }
 
-      const afterItem = items[afterIndex];
-      const beforeItem = items[insertIndex] ?? null;
-      const insertedLevel = beforeItem ? levelFromWbsItem(beforeItem) : levelFromWbsItem(afterItem);
-      let parentId: string | null = beforeItem?.parentId ?? null;
-      if (!beforeItem) {
-        for (let index = insertIndex - 1; index >= 0; index -= 1) {
-          const candidate = items[index];
-          if (levelFromWbsItem(candidate) < insertedLevel) {
-            parentId = candidate.id;
-            break;
+        let insertIndex = afterIndex + 1;
+        if (parsed.data.beforeItemId) {
+          const beforeIndex = items.findIndex((item) => item.id === parsed.data.beforeItemId);
+          if (beforeIndex === -1) {
+            rejectStructureWrite(404, 'Следующий элемент Структуры не найден в этом проекте');
+          }
+          if (beforeIndex > afterIndex) {
+            insertIndex = beforeIndex;
           }
         }
-      }
 
-      const temporaryCode = `__insert_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-      const created = await prisma.$transaction(async (tx) => {
-        for (const [index, item] of items.entries()) {
-          await tx.wbsItem.update({
-            where: { id: item.id },
-            data: { sortOrder: (index < insertIndex ? index + 1 : index + 2) * 10 },
-          });
+        const afterItem = items[afterIndex];
+        const beforeItem = items[insertIndex] ?? null;
+        const insertedLevel = beforeItem ? levelFromWbsItem(beforeItem) : levelFromWbsItem(afterItem);
+        let parentId: string | null = beforeItem?.parentId ?? null;
+        if (!beforeItem) {
+          for (let index = insertIndex - 1; index >= 0; index -= 1) {
+            const candidate = items[index];
+            if (levelFromWbsItem(candidate) < insertedLevel) {
+              parentId = candidate.id;
+              break;
+            }
+          }
         }
 
-        return tx.wbsItem.create({
+        // Rows keep steps of ten with a gap at the insertion point; only rows whose order moves are written.
+        const shiftedRows = items
+          .map((item, index) => ({ id: item.id, sortOrder: (index < insertIndex ? index + 1 : index + 2) * 10, current: item.sortOrder }))
+          .filter((row) => row.sortOrder !== row.current)
+          .map(({ id, sortOrder }) => ({ id, sortOrder }));
+        await bulkUpdateWbsItems(db, project.id, shiftedRows, ['sortOrder']);
+
+        const temporaryCode = `__insert_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+        const created = await db.wbsItem.create({
           data: {
             projectId: project.id,
             parentId,
@@ -137,26 +138,27 @@ export function registerWbsItemOrderRoutes(router: Router) {
             sortOrder: (insertIndex + 1) * 10,
           },
         });
-      });
 
-      await renumberProjectWbs(project.id);
-      await recalculateProjectWbsSchedule(project.id);
-      await recalculateProjectWbsHierarchyStatuses(project.id);
-      const snapshot = await getProjectWbsSnapshot(project.id);
-      await recordWbsCommand({
-        projectId: project.id,
-        type: 'CREATE',
-        payload: {
-          action: 'insert-after',
-          insertedItemId: created.id,
-          afterItemId: parsed.data.afterItemId,
-          beforeItemId: parsed.data.beforeItemId,
-        },
-        afterSnapshot: snapshot,
+        await renumberProjectWbs(project.id, db);
+        await recalculateProjectWbsSchedule(project.id, {}, db);
+        await recalculateProjectWbsHierarchyStatuses(project.id, db);
+        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        await recordWbsCommand({
+          projectId: project.id,
+          type: 'CREATE',
+          payload: {
+            action: 'insert-after',
+            insertedItemId: created.id,
+            afterItemId: parsed.data.afterItemId,
+            beforeItemId: parsed.data.beforeItemId,
+          },
+          afterSnapshot: snapshot,
+        }, db);
+        return { created, snapshot };
       });
       await emitWebhookEvent({
         eventType: 'wbs.item.created',
-        projectId: project.id,
+        projectId,
         payload: { action: 'insert-after', itemId: created.id, snapshot },
       }).catch(() => undefined);
       res.status(201).json({
@@ -164,6 +166,7 @@ export function registerWbsItemOrderRoutes(router: Router) {
         ...snapshot,
       });
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       console.error(error);
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Не удалось вставить элемент Структуры',
@@ -172,38 +175,39 @@ export function registerWbsItemOrderRoutes(router: Router) {
   });
 
   router.post('/projects/:projectId/wbs-items/renumber', async (req, res) => {
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.projectId },
-      select: { id: true },
-    });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return;
-    }
-
-    let updatedCount: number;
+    const projectId = req.params.projectId;
     try {
-      updatedCount = await renumberProjectWbs(project.id);
+      const { updatedCount, snapshot } = await runStructureWrite(projectId, async (db) => {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true },
+        });
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
+
+        const updatedCount = await renumberProjectWbs(project.id, db);
+        await recalculateProjectWbsSchedule(project.id, {}, db);
+        await recalculateProjectWbsHierarchyStatuses(project.id, db);
+        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        await recordWbsCommand({
+          projectId: project.id,
+          type: 'BULK_UPDATE',
+          payload: { action: 'renumber', updatedCount },
+          afterSnapshot: snapshot,
+        }, db);
+        return { updatedCount, snapshot };
+      });
+      res.json({
+        updatedCount,
+        ...snapshot,
+      });
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       if (error instanceof WbsIssueLinkViolationError) {
         res.status(409).json({ error: error.message });
         return;
       }
       throw error;
     }
-    await recalculateProjectWbsSchedule(project.id);
-    await recalculateProjectWbsHierarchyStatuses(project.id);
-    const snapshot = await getProjectWbsSnapshot(project.id);
-    await recordWbsCommand({
-      projectId: project.id,
-      type: 'BULK_UPDATE',
-      payload: { action: 'renumber', updatedCount },
-      afterSnapshot: snapshot,
-    });
-    res.json({
-      updatedCount,
-      ...snapshot,
-    });
   });
 
   router.post('/projects/:projectId/wbs-baseline', async (req, res) => {
@@ -212,59 +216,61 @@ export function registerWbsItemOrderRoutes(router: Router) {
       res.status(400).json({ error: parsed.error.flatten() });
       return;
     }
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.projectId },
-      select: { id: true },
-    });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
+    const selectedItemIds = parsed.data.itemIds;
+    if (selectedItemIds && currentUser(req)?.role !== 'ADMIN') {
+      res.status(403).json({ error: 'Выборочное обновление базового плана доступно только администратору' });
       return;
     }
 
-    if (parsed.data.itemIds) {
-      if (currentUser(req)?.role !== 'ADMIN') {
-        res.status(403).json({ error: 'Выборочное обновление базового плана доступно только администратору' });
-        return;
-      }
-      const result = await updateSelectedWbsBaselineFromCurrentPlan(
-        project.id,
-        parsed.data.itemIds,
-      );
-      if (result.missingItemIds.length > 0) {
-        res.status(400).json({
-          error: 'Некоторые выбранные элементы Структуры не найдены в проекте',
-          missingItemIds: result.missingItemIds,
+    const projectId = req.params.projectId;
+    try {
+      const result = await runStructureWrite(projectId, async (db) => {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true },
         });
-        return;
-      }
-      const snapshot = await getProjectWbsSnapshot(project.id);
-      await recordWbsCommand({
-        projectId: project.id,
-        type: 'BASELINE',
-        payload: {
-          action: 'update-selected-baseline-from-current-dates',
-          itemIds: parsed.data.itemIds,
-          updatedCount: result.updatedCount,
-        },
-        afterSnapshot: snapshot,
-      });
-      res.json({ updatedCount: result.updatedCount, ...snapshot });
-      return;
-    }
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
 
-    const baseline = await createWbsBaselineFromCurrentPlan(project.id);
-    const snapshot = await getProjectWbsSnapshot(project.id);
-    await recordWbsCommand({
-      projectId: project.id,
-      type: 'BASELINE',
-      payload: {
-        action: 'set-baseline-from-current-structure',
-        baselineId: baseline.id,
-        version: baseline.version,
-      },
-      afterSnapshot: snapshot,
-    });
-    res.json(snapshot);
+        if (selectedItemIds) {
+          const result = await updateSelectedWbsBaselineFromCurrentPlan(project.id, selectedItemIds, db);
+          if (result.missingItemIds.length > 0) {
+            rejectStructureWrite(400, 'Некоторые выбранные элементы Структуры не найдены в проекте', {
+              missingItemIds: result.missingItemIds,
+            });
+          }
+          const snapshot = await getProjectWbsSnapshot(project.id, db);
+          await recordWbsCommand({
+            projectId: project.id,
+            type: 'BASELINE',
+            payload: {
+              action: 'update-selected-baseline-from-current-dates',
+              itemIds: selectedItemIds,
+              updatedCount: result.updatedCount,
+            },
+            afterSnapshot: snapshot,
+          }, db);
+          return { updatedCount: result.updatedCount, snapshot };
+        }
+
+        const baseline = await createWbsBaselineFromCurrentPlan(project.id, db);
+        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        await recordWbsCommand({
+          projectId: project.id,
+          type: 'BASELINE',
+          payload: {
+            action: 'set-baseline-from-current-structure',
+            baselineId: baseline.id,
+            version: baseline.version,
+          },
+          afterSnapshot: snapshot,
+        }, db);
+        return { snapshot };
+      });
+      res.json('updatedCount' in result ? { updatedCount: result.updatedCount, ...result.snapshot } : result.snapshot);
+    } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
+      throw error;
+    }
   });
 
   router.post('/projects/:projectId/wbs-items/reorder', async (req, res) => {
@@ -274,83 +280,87 @@ export function registerWbsItemOrderRoutes(router: Router) {
       return;
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.projectId },
-      select: { id: true },
-    });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return;
-    }
-
-    const items = await prisma.wbsItem.findMany({
-      where: { projectId: project.id },
-      select: { id: true, code: true, type: true, wbsLevel: true },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-    });
-    const existingIds = new Set(items.map((item) => item.id));
-    const orderedIds = parsed.data.orderedIds.filter(
-      (id, index, ids) => existingIds.has(id) && ids.indexOf(id) === index,
-    );
-    const submittedIds = new Set(orderedIds);
-    const missingIds = items.map((item) => item.id).filter((id) => !submittedIds.has(id));
-    const nextIds = [...orderedIds, ...missingIds];
-
-    const linkedIssues = await prisma.issue.findMany({
-      where: {
-        projectId: project.id,
-        status: { notIn: ['Done', 'Closed', 'Resolved'] },
-        OR: [
-          { phaseId: { not: null } },
-          { workPackageId: { not: null } },
-        ],
-      },
-      select: { title: true, phaseId: true, workPackageId: true },
-    });
-    const invalidLinkedIssue = invalidIssueLinkedWbsReorder(
-      items,
-      nextIds,
-      parsed.data.levelsById,
-      parsed.data.typesById,
-      linkedIssues,
-    );
-    if (invalidLinkedIssue) {
-      res.status(409).json({
-        error: `Изменение нарушает связь пакета работ с открытым вопросом «${invalidLinkedIssue.title}»; измените фазу в реестре вопросов`,
-      });
-      return;
-    }
-
-    await prisma.$transaction(
-      nextIds.map((id, index) => {
-        const nextLevel = parsed.data.levelsById?.[id];
-        const nextType = parsed.data.typesById?.[id];
-        return prisma.wbsItem.update({
-          where: { id },
-          data: {
-            sortOrder: (index + 1) * 10,
-            ...(nextLevel ? { wbsLevel: nextLevel } : {}),
-            ...(nextType ? { type: nextType } : {}),
-          },
+    const projectId = req.params.projectId;
+    try {
+      const snapshot = await runStructureWrite(projectId, async (db) => {
+        const project = await db.project.findUnique({
+          where: { id: projectId },
+          select: { id: true },
         });
-      }),
-    );
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
 
-    await renumberProjectWbs(project.id);
-    await recalculateProjectWbsSchedule(project.id);
-    await recalculateProjectWbsHierarchyStatuses(project.id);
-    const snapshot = await getProjectWbsSnapshot(project.id);
-    await recordWbsCommand({
-      projectId: project.id,
-      type: 'MOVE',
-      payload: {
-        orderedIds: parsed.data.orderedIds,
-        levelsById: parsed.data.levelsById,
-        typesById: parsed.data.typesById,
-      },
-      afterSnapshot: snapshot,
-    });
+        const items = await db.wbsItem.findMany({
+          where: { projectId: project.id },
+          select: { id: true, code: true, type: true, wbsLevel: true, sortOrder: true },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+        });
+        const existingIds = new Set(items.map((item) => item.id));
+        const orderedIds = parsed.data.orderedIds.filter(
+          (id, index, ids) => existingIds.has(id) && ids.indexOf(id) === index,
+        );
+        const submittedIds = new Set(orderedIds);
+        const missingIds = items.map((item) => item.id).filter((id) => !submittedIds.has(id));
+        const nextIds = [...orderedIds, ...missingIds];
 
-    res.json(snapshot);
+        const linkedIssues = await db.issue.findMany({
+          where: {
+            projectId: project.id,
+            status: { notIn: ['Done', 'Closed', 'Resolved'] },
+            OR: [
+              { phaseId: { not: null } },
+              { workPackageId: { not: null } },
+            ],
+          },
+          select: { title: true, phaseId: true, workPackageId: true },
+        });
+        const invalidLinkedIssue = invalidIssueLinkedWbsReorder(
+          items,
+          nextIds,
+          parsed.data.levelsById,
+          parsed.data.typesById,
+          linkedIssues,
+        );
+        if (invalidLinkedIssue) {
+          rejectStructureWrite(409, `Изменение нарушает связь пакета работ с открытым вопросом «${invalidLinkedIssue.title}»; измените фазу в реестре вопросов`);
+        }
+
+        const itemsById = new Map(items.map((item) => [item.id, item]));
+        const movedRows = nextIds
+          .map((id, index) => {
+            const item = itemsById.get(id)!;
+            return {
+              id,
+              sortOrder: (index + 1) * 10,
+              wbsLevel: parsed.data.levelsById?.[id] || item.wbsLevel,
+              type: parsed.data.typesById?.[id] || item.type,
+            };
+          })
+          .filter((row) => {
+            const item = itemsById.get(row.id)!;
+            return row.sortOrder !== item.sortOrder || row.wbsLevel !== item.wbsLevel || row.type !== item.type;
+          });
+        await bulkUpdateWbsItems(db, project.id, movedRows, ['sortOrder', 'wbsLevel', 'type']);
+
+        await renumberProjectWbs(project.id, db);
+        await recalculateProjectWbsSchedule(project.id, {}, db);
+        await recalculateProjectWbsHierarchyStatuses(project.id, db);
+        const snapshot = await getProjectWbsSnapshot(project.id, db);
+        await recordWbsCommand({
+          projectId: project.id,
+          type: 'MOVE',
+          payload: {
+            orderedIds: parsed.data.orderedIds,
+            levelsById: parsed.data.levelsById,
+            typesById: parsed.data.typesById,
+          },
+          afterSnapshot: snapshot,
+        }, db);
+        return snapshot;
+      });
+      res.json(snapshot);
+    } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
+      throw error;
+    }
   });
 }

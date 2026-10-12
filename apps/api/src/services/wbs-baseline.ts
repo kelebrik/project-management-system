@@ -1,7 +1,8 @@
 import { prisma } from "../db.js";
+import type { StructureDb } from "./wbs-structure-write.js";
 
-export async function createWbsBaselineFromCurrentPlan(projectId: string) {
-  return prisma.$transaction(async (tx) => {
+export async function createWbsBaselineFromCurrentPlan(projectId: string, db?: StructureDb) {
+  const run = async (tx: StructureDb) => {
     await tx.$executeRaw`
       UPDATE "WbsItem"
       SET
@@ -61,15 +62,17 @@ export async function createWbsBaselineFromCurrentPlan(projectId: string) {
         },
       },
     });
-  });
+  };
+  return db ? run(db) : prisma.$transaction(run);
 }
 
 export async function updateSelectedWbsBaselineFromCurrentPlan(
   projectId: string,
   requestedItemIds: string[],
+  db?: StructureDb,
 ) {
   const itemIds = [...new Set(requestedItemIds)];
-  return prisma.$transaction(async (tx) => {
+  const run = async (tx: StructureDb) => {
     const items = await tx.wbsItem.findMany({
       where: { projectId, id: { in: itemIds } },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
@@ -80,21 +83,20 @@ export async function updateSelectedWbsBaselineFromCurrentPlan(
       return { updatedCount: 0, missingItemIds };
     }
 
-    await Promise.all(
-      items.map((item) =>
-        tx.wbsItem.update({
-          where: { id: item.id },
-          data: {
-            baselineStartDate: item.startDate,
-            baselineDueDate: item.dueDate,
-            forecastStartDate: item.forecastStartDate ?? item.startDate,
-            forecastDueDate: item.forecastDueDate ?? item.dueDate,
-          },
-        }),
-      ),
-    );
+    for (const item of items) {
+      await tx.wbsItem.update({
+        where: { id: item.id },
+        data: {
+          baselineStartDate: item.startDate,
+          baselineDueDate: item.dueDate,
+          forecastStartDate: item.forecastStartDate ?? item.startDate,
+          forecastDueDate: item.forecastDueDate ?? item.dueDate,
+        },
+      });
+    }
     return { updatedCount: items.length, missingItemIds: [] as string[] };
-  });
+  };
+  return db ? run(db) : prisma.$transaction(run);
 }
 
 const predecessorFields = [

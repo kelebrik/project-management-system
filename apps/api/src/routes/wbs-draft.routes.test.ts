@@ -21,6 +21,7 @@ async function apply({ user = { id: 'u1', role: 'ADMIN', email: 'a@x', name: 'A'
     $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
       locked = `${strings.join('?')}|${values.join(',')}`;
     },
+    $queryRaw: async () => [],
     auditEvent: {
       findFirst: async () => (applied ? { metadata: { draftKey: 'key-12345678', createdIds: ['old1', 'old2'] } } : null),
       create: async (args: any) => audits.push(args.data),
@@ -35,18 +36,20 @@ async function apply({ user = { id: 'u1', role: 'ADMIN', email: 'a@x', name: 'A'
     wbsDependency: { create: async (args: any) => links.push(args.data) },
   };
   const previous = prismaClientProvider.get;
-  prismaClientProvider.get = () =>
-    ({
-      project: { findUnique: async () => ({ id: 'p1', status }) },
-      projectAccess: { findUnique: async () => null },
-      businessUnitMembership: { findFirst: async () => null },
-      $transaction: async (action: any) => action(tx),
-      // What the schedule recalculation and the snapshot read afterwards.
-      wbsItem: { findMany: async () => [], update: async () => ({}) },
-      wbsDependency: { findMany: async () => [] },
-      projectCalendarOverride: { findMany: async () => [] },
-      wbsCommand: { create: async () => ({}) },
-    }) as unknown as PrismaClient;
+  let transactions = 0;
+  const client: any = {
+    project: { findUnique: async () => ({ id: 'p1', status }) },
+    projectAccess: { findUnique: async () => null },
+    businessUnitMembership: { findFirst: async () => null },
+    // The draft is written in the first transaction; the recalculations that follow open their own.
+    $transaction: async (action: any) => action(transactions++ === 0 ? tx : client),
+    // What the schedule recalculation and the snapshot read afterwards.
+    wbsItem: { findMany: async () => [], update: async () => ({}) },
+    wbsDependency: { findMany: async () => [] },
+    projectCalendarOverride: { findMany: async () => [] },
+    wbsCommand: { create: async () => ({}) },
+  };
+  prismaClientProvider.get = () => client as unknown as PrismaClient;
   const res: any = {
     statusCode: 200,
     body: undefined as any,

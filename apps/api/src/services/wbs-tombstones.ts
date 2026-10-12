@@ -185,8 +185,8 @@ export function wbsTombstoneExpiresAt(now = new Date()) {
   return new Date(now.getTime() + tombstoneRetentionDays * dayMs);
 }
 
-export async function pruneExpiredWbsTombstones(now = new Date()) {
-  await prisma.wbsTombstone.deleteMany({
+export async function pruneExpiredWbsTombstones(now = new Date(), db: Pick<typeof prisma, 'wbsTombstone'> = prisma) {
+  await db.wbsTombstone.deleteMany({
     where: { expiresAt: { lt: now } },
   });
 }
@@ -196,11 +196,11 @@ export async function createWbsTombstone(input: {
   deletedById?: string | null;
   items: WbsItem[];
   dependencies?: WbsDependency[];
-}) {
-  await pruneExpiredWbsTombstones();
+}, db: Pick<typeof prisma, 'wbsTombstone'> = prisma) {
+  await pruneExpiredWbsTombstones(new Date(), db);
   const sortedItems = sortDeletedItems(input.items as unknown as SerializedWbsItem[]);
   const itemIds = sortedItems.map((item) => item.id);
-  return prisma.wbsTombstone.create({
+  return db.wbsTombstone.create({
     data: {
       projectId: input.projectId,
       deletedById: input.deletedById ?? null,
@@ -219,13 +219,16 @@ export async function createWbsTombstone(input: {
 export async function attachAuditEventToWbsTombstone(
   tombstoneId: string,
   auditEventId: string,
+  db: Pick<typeof prisma, 'wbsTombstone'> = prisma,
 ) {
-  await prisma.wbsTombstone
+  await db.wbsTombstone
     .update({
       where: { id: tombstoneId },
       data: { auditEventId },
     })
     .catch((error) => {
+      // As for the audit event: in a transaction the failure undoes the whole change.
+      if (db !== prisma) throw error;
       console.error('Не удалось связать WBS tombstone с audit event', error);
     });
 }

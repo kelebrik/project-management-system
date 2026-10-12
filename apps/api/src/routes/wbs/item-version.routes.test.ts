@@ -29,18 +29,22 @@ function itemPatch() {
 async function send(body: Record<string, unknown>, update: (args: { where: unknown }) => Promise<unknown>) {
   let updates = 0;
   const previous = prismaClientProvider.get;
-  prismaClientProvider.get = () =>
-    ({
-      wbsItem: {
-        findUnique: async () => row,
-        update: async (args: { where: unknown }) => {
-          updates += 1;
-          return update(args);
-        },
+  const client: any = {
+    wbsItem: {
+      findUnique: async () => row,
+      update: async (args: { where: unknown }) => {
+        updates += 1;
+        return update(args);
       },
-      issue: { findMany: async () => [] },
-      project: { findUnique: async () => ({ id: 'p', status: 'ACTIVE' }) },
-    }) as unknown as PrismaClient;
+    },
+    issue: { findMany: async () => [] },
+    project: { findUnique: async () => ({ id: 'p', status: 'ACTIVE' }) },
+    // The edit runs in one transaction under the project's lock.
+    $transaction: async (work: (db: unknown) => unknown) => work(client),
+    $executeRaw: async () => 0,
+    $queryRaw: async () => [],
+  };
+  prismaClientProvider.get = () => client as unknown as PrismaClient;
   try {
     const res: any = {
       statusCode: 200,

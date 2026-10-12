@@ -10,6 +10,7 @@ import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '.
 import { recalculateProjectWbsSchedule } from '../services/wbs-schedule.js';
 import { runWithWbsWriteQueue } from './wbs/write-queue.js';
 import { shiftActor, trackScheduleShifts } from '../services/schedule-shifts.js';
+import { lockProjectStructure } from '../services/wbs-structure-write.js';
 
 const applySchema = z.object({
   items: z.array(z.unknown()).min(1).max(500),
@@ -79,7 +80,7 @@ export function createWbsDraftRouter() {
       trackScheduleShifts(project.id, { trigger: 'DRAFT', actor: shiftActor(demo ? null : user) }, async () => {
       const written = await prisma.$transaction(
         async (tx) => {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${project.id}`}))`;
+          await lockProjectStructure(tx, project.id);
           const applied = await tx.auditEvent.findFirst({
             where: { projectId: project.id, action: 'wbs_draft.apply', metadata: { path: ['draftKey'], equals: draftKey } },
             select: { metadata: true },

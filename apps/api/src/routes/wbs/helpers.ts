@@ -1,4 +1,5 @@
 import { prisma } from '../../db.js';
+import type { StructureDb } from '../../services/wbs-structure-write.js';
 import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
 import { levelFromWbsCode } from '../../services/wbs.js';
 
@@ -18,8 +19,9 @@ export async function validateWbsProjectAndParent(
   projectId: string,
   parentId: string | null | undefined,
   jiraTicketUrl: string | null | undefined,
+  db: StructureDb = prisma,
 ) {
-  const project = await prisma.project.findUnique({
+  const project = await db.project.findUnique({
     where: { id: projectId },
     include: { jiraIntegration: true },
   });
@@ -29,7 +31,7 @@ export async function validateWbsProjectAndParent(
   }
 
   if (parentId) {
-    const parent = await prisma.wbsItem.findUnique({
+    const parent = await db.wbsItem.findUnique({
       where: { id: parentId },
     });
     if (!parent || parent.projectId !== project.id) {
@@ -52,13 +54,14 @@ export async function validateWbsProjectAndParent(
 export async function wouldCreateWbsCycle(
   itemId: string,
   nextParentId: string | null | undefined,
+  db: StructureDb = prisma,
 ) {
   let cursor = nextParentId;
   while (cursor) {
     if (cursor === itemId) {
       return true;
     }
-    const parent = await prisma.wbsItem.findUnique({
+    const parent = await db.wbsItem.findUnique({
       where: { id: cursor },
       select: { parentId: true },
     });
@@ -72,8 +75,9 @@ export async function wouldCreateDependencyCycle(
   predecessorId: string,
   successorId: string,
   ignoredDependencyId?: string,
+  db: StructureDb = prisma,
 ) {
-  const dependencies = await prisma.wbsDependency.findMany({
+  const dependencies = await db.wbsDependency.findMany({
     where: {
       projectId,
       ...(ignoredDependencyId ? { id: { not: ignoredDependencyId } } : {}),
@@ -105,8 +109,9 @@ export async function dependencyLimitExceeded(
   successorId: string,
   predecessorId: string,
   ignoredDependencyId?: string,
+  db: StructureDb = prisma,
 ) {
-  const dependencies = await prisma.wbsDependency.findMany({
+  const dependencies = await db.wbsDependency.findMany({
     where: {
       projectId,
       successorId,
@@ -122,8 +127,8 @@ export async function dependencyLimitExceeded(
 export async function collectDescendantLevelUpdates(existing: {
   id: string;
   projectId: string;
-}) {
-  const projectItems = await prisma.wbsItem.findMany({
+}, db: StructureDb = prisma) {
+  const projectItems = await db.wbsItem.findMany({
     where: { projectId: existing.projectId },
     select: { id: true, parentId: true, code: true, wbsLevel: true },
   });

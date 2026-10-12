@@ -1,12 +1,18 @@
 import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
+import {
+  rejectStructureWrite,
+  respondToStructureRejection,
+  runStructureWrite,
+  type StructureDb,
+} from '../../services/wbs-structure-write.js';
 import { buildAuditFieldChanges, recordAuditEvent } from '../../services/audit.js';
 import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
 import { copyCurrentStructuresToProject } from '../../services/wbs-current-structure-copy.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
-import { shiftActor, trackScheduleShifts } from '../../services/schedule-shifts.js';
+import { shiftActor, trackScheduleShifts, type ShiftContext } from '../../services/schedule-shifts.js';
 import { runWithWbsWriteQueue } from '../wbs/write-queue.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
 import { reconcileJiraSystemSetup } from '../../services/jira-system-setup.js';
@@ -46,8 +52,8 @@ function dateKey(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-async function findActiveProjectGoal(projectId: string) {
-  const goals = await prisma.wbsItem.findMany({
+async function findActiveProjectGoal(projectId: string, db: StructureDb = prisma) {
+  const goals = await db.wbsItem.findMany({
     where: {
       projectId,
       type: 'GOAL',
@@ -520,119 +526,121 @@ export function registerProjectCrudRoutes(
       return;
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: req.params.projectId },
-    });
-
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return;
-    }
-
-    if (project.status === 'CLOSED') {
-      res.status(423).json({ error: 'Проект закрыт и доступен только для чтения' });
-      return;
-    }
-
     const nextTargetDate = new Date(parsed.data.targetDate);
     if (Number.isNaN(nextTargetDate.getTime())) {
       res.status(400).json({ error: 'Некорректная дата цели проекта' });
       return;
     }
 
-    const activeGoal = await findActiveProjectGoal(project.id);
-    const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
-    const changed = dateKey(previousTargetDate) !== dateKey(nextTargetDate);
-
-    if (!changed) {
-      const unchanged = await prisma.project.findUnique({
-        where: { id: project.id },
-        include: projectDetailsInclude,
-      });
-      res.json(unchanged);
-      return;
-    }
-
-    const beforeSnapshot = await projectAuditSnapshot(project.id);
+    const projectId = req.params.projectId;
     // The goal's new date is journaled with the reason given here, queued like any structure write.
-    await runWithWbsWriteQueue(project.id, () =>
-      trackScheduleShifts(
-        project.id,
-        { trigger: 'TARGET_DATE', sourceItemId: activeGoal?.id ?? null, sourceNote: parsed.data.reason, actor: shiftActor(currentUser(req)) },
-        async () => {
-          await prisma.$transaction(async (tx) => {
-            await tx.project.update({
-              where: { id: project.id },
+    // The journal learns which goal moved once the goal is read under the lock.
+    const shiftContext: ShiftContext = { trigger: 'TARGET_DATE', sourceItemId: null, sourceNote: parsed.data.reason, actor: shiftActor(currentUser(req)) };
+    let outcome;
+    try {
+      outcome = await runWithWbsWriteQueue(projectId, () =>
+        trackScheduleShifts(projectId, shiftContext, () => runStructureWrite(projectId, async (db) => {
+          const project = await db.project.findUnique({
+            where: { id: projectId },
+          });
+          if (!project) rejectStructureWrite(404, 'Проект не найден');
+          if (project.status === 'CLOSED') {
+            rejectStructureWrite(423, 'Проект закрыт и доступен только для чтения');
+          }
+
+          const activeGoal = await findActiveProjectGoal(project.id, db);
+          shiftContext.sourceItemId = activeGoal?.id ?? null;
+          const previousTargetDate = activeGoal?.dueDate ?? project.targetDate;
+          if (dateKey(previousTargetDate) === dateKey(nextTargetDate)) {
+            return { changed: false as const, project };
+          }
+
+          const beforeSnapshot = await projectAuditSnapshot(project.id, db);
+          await db.project.update({
+            where: { id: project.id },
+            data: {
+              initialTargetDate: project.initialTargetDate ?? previousTargetDate,
+              targetDate: nextTargetDate,
+            },
+          });
+          if (activeGoal) {
+            await db.wbsItem.update({
+              where: { id: activeGoal.id },
               data: {
-                initialTargetDate: project.initialTargetDate ?? previousTargetDate,
-                targetDate: nextTargetDate,
+                startDate: nextTargetDate,
+                dueDate: nextTargetDate,
+                forecastStartDate: nextTargetDate,
+                forecastDueDate: nextTargetDate,
+                workDays: 0,
+                calendarDays: 1,
               },
             });
-            if (activeGoal) {
-              await tx.wbsItem.update({
-                where: { id: activeGoal.id },
-                data: {
-                  startDate: nextTargetDate,
-                  dueDate: nextTargetDate,
-                  forecastStartDate: nextTargetDate,
-                  forecastDueDate: nextTargetDate,
-                  workDays: 0,
-                  calendarDays: 1,
-                },
-              });
-            }
-            await tx.projectTargetDateChange.create({
-              data: {
-                projectId: project.id,
-                previousDate: previousTargetDate,
-                newDate: nextTargetDate,
-                reason: parsed.data.reason,
-                approvedBy: parsed.data.approvedBy || null,
-                createdById: currentUser(req)?.id ?? null,
-              },
-            });
+          }
+          await db.projectTargetDateChange.create({
+            data: {
+              projectId: project.id,
+              previousDate: previousTargetDate,
+              newDate: nextTargetDate,
+              reason: parsed.data.reason,
+              approvedBy: parsed.data.approvedBy || null,
+              createdById: currentUser(req)?.id ?? null,
+            },
           });
 
           if (activeGoal) {
             await recalculateProjectWbsSchedule(project.id, {
               changedItemId: activeGoal.id,
               changedFields: ['startDate', 'dueDate', 'forecastStartDate', 'forecastDueDate'],
-            });
+            }, db);
           }
-        },
-      ),
-    );
+          const afterSnapshot = await projectAuditSnapshot(project.id, db);
+          await recordAuditEvent({
+            req,
+            actor: currentUser(req),
+            action: 'project.target_date.update',
+            objectType: 'Project',
+            objectId: project.id,
+            projectId: project.id,
+            beforeValue: beforeSnapshot ?? project,
+            afterValue: afterSnapshot ?? project,
+            metadata: {
+              previousDate: previousTargetDate.toISOString(),
+              newDate: nextTargetDate.toISOString(),
+              activeGoalId: activeGoal?.id ?? null,
+              reason: parsed.data.reason,
+              approvedBy: parsed.data.approvedBy || null,
+            },
+            changes: [
+              {
+                field: 'targetDate',
+                oldValue: previousTargetDate,
+                newValue: nextTargetDate,
+                oldText: previousTargetDate.toISOString(),
+                newText: nextTargetDate.toISOString(),
+              },
+            ],
+          }, db);
+          return { changed: true as const, project, previousTargetDate, beforeSnapshot, afterSnapshot };
+        })),
+      );
+    } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
+      throw error;
+    }
+
+    if (!outcome.changed) {
+      const unchanged = await prisma.project.findUnique({
+        where: { id: outcome.project.id },
+        include: projectDetailsInclude,
+      });
+      res.json(unchanged);
+      return;
+    }
+    const { project, previousTargetDate, beforeSnapshot, afterSnapshot } = outcome;
 
     const updated = await prisma.project.findUnique({
       where: { id: project.id },
       include: projectDetailsInclude,
-    });
-    const afterSnapshot = await projectAuditSnapshot(project.id);
-    await recordAuditEvent({
-      req,
-      actor: currentUser(req),
-      action: 'project.target_date.update',
-      objectType: 'Project',
-      objectId: project.id,
-      projectId: project.id,
-      beforeValue: beforeSnapshot ?? project,
-      afterValue: afterSnapshot ?? updated,
-      metadata: {
-        previousDate: previousTargetDate.toISOString(),
-        newDate: nextTargetDate.toISOString(),
-        activeGoalId: activeGoal?.id ?? null,
-        reason: parsed.data.reason,
-        approvedBy: parsed.data.approvedBy || null,
-      },
-      changes: [
-        {
-          field: 'targetDate',
-          oldValue: previousTargetDate,
-          newValue: nextTargetDate,
-          oldText: previousTargetDate.toISOString(),
-          newText: nextTargetDate.toISOString(),
-        },
-      ],
     });
     await emitWebhookEvent({
       eventType: 'project.target_date.updated',

@@ -10,6 +10,11 @@ import { buildCalendarOverrides, isWorkingDay } from '../../services/wbs-schedul
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import { getProjectWbsSnapshot, recalculateProjectWbsHierarchyStatuses } from '../../services/wbs.js';
 import { emitWebhookEvent } from '../../services/webhooks.js';
+import {
+  rejectStructureWrite,
+  respondToStructureRejection,
+  runStructureWrite,
+} from '../../services/wbs-structure-write.js';
 
 const isoDay = z
   .string()
@@ -75,71 +80,66 @@ export function registerWbsAppendRoutes(router: Router) {
       return;
     }
     const projectId = String(req.params.projectId);
-    const project = await prisma.project.findUnique({ where: { id: projectId }, select: { id: true } });
-    if (!project) {
-      res.status(404).json({ error: 'Проект не найден' });
-      return;
-    }
     const input = body.data;
     try {
-      const created = await prisma.$transaction(
-        async (tx) => {
-          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${project.id}`}))`;
-          const rows = await tx.wbsItem.findMany({
-            where: { projectId: project.id },
-            orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-            select: { id: true, code: true, parentId: true, wbsLevel: true, type: true, calendarCode: true, sortOrder: true },
+      const { item, snapshot } = await runStructureWrite(projectId, async (tx) => {
+        const project = await tx.project.findUnique({ where: { id: projectId }, select: { id: true } });
+        if (!project) rejectStructureWrite(404, 'Проект не найден');
+        const rows = await tx.wbsItem.findMany({
+          where: { projectId },
+          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
+          select: { id: true, code: true, parentId: true, wbsLevel: true, type: true, calendarCode: true, sortOrder: true },
+        });
+        const plan = planAppend(rows, input.parentId);
+        if ('problem' in plan) throw new AppendRefused(plan.problem === 'PARENT_NOT_FOUND' ? 404 : 409, plan.problem);
+        if (input.parentId) {
+          const managing = await tx.issue.findFirst({
+            where: { projectId, workPackageId: input.parentId, status: { notIn: ['Done', 'Closed', 'Resolved'] } },
+            select: { id: true },
           });
-          const plan = planAppend(rows, input.parentId);
-          if ('problem' in plan) throw new AppendRefused(plan.problem === 'PARENT_NOT_FOUND' ? 404 : 409, plan.problem);
-          if (input.parentId) {
-            const managing = await tx.issue.findFirst({
-              where: { projectId: project.id, workPackageId: input.parentId, status: { notIn: ['Done', 'Closed', 'Resolved'] } },
-              select: { id: true },
-            });
-            if (managing) throw new AppendRefused(409, 'ISSUE_MANAGED');
-          }
-          const calendarCode = plan.calendarCode as ProjectCalendarCode;
-          const overrides = buildCalendarOverrides(
-            await tx.projectCalendarOverride.findMany({ where: { projectId: project.id }, select: { calendarCode: true, date: true, isWorkingDay: true } }),
-          );
-          const dates = snapToCalendar(input.startDate, input.dueDate, calendarCode, overrides);
-          if (!dates) throw new AppendRefused(400, 'NO_WORKING_DAY');
-          const sortOrder = await sortPositionAt(tx, rows, plan);
-          return tx.wbsItem.create({
-            data: {
-              projectId: project.id,
-              parentId: plan.parentId,
-              code: plan.code,
-              title: input.title,
-              type: input.type,
-              status: 'NOT_STARTED',
-              owner: input.owner,
-              startDate: dates.start,
-              dueDate: dates.due,
-              baselineStartDate: dates.start,
-              baselineDueDate: dates.due,
-              forecastStartDate: dates.start,
-              forecastDueDate: dates.due,
-              excelStartDate: dates.start,
-              excelEndDate: dates.due,
-              wbsLevel: plan.level,
-              calendarCode,
-              sortOrder,
-            },
-          });
-        },
-        { timeout: 30_000 },
-      );
-      await recordWbsCommand({ projectId: project.id, userId: currentUser(req)?.id, type: 'CREATE', payload: { itemId: created.id, item: created, source: 'workload' } });
-      await recalculateProjectWbsSchedule(project.id);
-      await recalculateProjectWbsHierarchyStatuses(project.id);
-      const snapshot = await getProjectWbsSnapshot(project.id);
-      const item = snapshot.wbsItems.find((row) => row.id === created.id) ?? created;
-      await recordAuditEvent({ req, actor: currentUser(req), action: 'wbs_item.create', objectType: 'WbsItem', objectId: created.id, projectId: project.id, afterValue: item, metadata: { source: 'workload' } });
-      await emitWebhookEvent({ eventType: 'wbs.item.created', projectId: project.id, payload: { item, snapshot } }).catch(() => undefined);
+          if (managing) throw new AppendRefused(409, 'ISSUE_MANAGED');
+        }
+        const calendarCode = plan.calendarCode as ProjectCalendarCode;
+        const overrides = buildCalendarOverrides(
+          await tx.projectCalendarOverride.findMany({ where: { projectId }, select: { calendarCode: true, date: true, isWorkingDay: true } }),
+        );
+        const dates = snapToCalendar(input.startDate, input.dueDate, calendarCode, overrides);
+        if (!dates) throw new AppendRefused(400, 'NO_WORKING_DAY');
+        const sortOrder = await sortPositionAt(tx, rows, plan);
+        const created = await tx.wbsItem.create({
+          data: {
+            projectId,
+            parentId: plan.parentId,
+            code: plan.code,
+            title: input.title,
+            type: input.type,
+            status: 'NOT_STARTED',
+            owner: input.owner,
+            startDate: dates.start,
+            dueDate: dates.due,
+            baselineStartDate: dates.start,
+            baselineDueDate: dates.due,
+            forecastStartDate: dates.start,
+            forecastDueDate: dates.due,
+            excelStartDate: dates.start,
+            excelEndDate: dates.due,
+            wbsLevel: plan.level,
+            calendarCode,
+            sortOrder,
+          },
+        });
+        await recordWbsCommand({ projectId, userId: currentUser(req)?.id, type: 'CREATE', payload: { itemId: created.id, item: created, source: 'workload' } }, tx);
+        await recalculateProjectWbsSchedule(projectId, {}, tx);
+        await recalculateProjectWbsHierarchyStatuses(projectId, tx);
+        const snapshot = await getProjectWbsSnapshot(projectId, tx);
+        const item = snapshot.wbsItems.find((row) => row.id === created.id) ?? created;
+        await recordAuditEvent({ req, actor: currentUser(req), action: 'wbs_item.create', objectType: 'WbsItem', objectId: created.id, projectId, afterValue: item, metadata: { source: 'workload' } }, tx);
+        return { item, snapshot };
+      });
+      await emitWebhookEvent({ eventType: 'wbs.item.created', projectId, payload: { item, snapshot } }).catch(() => undefined);
       res.status(201).json({ item, ...snapshot });
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       if (error instanceof AppendRefused) {
         res.status(error.status).json({ error: error.message, reason: error.reason });
         return;

@@ -14,30 +14,36 @@ for (const failure of ['stale-work', 'retired-jira', 'stale-jira', 'concurrent-w
     const router = { post: () => {}, delete: () => {}, patch: (path: string, handler: Function) => { if (path.endsWith('/bulk')) bulk = handler; } };
     registerWbsItemRoutes(router as unknown as Router);
     let writes = 0; let transactions = 0;
+    // Every check, the stale ones included, runs in the transaction that holds the project's lock.
+    const db = {
+      $executeRaw: async () => 0,
+      $queryRaw: async () => [],
+      project: { findUnique: async () => ({ id: 'p', jiraIntegration: null }) },
+      issue: { findMany: async () => [] },
+      jiraIssueSnapshot: { findUnique: async () => ({ updatedAt: now, syncedAt: failure === 'stale-jira' ? new Date(0) : now, retiredAt: failure === 'retired-jira' ? now : null }) },
+      wbsItem: {
+        findMany: async () => [row],
+        update: async (args: { where: unknown }) => {
+          writes++;
+          assert.deepEqual(args.where, { id: 'w', updatedAt: now });
+          throw new Prisma.PrismaClientKnownRequestError('changed', { code: 'P2025', clientVersion: 'test' });
+        },
+      },
+    };
     const transaction = async (callback: Function, options: { isolationLevel: string }) => {
       transactions++;
       assert.equal(options.isolationLevel, 'Serializable');
       if (failure === 'serialization') throw new Prisma.PrismaClientKnownRequestError('conflict', { code: 'P2034', clientVersion: 'test' });
-      return callback({
-        jiraIssueSnapshot: { findUnique: async () => ({ updatedAt: now, syncedAt: failure === 'stale-jira' ? new Date(0) : now, retiredAt: failure === 'retired-jira' ? now : null }) },
-        wbsItem: { update: async (args: { where: unknown }) => {
-          writes++;
-          assert.deepEqual(args.where, { id: 'w', updatedAt: now });
-          throw new Prisma.PrismaClientKnownRequestError('changed', { code: 'P2025', clientVersion: 'test' });
-        } },
-      });
+      return callback(db);
     };
     t.mock.method(prismaClientProvider, 'get', () => ({
-      project: { findUnique: async () => ({ id: 'p', jiraIntegration: null }) },
-      wbsItem: { findMany: async () => [row] },
-      issue: { findMany: async () => [] },
       $transaction: transaction,
     }) as unknown as PrismaClient);
     let status = 200;
     const res = { status: (value: number) => { status = value; return res; }, json: () => {} };
     await bulk!({ params: { projectId: 'p' }, body: { items: [{ id: 'w', patch: { status: 'DONE' }, expectedUpdatedAt: failure === 'stale-work' ? new Date(0).toISOString() : now.toISOString(), expectedJira: { key: 'TV-1', updatedAt: now.toISOString() } }] } }, res);
     assert.equal(status, 409);
-    assert.equal(transactions, failure === 'stale-work' ? 0 : 1);
+    assert.equal(transactions, 1);
     assert.equal(writes, failure === 'concurrent-work' ? 1 : 0);
   });
 }
