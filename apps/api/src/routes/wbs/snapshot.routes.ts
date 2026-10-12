@@ -6,7 +6,7 @@ import {
   wbsItemSnapshotData,
 } from '../../services/wbs.js';
 import { recordWbsCommand } from '../../services/wbs-audit.js';
-import { bulkUpdateWbsItems } from '../../services/wbs-bulk-write.js';
+import { bulkUpdateWbsItems, utcTimestamp } from '../../services/wbs-bulk-write.js';
 import { finishStructureChange, structureCommandSnapshot, structureResponse } from '../../services/wbs-structure-delta.js';
 import { recalculateProjectWbsSchedule } from '../../services/wbs-schedule.js';
 import {
@@ -33,11 +33,12 @@ async function upsertSnapshotRows(db: StructureDb, rows: SnapshotRow[]) {
     .filter((column) => column !== 'id' && column !== 'projectId')
     .map((column) => `"${column}" = EXCLUDED."${column}"`)
     .join(', ');
+  const at = utcTimestamp();
   const written = await db.$executeRaw`
     INSERT INTO "WbsItem" (${Prisma.raw(names)}, "createdAt", "updatedAt")
-    SELECT ${Prisma.raw(picked)}, CURRENT_TIMESTAMP(3), CURRENT_TIMESTAMP(3)
+    SELECT ${Prisma.raw(picked)}, ${at}, ${at}
     FROM jsonb_populate_recordset(NULL::"WbsItem", ${JSON.stringify(rows)}::jsonb) AS r
-    ON CONFLICT ("id") DO UPDATE SET ${Prisma.raw(updates)}, "updatedAt" = CURRENT_TIMESTAMP(3)
+    ON CONFLICT ("id") DO UPDATE SET ${Prisma.raw(updates)}, "updatedAt" = ${at}
     WHERE "WbsItem"."projectId" = EXCLUDED."projectId"`;
   if (written !== rows.length) {
     rejectStructureWrite(409, 'Снимок Структуры содержит элементы другого проекта');
@@ -107,7 +108,7 @@ export function registerWbsSnapshotRoutes(router: Router) {
         // and hierarchy can be written in any order without meeting the old ones.
         await db.wbsDependency.deleteMany({ where: { projectId: project.id } });
         await db.$executeRaw`
-          UPDATE "WbsItem" SET "parentId" = NULL, "code" = '__restore_' || "id", "updatedAt" = CURRENT_TIMESTAMP(3)
+          UPDATE "WbsItem" SET "parentId" = NULL, "code" = '__restore_' || "id", "updatedAt" = ${utcTimestamp()}
           WHERE "projectId" = ${project.id}`;
         await db.wbsItem.deleteMany({
           where: { projectId: project.id, id: { notIn: [...snapshotItemIds] } },

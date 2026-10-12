@@ -27,6 +27,15 @@ const WBS_BULK_COLUMNS = {
 export type WbsBulkColumn = keyof typeof WBS_BULK_COLUMNS;
 export type WbsBulkRow = { id: string } & Partial<Record<WbsBulkColumn, string | number | Date | null>>;
 
+/**
+ * The moment of a write as Prisma stores it: UTC wall time in a column
+ * without a zone. The database's own clock (CURRENT_TIMESTAMP) would follow
+ * its session time zone, which is Moscow on some servers.
+ */
+export function utcTimestamp(at = new Date()) {
+  return Prisma.sql`${at.toISOString().slice(0, 23)}::timestamp(3)`;
+}
+
 function bulkValue(value: string | number | Date | null | undefined) {
   if (value === null || value === undefined) return null;
   // timestamp(3) has no zone: Prisma keeps UTC wall time, so the ISO text without the Z is the stored value.
@@ -52,11 +61,8 @@ export function buildWbsBulkUpdate(projectId: string, rows: WbsBulkRow[], column
     ...columns.map((column) => Prisma.sql`${rows.map((row) => bulkValue(row[column]))}::text[]`),
   ];
   const names = Prisma.raw(['"id"', ...columns.map((column) => `"${column}"`)].join(', '));
-  const assignments = Prisma.raw([
-    ...columns.map((column) => `"${column}" = v."${column}"::${WBS_BULK_COLUMNS[column]}`),
-    '"updatedAt" = CURRENT_TIMESTAMP(3)',
-  ].join(', '));
-  return Prisma.sql`UPDATE "WbsItem" AS w SET ${assignments}
+  const assignments = Prisma.raw(columns.map((column) => `"${column}" = v."${column}"::${WBS_BULK_COLUMNS[column]}`).join(', '));
+  return Prisma.sql`UPDATE "WbsItem" AS w SET ${assignments}, "updatedAt" = ${utcTimestamp()}
     FROM unnest(${Prisma.join(arrays)}) AS v(${names})
     WHERE w."id" = v."id" AND w."projectId" = ${projectId}`;
 }

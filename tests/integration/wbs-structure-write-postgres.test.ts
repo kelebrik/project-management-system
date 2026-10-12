@@ -92,6 +92,9 @@ test('renumbering writes only the rows whose code moves and leaves no temporary 
     assert.deepEqual(rows.map((row) => [row.title, row.code]), [['Работа 1', '1'], ['Работа 3', '2'], ['Работа 2', '3']]);
     const first = rows.find((row) => row.id === items[0]!.id)!;
     assert.equal(first.updatedAt.getTime(), before.updatedAt.getTime());
+    // A moved row carries the time of the write in UTC, as Prisma writes it, whatever the database's time zone.
+    const moved = rows.find((row) => row.id === items[1]!.id)!;
+    assert.ok(Math.abs(moved.updatedAt.getTime() - Date.now()) < 60_000, `updatedAt ${moved.updatedAt.toISOString()} is not now`);
     assert.ok(rows.every((row) => !row.code.startsWith('__')));
   } finally {
     await cleanup();
