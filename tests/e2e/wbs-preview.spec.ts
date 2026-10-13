@@ -333,3 +333,85 @@ test("a move the server made whose answer was lost keeps its notice when reading
   await expect.poll(() => moves.length).toBe(1);
   await expect(page.getByText("Изменение сохранено, но обновить данные не удалось — обновите страницу")).toBeVisible();
 });
+
+/** A stream of the project's changes that sends one event when the test says so. */
+async function liveStream(page: Page) {
+  let send!: (event: Record<string, unknown>) => void;
+  const sent = new Promise<Record<string, unknown>>((resolve) => { send = resolve; });
+  await page.route("**/api/projects/project-1/events", async (route) => {
+    const event = await sent;
+    await route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: `retry: 60000\n\nevent: change\ndata: ${JSON.stringify(event)}\n\n` });
+  });
+  return (event: Record<string, unknown>) => send({ id: `evt-${Date.now()}`, projectId: "project-1", section: "structure", actorId: "u-anna", actorName: "Анна Орлова", clientId: "tab-of-anna", at: "2026-10-13T10:00:00.000Z", ...event });
+}
+
+test("a Structure change someone else made shows by itself, with no banner", async ({ page }) => {
+  const emit = await liveStream(page);
+  const plan = await openPlan(page);
+  const reads: string[] = [];
+  await page.route("**/api/projects/project-1/structure?since=*", (route) => {
+    reads.push(new URL(route.request().url()).searchParams.get("since") ?? "");
+    return route.fulfill({ json: { projectId: "project-1", version: "2", baseVersion: "1", full: false, today: "2026-10-13", calendarOverrides: [], items: [{ ...plan.second, status: "IN_PROGRESS" }], dependencies: [], deletedItemIds: [], deletedDependencyIds: [] } });
+  });
+  emit({ structureVersion: "2", structureOnly: true });
+  await expect(cell(page, "b", "status").locator("select")).toHaveValue("IN_PROGRESS");
+  expect(reads).toEqual(["1"]);
+  await expect(page.getByRole("status").filter({ hasText: "Анна Орлова" })).toHaveCount(0);
+});
+
+test("a change that removes a row edited here is not taken in quietly: the edit stays and the banner offers the update", async ({ page }) => {
+  const emit = await liveStream(page);
+  const plan = await openPlan(page);
+  await longerFirstTask(page);
+  await expect.poll(() => plan.patches.length).toBe(1);
+  await plan.patches[0]!.answer(409, { error: "Строку изменили, обновите страницу" });
+  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+  await page.route("**/api/projects/project-1/structure?since=*", (route) =>
+    route.fulfill({ json: { projectId: "project-1", version: "2", baseVersion: "1", full: false, today: "2026-10-13", calendarOverrides: [], items: [], dependencies: [], deletedItemIds: ["a"], deletedDependencyIds: [] } }),
+  );
+  emit({ structureVersion: "2", structureOnly: true });
+  await expect(page.getByRole("status").filter({ hasText: "Анна Орлова" })).toBeVisible();
+  await expect(cell(page, "a", "workDays").locator("input")).toHaveValue("5");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+});
+
+test("a change made between reading the project and opening its stream is caught up with when the stream opens", async ({ page }) => {
+  await page.route("**/api/projects/project-1/events", (route) => route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: "retry: 60000\n\n" }));
+  // The row as the project was read; the journal then holds it changed by someone else.
+  let read!: (rows: Array<Record<string, unknown>>) => void;
+  const readRows = new Promise<Array<Record<string, unknown>>>((resolve) => { read = resolve; });
+  page.on("response", async (response) => {
+    if (response.url().endsWith("/api/projects/project-1/overview")) read(((await response.json()) as { wbsItems: Array<Record<string, unknown>> }).wbsItems);
+  });
+  const sinces: string[] = [];
+  await page.route("**/api/projects/project-1/structure?since=*", async (route) => {
+    sinces.push(new URL(route.request().url()).searchParams.get("since") ?? "");
+    const second = (await readRows).find((item) => item.id === "b")!;
+    await route.fulfill({ json: { projectId: "project-1", version: "2", baseVersion: "1", full: false, today: "2026-10-13", calendarOverrides: [], items: [{ ...second, status: "IN_PROGRESS" }], dependencies: [], deletedItemIds: [], deletedDependencyIds: [] } });
+  });
+  await openPlan(page);
+  await expect(cell(page, "b", "status").locator("select")).toHaveValue("IN_PROGRESS");
+  expect(sinces[0]).toBe("1");
+  await expect(page.getByRole("status").filter({ hasText: "изменил" })).toHaveCount(0);
+});
+
+test("text typed into a row and not yet taken in survives that row being removed elsewhere", async ({ page }) => {
+  const emit = await liveStream(page);
+  const plan = await openPlan(page);
+  await page.route("**/api/projects/project-1/structure?since=*", (route) =>
+    route.fulfill({ json: { projectId: "project-1", version: "2", baseVersion: "1", full: false, today: "2026-10-13", calendarOverrides: [], items: [], dependencies: [], deletedItemIds: ["b"], deletedDependencyIds: [] } }),
+  );
+  const typed = cell(page, "b", "workDays").locator("input");
+  await typed.fill("9");
+  emit({ structureVersion: "2", structureOnly: true });
+  // While the text is not taken in, nothing is: the row and the text stay.
+  await page.waitForTimeout(1_500);
+  await expect(typed).toHaveValue("9");
+  // Taken in and refused, the edit stays unsaved; the removal is offered, not applied.
+  await typed.press("Enter");
+  await expect.poll(() => plan.patches.length).toBe(1);
+  await plan.patches[0]!.answer(409, { error: "Строку изменили, обновите страницу" });
+  await expect(page.getByRole("status").filter({ hasText: "Анна Орлова" })).toBeVisible();
+  await expect(typed).toHaveValue("9");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+});

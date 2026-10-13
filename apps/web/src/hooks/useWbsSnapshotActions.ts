@@ -116,6 +116,11 @@ export function useWbsSnapshotActions({
       const state = projectId ? confirmedStructure(projectId) : null;
       if (!current || !state || current.id !== projectId) return;
       applyWbsSnapshotResult(state.items, state.dependencies, state.criticalPath);
+      // The project's calendar comes with the Structure it was read with.
+      if (state.calendarOverrides && projectRef.current) {
+        projectRef.current = { ...projectRef.current, calendarOverrides: state.calendarOverrides };
+        setProject(projectRef.current);
+      }
     };
     window.addEventListener("pms-structure-settled", onSettled);
     return () => window.removeEventListener("pms-structure-settled", onSettled);

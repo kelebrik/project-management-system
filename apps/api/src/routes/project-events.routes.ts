@@ -10,6 +10,8 @@ import {
   type ProjectLiveEvent,
 } from '../services/project-live-events.js';
 import { noteProjectWrite } from '../services/project-history.js';
+import { isStructureOnlyWrite } from '../services/structure-mutations.js';
+import { readStructureVersion } from '../services/wbs-structure-write.js';
 
 export const LIVE_HEARTBEAT_MS = 25_000;
 const CLIENT_ID = /^[A-Za-z0-9-]{8,64}$/;
@@ -52,7 +54,13 @@ export function projectLiveEventsMiddleware(req: Request, res: Response, next: N
         res.on('finish', () => {
           if (res.statusCode >= 400) return;
           const user = currentUser(req);
-          publishProjectLiveEvent({ projectId, section, actorId: user?.id ?? null, actorName: user?.name ?? null, clientId });
+          const structureOnly = isStructureOnlyWrite(req.method, req.path);
+          // The version is a hint: a page catches up with whatever the journal holds past its own.
+          void readStructureVersion(projectId)
+            .catch(() => null)
+            .then((version) => {
+              publishProjectLiveEvent({ projectId, section, actorId: user?.id ?? null, actorName: user?.name ?? null, clientId, structureVersion: version, structureOnly });
+            });
           // The project's history captures this day's new state once the writes settle.
           noteProjectWrite(projectId);
         });

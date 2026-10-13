@@ -2,6 +2,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
 } from "react";
 import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { buildAppPresentationContext } from "./app/appPresentationContext";
@@ -17,6 +18,7 @@ import {
 } from "./app/routes";
 import { projectModuleKeyByView } from "./app/projectModules";
 import { isDefaultWorkingDay } from "./app/dateUtils";
+import { guardStructureCatchUp } from "./app/structureStore";
 import { useEditableCaptureHandlers } from "./app/useEditableCapture";
 import { useGlobalSearch } from "./app/useGlobalSearch";
 import { AppPresentation } from "./components/AppPresentation";
@@ -383,6 +385,18 @@ function AppController() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirtyWbsItemIds]);
+  // A change someone else made is taken in once this page's own saves are done, and never over a row edited here that it removes.
+  const dirtyWbsItemIdsRef = useRef(dirtyWbsItemIds);
+  dirtyWbsItemIdsRef.current = dirtyWbsItemIds;
+  useEffect(() => guardStructureCatchUp({
+    // Text typed into a cell and not yet taken into the row's draft waits too: a removed row would take it away.
+    busy: () => pendingWbsSaveCountRef.current > 0 || hasPendingWbsBuffers(),
+    conflicts: (projectId, candidate) => {
+      if (projectRef.current?.id !== projectId || dirtyWbsItemIdsRef.current.size === 0) return false;
+      const kept = new Set(candidate.items.map((item) => item.id));
+      return [...dirtyWbsItemIdsRef.current].some((itemId) => !kept.has(itemId));
+    },
+  }), [pendingWbsSaveCountRef, projectRef]);
   usePageVisitTracking({
     activeView,
     authReady: authMode === "ready",

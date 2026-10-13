@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { apiBase } from "../api/client";
+import { apiBase, apiClient } from "../api/client";
 import { liveClientId } from "./liveClient";
+import { catchUpWithServer, confirmedStructure, onStructureIdle, type CatchUpOutcome, type ReadStructureChanges, type StructureChanges } from "./structureStore";
 
 export type ProjectLiveEvent = {
   id: string;
@@ -10,6 +11,10 @@ export type ProjectLiveEvent = {
   actorName: string | null;
   clientId: string | null;
   at: string;
+  /** The Structure's version after the change, at least; absent from older servers. */
+  structureVersion?: string | null;
+  /** The Structure's journal holds every change it made: catching up shows it all. */
+  structureOnly?: boolean;
 };
 
 /** Who changed what, the events in arrival order, names and sections once each. */
@@ -34,6 +39,132 @@ export function withLiveEvent(pending: ProjectLiveEvent[], event: ProjectLiveEve
   return [...pending, event];
 }
 
+const readChanges: ReadStructureChanges = (projectId, since) =>
+  apiClient.get<StructureChanges>(`/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`);
+
+/** How long a catch-up held back by the page's own saves waits before it looks again. */
+const DEFERRED_RETRY_MS = 1_000;
+
+/**
+ * Keeps the open project's Structure up with changes others make: each event
+ * naming a newer version is caught up with quietly, once the page's own writes
+ * are done. An event whose every change the catch-up shows needs no word; the
+ * others, and any the page could not take in, are offered as before.
+ */
+export function createStructureLiveSync(
+  projectId: string,
+  offer: (event: ProjectLiveEvent) => void,
+  options: { catchUp?: (projectId: string, hint: string | null, isCurrent: () => boolean) => Promise<CatchUpOutcome>; retryMs?: number } = {},
+) {
+  const catchUp = options.catchUp ?? ((id: string, hint: string | null, isCurrent: () => boolean) => catchUpWithServer(id, hint, readChanges, isCurrent));
+  const retryMs = options.retryMs ?? DEFERRED_RETRY_MS;
+  let held: ProjectLiveEvent[] = [];
+  let wanted: string | null = null;
+  /** Readings asked for whatever the events said (the stream opened, the page shown again), and how many of them a finished reading answered: one asked during a reading is not answered by it. */
+  let dueAsked = 0;
+  let dueAnswered = 0;
+  /** A due reading that failed is tried once more later, not forever. */
+  let dueRetried = false;
+  let running = false;
+  let again = false;
+  let stopped = false;
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  const isCurrent = () => !stopped;
+  const pendingWork = () => dueAsked > dueAnswered || wanted !== null || held.length > 0;
+  const stopIdle = onStructureIdle(() => {
+    if (pendingWork()) void run();
+  });
+  const newer = (left: string, right: string) => BigInt(left) > BigInt(right);
+  const later = (ms: number) => {
+    if (retryTimer) clearTimeout(retryTimer);
+    retryTimer = setTimeout(() => {
+      retryTimer = null;
+      if (pendingWork()) void run();
+    }, ms);
+  };
+  /** Said when the page cannot take a change in and no event of it is held: someone changed the Structure. */
+  const offerUnseen = () =>
+    offer({ id: `catch-up-${Date.now()}`, projectId, section: "structure", actorId: null, actorName: null, clientId: null, at: new Date().toISOString() });
+  /** Applies how a catch-up ended; answers whether a later attempt was set for it. */
+  const settle = (outcome: CatchUpOutcome, dueTaken: number): boolean => {
+    if (outcome === "deferred") return true;
+    if (outcome === "conflict" || outcome === "failed") {
+      const unseen = held.length === 0 && (outcome === "conflict" || wanted !== null);
+      held.forEach(offer);
+      if (unseen) offerUnseen();
+      held = [];
+      wanted = null;
+      if (outcome === "failed" && dueTaken > dueAnswered && !dueRetried) {
+        // A reading that could not be made (the network) is tried once more before giving up.
+        dueRetried = true;
+        later(retryMs * 5);
+        return true;
+      }
+      dueAnswered = Math.max(dueAnswered, dueTaken);
+      return false;
+    }
+    dueAnswered = Math.max(dueAnswered, dueTaken);
+    dueRetried = false;
+    const version = confirmedStructure(projectId)?.version;
+    // Events up to the version shown are seen; a later one waits for the next round.
+    const seen = (event: ProjectLiveEvent) => version !== undefined && !newer(event.structureVersion ?? "0", version);
+    held = held.filter((event) => !seen(event));
+    if (wanted !== null && version !== undefined && !newer(wanted, version)) wanted = null;
+    return false;
+  };
+  const run = async (): Promise<void> => {
+    if (stopped) return;
+    if (running) {
+      again = true;
+      return;
+    }
+    running = true;
+    try {
+      do {
+        again = false;
+        const dueTaken = dueAsked;
+        const outcome = await catchUp(projectId, wanted, isCurrent);
+        if (stopped) return;
+        if (settle(outcome, dueTaken)) {
+          if (outcome === "deferred") later(retryMs);
+          // The later attempt reads; only a reading asked for meanwhile goes now.
+          if (dueAsked === dueTaken) return;
+        }
+        if (pendingWork()) again = true;
+      } while (again && !stopped && pendingWork());
+    } finally {
+      running = false;
+    }
+  };
+  return {
+    /** A change someone else made: caught up with, and offered unless the catch-up shows all of it. */
+    receive(event: ProjectLiveEvent) {
+      if (stopped) return;
+      const version = event.structureVersion ?? null;
+      if (version !== null && /^\d{1,19}$/.test(version)) {
+        if (wanted === null || newer(version, wanted)) wanted = version;
+        if (event.structureOnly) held.push(event);
+        else offer(event);
+        void run();
+        return;
+      }
+      offer(event);
+    },
+    /** Catches up with whatever changed meanwhile (the stream opened, the page shown again), even with no event to say so. */
+    refresh() {
+      if (stopped) return;
+      dueAsked += 1;
+      dueRetried = false;
+      void run();
+    },
+    stop() {
+      stopped = true;
+      stopIdle();
+      if (retryTimer) clearTimeout(retryTimer);
+    },
+  };
+}
+
 /**
  * Listens to the changes others make in the open project. The browser
  * reconnects a dropped stream itself; a refused one (no longer signed in, no
@@ -54,16 +185,25 @@ export function useProjectLiveUpdates(projectId: string | null, enabled: boolean
     let failures = 0;
     let retryTimer = 0;
     let stopped = false;
+    const sync = createStructureLiveSync(projectId, (event) => setPending((current) => withLiveEvent(current, event)));
+    // A page shown again may have missed changes while its stream slept.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") sync.refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
     const connect = () => {
       if (stopped) return;
       source = new EventSource(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/events`, { withCredentials: true });
       source.onopen = () => {
         failures = 0;
+        // Events sent before the stream opened (since the project was read, or while it was down) are lost: the journal tells them instead.
+        sync.refresh();
       };
       source.addEventListener("change", (message) => {
         try {
           const event = JSON.parse((message as MessageEvent<string>).data) as ProjectLiveEvent;
-          if (event.projectId === projectId) setPending((current) => withLiveEvent(current, event));
+          if (event.projectId !== projectId || (event.clientId && event.clientId === liveClientId)) return;
+          sync.receive(event);
         } catch {
           // A malformed event is skipped.
         }
@@ -77,6 +217,8 @@ export function useProjectLiveUpdates(projectId: string | null, enabled: boolean
     connect();
     return () => {
       stopped = true;
+      sync.stop();
+      document.removeEventListener("visibilitychange", onVisible);
       window.clearTimeout(retryTimer);
       source?.close();
     };

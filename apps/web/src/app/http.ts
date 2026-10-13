@@ -2,7 +2,7 @@ import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
-import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, withStructureActivity } from "./structureStore";
 import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "./structureMutations";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -11,8 +11,13 @@ export async function authenticatedFetch(
   input: RequestInfo | URL,
   init: RequestInit = {},
 ) {
-  const tag = currentWriteTag();
   const requestPath = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+  // A Structure write and the application of its answer are one piece of activity: a catch-up waits for it.
+  return withStructureActivity(init.method, requestPath, () => sendAuthenticated(input, init, requestPath));
+}
+
+async function sendAuthenticated(input: RequestInfo | URL, init: RequestInit, requestPath: string) {
+  const tag = currentWriteTag();
   // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
   const mutation = isStructureMutation(init.method, requestPath);
   const headers = requestHeaders({

@@ -2,7 +2,7 @@ import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
-import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, type StructureChanges } from "../app/structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, withStructureActivity, type StructureChanges } from "../app/structureStore";
 import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "../app/structureMutations";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
@@ -58,6 +58,11 @@ async function request<T>(
   options: RequestInit = {},
   fallback = clientText()("ui.common.apiRequestFailed"),
 ): Promise<T> {
+  // A Structure write and the application of its answer are one piece of activity: a catch-up waits for it.
+  return withStructureActivity(options.method, path, () => send<T>(path, options, fallback));
+}
+
+async function send<T>(path: string, options: RequestInit, fallback: string): Promise<T> {
   const tag = currentWriteTag();
   // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
   const headers = requestHeaders({

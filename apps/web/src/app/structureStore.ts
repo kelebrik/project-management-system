@@ -175,12 +175,51 @@ export function confirmedStructure(projectId: string): Readonly<StructureState> 
   return states.get(projectId) ?? null;
 }
 
+/** Counts every Structure write this page started: a catch-up read while one was sent may have missed it. */
+let writeGeneration = 0;
+/** Moves when every copy is forgotten (a sign-out): a catch-up read before must not publish after. */
+let storeEpoch = 0;
+/** Structure writes on their way or with answers still being applied; a catch-up waits until there are none. */
+let structureActivity = 0;
+const idleListeners = new Set<() => void>();
+
+/** Hears when no Structure write of this page is on its way or being applied any more; answers the function that stops listening. */
+export function onStructureIdle(listener: () => void) {
+  idleListeners.add(listener);
+  return () => {
+    idleListeners.delete(listener);
+  };
+}
+
+/** Whether a Structure write of this page is on its way or its answer still being applied. */
+export function structureActive() {
+  return structureActivity > 0;
+}
+
+/**
+ * Runs a request and the application of its answer as one piece of the
+ * page's Structure activity, when it is a write that can change a Structure:
+ * a catch-up neither reads nor applies anything meanwhile.
+ */
+export async function withStructureActivity<T>(method: string | undefined, path: string, run: () => Promise<T>) {
+  const structureWrite = (method ?? "GET").toUpperCase() !== "GET" && STRUCTURE_WRITE.test(path);
+  if (!structureWrite) return run();
+  structureActivity += 1;
+  try {
+    return await run();
+  } finally {
+    structureActivity -= 1;
+    if (structureActivity === 0) idleListeners.forEach((listener) => listener());
+  }
+}
+
 /** Counts a write while it is on its way; the answer is counted out before it is expanded. */
 export async function trackStructureWrite<T>(method: string | undefined, send: () => Promise<T>, path = "") {
   const write = (method ?? "GET").toUpperCase() !== "GET";
   const structureWrite = write && STRUCTURE_WRITE.test(path);
   if (write) writesInFlight += 1;
   if (structureWrite) {
+    writeGeneration += 1;
     structureWrites += 1;
     const operation = writeOperation;
     writeStartListeners.forEach((listener) => listener(operation));
@@ -442,8 +481,69 @@ export async function expandIncompleteAnswer<T>(
   return { ...body, wbsItems: state!.items, wbsDependencies: state!.dependencies, criticalPath: state!.criticalPath, structureVersion: state!.version } as T;
 }
 
+/** What the page knows that the copy does not: writes of its own not yet confirmed, and rows edited here. */
+type LiveGuard = {
+  /** The page still has its own writes to settle (saves waiting in its queue). */
+  busy: () => boolean;
+  /** Applying this copy would lose something the page holds (an edit of a row the copy no longer has). */
+  conflicts: (projectId: string, candidate: Readonly<StructureState>) => boolean;
+};
+let liveGuard: LiveGuard = { busy: () => false, conflicts: () => false };
+
+/** Lets the page say when a catch-up must wait or must not be applied; answers the function that removes it. */
+export function guardStructureCatchUp(guard: LiveGuard) {
+  liveGuard = guard;
+  return () => {
+    if (liveGuard === guard) liveGuard = { busy: () => false, conflicts: () => false };
+  };
+}
+
+/**
+ * How a catch-up ended: applied (the page shows the copy, at least at the
+ * version asked for), current (nothing newer to read), deferred (the page's
+ * own writes are under way; try again when they end), conflict (the copy
+ * would lose an edit made here), failed (it could not be read).
+ */
+export type CatchUpOutcome = "applied" | "current" | "deferred" | "conflict" | "failed";
+
+/**
+ * Brings the copy of a project up to at least `hint` from what changed since
+ * its version, for a change someone else made. Nothing is taken in while the
+ * page's own writes are under way or if one started while reading; the copy
+ * is checked against the page's edits, then published and shown at once.
+ */
+export async function catchUpWithServer(projectId: string, hint: string | null, readChanges: ReadStructureChanges, isCurrent: () => boolean = () => true): Promise<CatchUpOutcome> {
+  const start = states.get(projectId);
+  // A page that holds no copy has nothing to bring up; a change it was told of is offered instead.
+  if (!start) return hint === null ? "current" : "failed";
+  if (hint !== null && !newer(hint, start.version)) return "current";
+  if (structureActivity > 0 || liveGuard.busy()) return "deferred";
+  const generation = writeGeneration;
+  const epoch = storeEpoch;
+  const changes = await readChanges(projectId, start.version).catch(() => null);
+  // A page that left the project, or a sign-out meanwhile: the answer belongs to no one.
+  if (!isCurrent() || storeEpoch !== epoch) return "current";
+  if (!changes || changes.projectId !== projectId) return "failed";
+  // Everything below runs without a pause: what is checked is what is published and shown.
+  if (structureActivity > 0 || liveGuard.busy() || writeGeneration !== generation) return "deferred";
+  const current = states.get(projectId);
+  if (!current) return "failed";
+  const sameDay = changes.today === current.today;
+  if (!newer(changes.version, current.version) && (sameDay || newer(current.version, changes.version))) {
+    return hint !== null && newer(hint, current.version) ? "failed" : "current";
+  }
+  if (!changes.full && changes.baseVersion !== null && newer(changes.baseVersion, current.version)) return "failed";
+  const candidate = mergeStructureChanges(current, changes);
+  if (liveGuard.conflicts(projectId, candidate)) return "conflict";
+  states.set(projectId, candidate);
+  settle(projectId);
+  noticeSettled(projectId);
+  return hint !== null && newer(hint, candidate.version) ? "failed" : "applied";
+}
+
 /** Forgets every copy, for a sign-out or a test. */
 export function forgetStructures() {
+  storeEpoch += 1;
   states.clear();
   listeners.clear();
   writeTag = () => null;
@@ -452,4 +552,8 @@ export function forgetStructures() {
   writeStartListeners.clear();
   writeOperation = null;
   structureWrites = 0;
+  writeGeneration = 0;
+  structureActivity = 0;
+  idleListeners.clear();
+  liveGuard = { busy: () => false, conflicts: () => false };
 }

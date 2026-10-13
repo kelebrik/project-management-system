@@ -63,6 +63,24 @@ test('a successful write reaches the open pages of the project once, a refused o
     assert.equal(lessonEdit.status, 200);
     for (let attempt = 0; attempt < 50 && !/"section":"lessons"/.test(text); attempt += 1) await new Promise((resolve) => setTimeout(resolve, 20));
     assert.match(text, /"section":"lessons"/);
+    // A Structure edit names the version a page catches up to, and that the journal holds all of it; a deletion does not.
+    const row = await prisma.wbsItem.create({ data: { projectId: project.id, code: '9', title: 'Живая строка', type: 'PHASE', status: 'NOT_STARTED', owner: '', wbsLevel: 1, sortOrder: 900 } });
+    const structureWrite = (method: string, path: string, payload?: unknown) => fetch(`${url}/api${path}`, {
+      method,
+      headers: { Cookie: writerCookie, 'x-business-unit-id': unit.id, 'Content-Type': 'application/json', 'X-PMS-Client': 'tab-writer-0001' },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
+    });
+    const structureEvents = () => [...text.matchAll(/event: change\ndata: (.*)\n\n/g)].map((match) => JSON.parse(match[1]!)).filter((event) => event.section === 'structure');
+    const edited = await structureWrite('PATCH', `/wbs-items/${row.id}`, { title: 'Живая строка 2' });
+    assert.equal(edited.status, 200, await edited.clone().text());
+    for (let attempt = 0; attempt < 50 && structureEvents().length < 1; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    const versionAfterEdit = (await prisma.projectStructureVersion.findUnique({ where: { projectId: project.id } }))!.version.toString();
+    assert.deepEqual({ structureOnly: structureEvents()[0].structureOnly, structureVersion: structureEvents()[0].structureVersion }, { structureOnly: true, structureVersion: versionAfterEdit });
+    const deleted = await structureWrite('DELETE', `/wbs-items/${row.id}`);
+    assert.ok(deleted.status < 300, await deleted.clone().text());
+    for (let attempt = 0; attempt < 50 && structureEvents().length < 2; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal(structureEvents()[1].structureOnly, false);
+    assert.ok(BigInt(structureEvents()[1].structureVersion) > BigInt(versionAfterEdit));
     controller.abort();
     await pump;
   } finally {

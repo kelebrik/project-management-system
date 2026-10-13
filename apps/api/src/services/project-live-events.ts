@@ -11,6 +11,10 @@ export type ProjectLiveEvent = {
   /** The tab that made the change, so that tab can ignore its own event. */
   clientId: string | null;
   at: string;
+  /** The project's Structure version once the write was done, at least: a page holding an older one catches up. */
+  structureVersion?: string | null;
+  /** Every change the write made is in the Structure's journal: a page that caught up with it has seen it all. */
+  structureOnly?: boolean;
 };
 
 export type ProjectLiveSection =
