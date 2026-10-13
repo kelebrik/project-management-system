@@ -81,10 +81,37 @@ export function nextCommandStamp(db: unknown, projectId: string) {
   return { structureVersion: context.nextVersion, commandOrdinal };
 }
 
-/** Moves the version of every project the transaction locked: exactly once each, at its end. */
+/**
+ * Notes the write in the project's change journal: its version, and every row
+ * and link it wrote (whatever path wrote them: a row written by this
+ * transaction carries its id in xmin) or deleted. A reader of the changes
+ * takes their state as it is then.
+ */
+async function journalStructureWrite(db: StructureDb, context: StructureWriteContext) {
+  const { projectId, nextVersion } = context;
+  const [items, dependencies] = await Promise.all([
+    db.wbsItem.findMany({ where: { projectId }, select: { id: true } }),
+    db.wbsDependency.findMany({ where: { projectId }, select: { id: true } }),
+  ]);
+  const itemsNow = new Set(items.map((row) => row.id));
+  const dependenciesNow = new Set(dependencies.map((row) => row.id));
+  const deletedItems = [...context.itemIdsBefore].filter((id) => !itemsNow.has(id));
+  const deletedDependencies = [...context.dependencyIdsBefore].filter((id) => !dependenciesNow.has(id));
+  await db.$executeRaw`INSERT INTO "ProjectStructureCommit" ("projectId", "version") VALUES (${projectId}, ${nextVersion})`;
+  const changeCount = await db.$executeRaw`
+    INSERT INTO "ProjectStructureChange" ("projectId", "version", "entityType", "entityId")
+    SELECT ${projectId}, ${nextVersion}, 'ITEM', id FROM "WbsItem" WHERE "projectId" = ${projectId} AND xmin::text = (txid_current() % 4294967296)::text
+    UNION SELECT ${projectId}, ${nextVersion}, 'LINK', id FROM "WbsDependency" WHERE "projectId" = ${projectId} AND xmin::text = (txid_current() % 4294967296)::text
+    UNION SELECT ${projectId}, ${nextVersion}, 'ITEM', unnest(${deletedItems}::text[])
+    UNION SELECT ${projectId}, ${nextVersion}, 'LINK', unnest(${deletedDependencies}::text[])`;
+  await db.$executeRaw`UPDATE "ProjectStructureCommit" SET "changeCount" = ${changeCount} WHERE "projectId" = ${projectId} AND "version" = ${nextVersion}`;
+}
+
+/** Moves the version of every project the transaction locked and journals the write: exactly once each, at its end. */
 async function finishStructureWrites(db: StructureDb) {
   const locked = [...(contexts.get(db)?.values() ?? [])].sort((left, right) => left.projectId.localeCompare(right.projectId));
   for (const context of locked) {
+    await journalStructureWrite(db, context);
     await db.projectStructureVersion.upsert({
       where: { projectId: context.projectId },
       create: { projectId: context.projectId, version: context.nextVersion },

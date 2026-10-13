@@ -38,7 +38,10 @@ export async function authenticatedFetch(
     const expanded = await expandStructureAnswer(body, async (projectId) => {
       const project = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/overview`);
       return project.ok ? project.json() : null;
-    }, requestPath, tag);
+    }, requestPath, tag, async (projectId, since) => {
+      const changes = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`);
+      return changes.ok ? changes.json() : null;
+    });
     Object.defineProperty(response, "json", { value: async () => expanded });
     Object.defineProperty(response, "text", { value: async () => JSON.stringify(expanded) });
   }

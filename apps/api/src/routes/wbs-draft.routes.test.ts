@@ -19,7 +19,7 @@ async function apply({ user = { id: 'u1', role: 'ADMIN', email: 'a@x', name: 'A'
   let id = 0;
   const tx: any = {
     $executeRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
-      locked = `${strings.join('?')}|${values.join(',')}`;
+      locked += `${strings.join("?")}|${values.join(",")}\n`;
     },
     $queryRaw: async () => [],
     auditEvent: {

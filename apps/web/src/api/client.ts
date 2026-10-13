@@ -2,7 +2,7 @@ import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
-import { currentWriteTag, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "../app/structureStore";
+import { currentWriteTag, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, type StructureChanges } from "../app/structureStore";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
 
@@ -96,7 +96,13 @@ async function request<T>(
     throw new ApiError(errorMessage(result, fallback), response.status, result);
   }
   // A Structure write answers with its changes; the pages receive the whole Structure at that version.
-  return expandStructureAnswer(result as T, (projectId) => request(`/api/projects/${encodeURIComponent(projectId)}/overview`), path, tag);
+  return expandStructureAnswer(
+    result as T,
+    (projectId) => request(`/api/projects/${encodeURIComponent(projectId)}/overview`),
+    path,
+    tag,
+    (projectId, since) => request<StructureChanges>(`/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`),
+  );
 }
 
 async function download(path: string, fallback = clientText()("ui.common.apiDownloadFailed")) {

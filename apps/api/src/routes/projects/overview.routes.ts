@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { readStructureVersion } from '../../services/wbs-structure-write.js';
+import { readStructureChanges } from '../../services/wbs-structure-journal.js';
 import { recordAuditEvent } from '../../services/audit.js';
 import {
   exportFilePart,
@@ -68,6 +69,17 @@ export function registerProjectOverviewRoutes(
     // The person's own view comes with the project, so the page opens with their layout at once.
     const myViewState = await loadProjectViewState(user?.id, project.id);
     res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion, structureToday });
+  });
+
+  // The Structure changed since the version a browser holds, or whole: rows, links, calendar, the server's day.
+  router.get('/projects/:projectId/structure', async (req, res) => {
+    const since = typeof req.query.since === 'string' ? req.query.since : undefined;
+    const changes = await readStructureChanges(req.params.projectId, since);
+    if (!changes) {
+      res.status(404).json({ error: 'Проект не найден' });
+      return;
+    }
+    res.json(changes);
   });
 
   router.post('/projects/:projectId/executive-overviews/generate', async (req, res) => {

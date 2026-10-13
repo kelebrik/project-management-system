@@ -13,6 +13,7 @@ import { runWithWbsWriteQueue } from './routes/wbs/write-queue.js';
 import { createJiraSyncRunner } from './services/jira-sync-runner.js';
 import { reconcileJiraSystemSetupOnStartup } from './services/jira-system-setup.js';
 import { startProjectHistorySweep } from './services/project-history.js';
+import { startStructureJournalPrune } from './services/wbs-structure-journal.js';
 import {
   assertDeploymentProfileConfigured,
   isDeploymentProfileConfigured,
@@ -110,6 +111,7 @@ const server = app.listen(port, () => {
   logEvent('info', 'api.listen', { port });
   void recalculateActiveProjectSchedulesOnStartup();
   startProjectHistorySweep(prisma);
+  startStructureJournalPrune(prisma, (message, projectId) => logEvent('error', 'structure.journal_prune_failed', { projectId, message }));
   void reconcileJiraSystemSetupOnStartup(prisma).catch((error) =>
     logEvent('error', 'jira.system_setup.startup_failed', { message: error instanceof Error ? error.message : String(error) }));
   jiraSyncRunner.start();

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WbsCriticalPath, WbsItem } from "./domainTypes";
-import { expandStructureAnswer, forgetStructures, mergeStructureDelta, onStructureChange, rememberStructure, trackStructureWrite, type StructureChange, type StructureDelta } from "./structureStore";
+import { expandStructureAnswer, forgetStructures, mergeStructureDelta, onStructureChange, rememberStructure, trackStructureWrite, type StructureChange, type StructureChanges, type StructureDelta } from "./structureStore";
 
 const row = (id: string, code: string, sortOrder: number, title = id) => ({ id, code, sortOrder, title }) as unknown as WbsItem;
 const project = (version: string, items: WbsItem[]) => ({ id: "p", structureVersion: version, wbsItems: items, wbsDependencies: [], criticalPath: null });
@@ -141,4 +141,67 @@ test("a critical path that cannot be worked out is empty with the reason, and th
   } finally {
     console.error = quiet;
   }
+});
+
+const changes = (baseVersion: string | null, version: string, change: Partial<StructureChanges> = {}): StructureChanges => ({
+  projectId: "p", baseVersion, version, full: baseVersion === null, today: "2026-10-13", calendarOverrides: calendar,
+  items: [], dependencies: [], deletedItemIds: [], deletedDependencyIds: [], ...change,
+});
+
+test("a change after one this page never saw is caught up with the changes since its copy, not the whole project", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3), task("b", "2", 20, "2026-10-12", 1)]));
+  const asked: string[] = [];
+  const expanded = (await expandStructureAnswer(browserDelta("3", "4", { items: [task("c", "3", 30, "2026-10-12", 2)] }), noReload, "", null, async (_projectId, since) => {
+    asked.push(since);
+    // Someone else changed a row and deleted another meanwhile; the changes run up to the newest version.
+    return changes("1", "4", { items: [task("a", "1", 10, "2026-10-12", 4), task("c", "3", 30, "2026-10-12", 2)], deletedItemIds: ["b"] });
+  })) as unknown as { structureVersion: string; wbsItems: WbsItem[]; criticalPath: WbsCriticalPath };
+  assert.deepEqual(asked, ["1"]);
+  assert.equal(expanded.structureVersion, "4");
+  assert.deepEqual(expanded.wbsItems.map((item) => [item.id, item.workDays]), [["a", 4], ["c", 2]]);
+  // Four working days from Monday over the day off on Wednesday end on Friday.
+  assert.equal(expanded.criticalPath.projectFinishDate, "2026-10-16T00:00:00.000Z");
+});
+
+test("catching up takes the new calendar before working out the critical path, and a whole Structure replaces the copy", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3), task("old", "2", 20, "2026-10-12", 1)]));
+  const expanded = (await expandStructureAnswer(browserDelta("5", "6", {}), noReload, "", null, async () =>
+    changes(null, "6", { items: [task("a", "1", 10, "2026-10-12", 3)], calendarOverrides: [] }),
+  )) as unknown as { wbsItems: WbsItem[]; criticalPath: WbsCriticalPath };
+  assert.deepEqual(expanded.wbsItems.map((item) => item.id), ["a"]);
+  // Without the day off, three working days from Monday end on Wednesday.
+  assert.equal(expanded.criticalPath.projectFinishDate, "2026-10-14T00:00:00.000Z");
+});
+
+test("when the changes cannot be read the project is read again, and a late answer never takes a newer copy back", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  let reloads = 0;
+  await expandStructureAnswer(browserDelta("3", "4", {}), async () => {
+    reloads += 1;
+    return loaded("4", [task("a", "1", 10, "2026-10-12", 3)]);
+  }, "", null, async () => null);
+  assert.equal(reloads, 1);
+
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  const expanded = (await expandStructureAnswer(browserDelta("3", "4", {}), noReload, "", null, async () => {
+    // While the changes were on their way, the page learned of version 9.
+    rememberStructure(loaded("9", [task("a", "1", 10, "2026-10-12", 7)]));
+    return changes("1", "4", { items: [task("a", "1", 10, "2026-10-12", 5)] });
+  })) as unknown as { structureVersion: string; wbsItems: WbsItem[] };
+  assert.equal(expanded.structureVersion, "9");
+  assert.equal(expanded.wbsItems[0]!.workDays, 7);
+});
+
+test("a catch-up is announced as a change the page could not follow, so no undo step takes in others' edits", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  const heard: StructureChange[] = [];
+  onStructureChange((change) => heard.push(change));
+  await expandStructureAnswer(browserDelta("3", "4", {}), noReload, "/api/wbs-items/a", null, async () => changes("1", "4", { items: [task("a", "1", 10, "2026-10-12", 5)] }));
+  assert.equal(heard.length, 1);
+  assert.equal(heard[0]!.complete, false);
 });

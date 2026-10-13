@@ -34,6 +34,23 @@ export type StructureDelta = {
   today?: string;
 };
 
+/** The project's Structure changed since a version this page holds, or whole, as GET /projects/:id/structure answers. */
+export type StructureChanges = {
+  projectId: string;
+  version: string;
+  baseVersion: string | null;
+  full: boolean;
+  today: string;
+  calendarOverrides: ProjectCalendarOverride[];
+  items: WbsItem[];
+  dependencies: WbsDependency[];
+  deletedItemIds: string[];
+  deletedDependencyIds: string[];
+};
+
+/** Reads what changed in a project's Structure since a version; null when it cannot be read. */
+export type ReadStructureChanges = (projectId: string, since: string) => Promise<StructureChanges | null>;
+
 type Answer = Record<string, unknown>;
 
 /** One row or link as a change found it and as it left it; null where it did not exist. */
@@ -220,6 +237,57 @@ export function mergeStructureDelta(state: StructureState, delta: StructureDelta
   };
 }
 
+/**
+ * The Structure after catching up with the server: the rows and links that
+ * changed replace or join, the gone ones leave, or the whole Structure comes
+ * anew; the calendar and the server's day are the new ones, and the critical
+ * path is worked out with them. The changes hold the state at their version,
+ * so they apply to any copy between the version they start from and theirs.
+ */
+export function mergeStructureChanges(state: StructureState | undefined, changes: StructureChanges): StructureState {
+  let items: WbsItem[];
+  let dependencies: WbsDependency[];
+  if (changes.full || !state) {
+    items = [...changes.items].sort(byPlanOrder);
+    dependencies = [...changes.dependencies].sort(byCreation);
+  } else {
+    const deletedItems = new Set(changes.deletedItemIds);
+    const itemsById = new Map(state.items.filter((item) => !deletedItems.has(item.id)).map((item) => [item.id, item]));
+    for (const item of changes.items) itemsById.set(item.id, item);
+    const deletedLinks = new Set(changes.deletedDependencyIds);
+    const linksById = new Map(state.dependencies.filter((link) => !deletedLinks.has(link.id)).map((link) => [link.id, link]));
+    for (const link of changes.dependencies) linksById.set(link.id, link);
+    items = [...itemsById.values()].sort(byPlanOrder);
+    dependencies = [...linksById.values()].sort(byCreation);
+  }
+  return {
+    version: changes.version,
+    items,
+    dependencies,
+    criticalPath: browserCriticalPath(items, dependencies, changes.calendarOverrides, changes.today),
+    calendarOverrides: changes.calendarOverrides,
+    today: changes.today,
+  };
+}
+
+/**
+ * Brings the copy of a project up to the server by reading only what changed
+ * since its version. Answers whether the copy is now current; a late answer
+ * never takes a newer copy back.
+ */
+async function catchUp(projectId: string, readChanges: ReadStructureChanges) {
+  const before = states.get(projectId);
+  if (!before) return false;
+  const changes = await readChanges(projectId, before.version).catch(() => null);
+  if (!changes || changes.projectId !== projectId) return false;
+  const current = states.get(projectId);
+  if (current && !newer(changes.version, current.version)) return true;
+  if (!changes.full && current && changes.baseVersion !== null && newer(changes.baseVersion, current.version)) return false;
+  states.set(projectId, mergeStructureChanges(current, changes));
+  settle(projectId);
+  return true;
+}
+
 function settle(projectId: string) {
   const pending = waiters.get(projectId) ?? [];
   waiters.delete(projectId);
@@ -265,7 +333,7 @@ function waitForVersion(projectId: string, version: string) {
  * and replaced by the whole Structure at its version; other answers pass,
  * and a whole Structure in them is remembered.
  */
-export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>, requestPath = "", tag: unknown = null): Promise<T> {
+export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>, requestPath = "", tag: unknown = null, readChanges?: ReadStructureChanges): Promise<T> {
   if (!answer || typeof answer !== "object" || !("structureDelta" in answer)) {
     rememberStructure(answer);
     return answer;
@@ -285,8 +353,10 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
     settle(delta.projectId);
     announce(change);
   } else if (!state || !newer(state.version, delta.baseVersion)) {
-    // A change this page never saw, or one it cannot work out the critical path for: the project is read again, and its Structure includes this one.
-    rememberStructure(await reloadProject(delta.projectId));
+    // A change this page never saw, or one it cannot work out the critical path for: the page catches up with
+    // what changed since its copy, or reads the project again; either way its Structure includes this change.
+    const caughtUp = readChanges ? await catchUp(delta.projectId, readChanges) : false;
+    if (!caughtUp) rememberStructure(await reloadProject(delta.projectId));
     state = states.get(delta.projectId);
     announce({ projectId: delta.projectId, baseVersion: delta.baseVersion, version: delta.version, requestPath, tag, complete: false, items: [], links: [] });
   }

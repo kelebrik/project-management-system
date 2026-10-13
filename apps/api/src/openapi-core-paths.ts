@@ -303,6 +303,21 @@ export const openApiCorePaths = {
         },
       },
     },
+    "/api/projects/{projectId}/structure": {
+      get: {
+        tags: ["Projects"],
+        summary: "Structure rows and links changed since a version, or the whole Structure",
+        description: "Rows and links changed after `since` as they are now, with the ids of deleted ones; the whole Structure (`full: true`) when `since` is missing or the change journal does not reach it. Versions are strings. The calendar and the server's day come either way.",
+        parameters: [
+          { name: "projectId", in: "path", required: true, schema: { type: "string" } },
+          { name: "since", in: "query", required: false, schema: { type: "string", pattern: "^[0-9]+$" } },
+        ],
+        responses: {
+          "200": { description: "Changes or the whole Structure, with `version`, `baseVersion`, `journalFloor`, `full`, `today`" },
+          "404": { description: "Project not found" },
+        },
+      },
+    },
     "/api/projects/{projectId}/overview": {
       get: {
         tags: ["Projects", "ExecutiveOverview"],
