@@ -1,3 +1,4 @@
+import { respondToStructureRejection } from '../../services/wbs-structure-write.js';
 import type { Router } from 'express';
 import { prisma } from '../../db.js';
 import { shiftActor, trackScheduleShifts } from '../../services/schedule-shifts.js';
@@ -27,6 +28,7 @@ export function registerAdminWbsTombstoneRoutes(
         : await restore();
       res.json(result);
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       if (error instanceof WbsTombstoneRestoreError) {
         res.status(error.statusCode).json({ error: error.message });
         return;

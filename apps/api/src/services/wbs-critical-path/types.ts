@@ -7,6 +7,7 @@ import type {
 
 export type WbsCriticalPathItemInput = {
   id: string;
+  parentId?: string | null;
   code: string;
   title: string;
   type: WbsItemType;

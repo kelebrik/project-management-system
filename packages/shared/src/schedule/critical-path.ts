@@ -8,6 +8,7 @@ import {
   type ScheduleCalendarCode,
   type ScheduleCalendarOverride,
 } from "./calendar.js";
+import { familyRelation } from "./family.js";
 import { isWbsZeroDurationItem, sortByPlanOrder } from "./hierarchy.js";
 import { PlanQueue } from "./plan-queue.js";
 import { dayNumber, plainDate, type PlainDate } from "./plain-date.js";
@@ -19,6 +20,7 @@ const FAILURE = "Не удалось рассчитать рабочие дни 
 export type CriticalPathItemInput = {
   id: string;
   code: string;
+  parentId?: string | null;
   title: string;
   type: ScheduleItemType;
   status?: ScheduleItemStatus;
@@ -135,8 +137,20 @@ function mergeDependenciesFromPredecessorFields(items: Item[], inputDependencies
   const itemsByCode = new Map(items.map((item) => [item.code.trim(), item]));
   const dependenciesByKey = new Map<string, CriticalPathDependencyInput>();
   const dependenciesByPair = new Map<string, CriticalPathDependencyInput>();
+  // A link between a row and its own ancestor or descendant is not counted, and said so once.
+  const related = familyRelation(items);
+  const ignored = new Set<string>();
+  const ignore = (predecessorId: string, successorId: string) => {
+    if (ignored.has(`${predecessorId}:${successorId}`)) return;
+    ignored.add(`${predecessorId}:${successorId}`);
+    warnings.push(`Связь ${itemsById.get(predecessorId)!.code} → ${itemsById.get(successorId)!.code} не учитывается: строка связана со своей родительской или дочерней строкой`);
+  };
   for (const dependency of inputDependencies) {
     if (!itemsById.has(dependency.predecessorId) || !itemsById.has(dependency.successorId) || dependency.predecessorId === dependency.successorId) continue;
+    if (related(dependency.predecessorId, dependency.successorId)) {
+      ignore(dependency.predecessorId, dependency.successorId);
+      continue;
+    }
     dependenciesByKey.set(dependencyKey(dependency), dependency);
     dependenciesByPair.set(`${dependency.predecessorId}:${dependency.successorId}`, dependency);
   }
@@ -155,6 +169,11 @@ function mergeDependenciesFromPredecessorFields(items: Item[], inputDependencies
         return predecessor.id;
       })
       .filter((value): value is string => value !== null)
+      .filter((predecessorId) => {
+        if (!related(predecessorId, successor.id)) return true;
+        ignore(predecessorId, successor.id);
+        return false;
+      })
       .filter((predecessorId, index, ids) => predecessorId !== successor.id && ids.indexOf(predecessorId) === index);
     for (const predecessorId of predecessorIds) {
       if (dependenciesByPair.has(`${predecessorId}:${successor.id}`)) continue;

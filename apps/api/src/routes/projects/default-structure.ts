@@ -9,8 +9,8 @@ const defaultProjectWbsItems = [
   { code: '1.3', title: 'Старт проекта', type: 'MILESTONE', status: 'DONE', owner: 'Бизнес-заказчик', startOffset: 7, duration: 0, level: 2 },
   { code: '2', title: 'Планирование', type: 'PHASE', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 22, level: 1 },
   { code: '2.1', title: 'Декомпозиция структуры', type: 'TASK', status: 'IN_PROGRESS', owner: 'РП', startOffset: 8, duration: 6, level: 2 },
-  { code: '2.1.1', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Технический лидер', startOffset: 14, duration: 5, level: 3 },
-  { code: '2.2', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Бизнес-заказчик', startOffset: 21, duration: 0, level: 2 },
+  { code: '2.2', title: 'Уточнение зависимостей', type: 'TASK', status: 'NOT_STARTED', owner: 'Технический лидер', startOffset: 14, duration: 5, level: 2 },
+  { code: '2.3', title: 'Базовый план согласован', type: 'MILESTONE', status: 'NOT_STARTED', owner: 'Бизнес-заказчик', startOffset: 21, duration: 0, level: 2 },
   { code: '3', title: 'Исполнение', type: 'PHASE', status: 'NOT_STARTED', owner: 'Лидер поставки', startOffset: 22, duration: 30, level: 1 },
   { code: '3.1', title: 'Первый пакет работ', type: 'TASK', status: 'NOT_STARTED', owner: 'Лидер команды', startOffset: 22, duration: 10, level: 2 },
 ] as const;
@@ -58,9 +58,9 @@ export async function createDefaultProjectStructure(projectId: string, projectSt
     ['1.1', '1.2'],
     ['1.2', '1.3'],
     ['1.3', '2.1'],
-    ['2.1', '2.1.1'],
-    ['2.1.1', '2.2'],
-    ['2.2', '3.1'],
+    ['2.1', '2.2'],
+    ['2.2', '2.3'],
+    ['2.3', '3.1'],
   ];
   for (const [predecessorCode, successorCode] of dependencies) {
     const predecessor = createdByCode.get(predecessorCode);

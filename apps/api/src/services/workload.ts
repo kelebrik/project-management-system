@@ -39,7 +39,7 @@ async function scheduleLocks(projectIds: string[]) {
     prisma.wbsItem.findMany({
       where: { projectId: { in: projectIds } },
       select: {
-        id: true, projectId: true, code: true, title: true, leadLagDays: true,
+        id: true, projectId: true, parentId: true, code: true, title: true, leadLagDays: true,
         predecessor1: true, predecessor2: true, predecessor3: true,
         predecessor4: true, predecessor5: true, predecessor6: true,
       },

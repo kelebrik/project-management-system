@@ -184,6 +184,7 @@ export async function getProjectWbsSnapshot(projectId: string, db: StructureDb =
     criticalPath: safeCalculateWbsCriticalPath(
       wbsItems.map((item) => ({
         id: item.id,
+        parentId: item.parentId,
         code: item.code,
         title: item.title,
         type: item.type,

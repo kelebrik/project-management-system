@@ -1,4 +1,4 @@
-import type { WbsLinkType } from "@pms/shared";
+import { familyRelation, type WbsLinkType } from "@pms/shared";
 
 /** A fixed-seed generator, so a failing plan can be made again from its number. */
 export function random(seed: number) {
@@ -89,6 +89,17 @@ export function randomPlan(seed: number) {
       type: chance(0.6) ? "FS" : pick(LINKS),
       lagDays: chance(0.6) ? 0 : Math.floor(next() * 9) - 3,
     });
+  }
+  // A link between a row and its own ancestor or descendant is refused and ignored now; the old engine counted it.
+  const related = familyRelation(items);
+  const familyFree = dependencies.filter((dependency) => !related(dependency.predecessorId, dependency.successorId));
+  dependencies.length = 0;
+  dependencies.push(...familyFree);
+  for (const item of items) {
+    for (const field of ["predecessor1", "predecessor2", "predecessor3", "predecessor4", "predecessor5", "predecessor6"] as const) {
+      const predecessor = byCode.get(item[field] ?? "");
+      if (predecessor && related(predecessor.id, item.id)) item[field] = null;
+    }
   }
   const calendarOverrides = [];
   for (let index = Math.floor(next() * 12); index > 0; index -= 1) {

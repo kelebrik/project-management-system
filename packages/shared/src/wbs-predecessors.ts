@@ -1,9 +1,13 @@
+import { familyRelation } from "./schedule/family.js";
+
 /** How a predecessor drives its successor: finish-to-start, start-to-start, finish-to-finish, start-to-finish. */
 export type WbsLinkType = "FS" | "SS" | "FF" | "SF";
 
 export type WbsPredecessorSource = {
   id: string;
   code: string;
+  /** The recorded parent; with the code it tells which rows are inside which. */
+  parentId?: string | null;
   leadLagDays: number;
   predecessor1: string | null;
   predecessor2: string | null;
@@ -29,10 +33,13 @@ export type WbsPredecessorLink = {
 /**
  * The predecessors that drive each item: the codes in the predecessor fields,
  * typed by a matching dependency or finish-to-start; the dependencies alone
- * when no field names a predecessor. The schedule calculation and every screen
- * that explains it read links through this one rule.
+ * when no field names a predecessor. A link between a row and its own
+ * ancestor or descendant is left out, as if it were not written: the row would
+ * wait for itself. The schedule calculation and every screen that explains it
+ * read links through this one rule.
  */
 export function buildWbsPredecessorRefs(items: WbsPredecessorSource[], dependencies: WbsLinkSource[]) {
+  const related = familyRelation(items);
   const itemsById = new Map(items.map((item) => [item.id, item]));
   const itemsByCode = new Map(items.map((item) => [item.code, item]));
   const dependenciesBySuccessor = new Map<string, WbsLinkSource[]>();
@@ -59,7 +66,7 @@ export function buildWbsPredecessorRefs(items: WbsPredecessorSource[], dependenc
     ]) {
       if (!predecessorCode) continue;
       const predecessor = itemsByCode.get(predecessorCode);
-      if (predecessor && predecessor.id !== item.id && !fieldPredecessorIds.includes(predecessor.id)) {
+      if (predecessor && predecessor.id !== item.id && !related(predecessor.id, item.id) && !fieldPredecessorIds.includes(predecessor.id)) {
         fieldPredecessorIds.push(predecessor.id);
       }
     }
@@ -74,7 +81,7 @@ export function buildWbsPredecessorRefs(items: WbsPredecessorSource[], dependenc
     const dependencyRefs = dependenciesBySuccessor.get(item.id) ?? [];
     if (refs.length === 0 && dependencyRefs.length > 0) {
       for (const dependency of dependencyRefs) {
-        if (itemsById.has(dependency.predecessorId) && !refs.some((ref) => ref.predecessorId === dependency.predecessorId)) {
+        if (itemsById.has(dependency.predecessorId) && !related(dependency.predecessorId, item.id) && !refs.some((ref) => ref.predecessorId === dependency.predecessorId)) {
           refs.push({
             predecessorId: dependency.predecessorId,
             type: dependency.type ?? "FS",

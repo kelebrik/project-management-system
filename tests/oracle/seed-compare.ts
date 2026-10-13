@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { PrismaClient } from "@prisma/client";
+import { findFamilyLinks } from "@pms/shared";
 import { calculateWbsCriticalPath } from "../../apps/api/src/services/wbs-critical-path/calculate.js";
 import { calculateWbsScheduleUpdates } from "../../apps/api/src/services/wbs-schedule/calculate.js";
 import { calculateWbsCriticalPath as legacyCriticalPath } from "./legacy-engine/wbs-critical-path/calculate.js";
@@ -20,6 +21,11 @@ async function main() {
       prisma.projectCalendarOverride.findMany({ where: { projectId: project.id } }),
     ]);
     if (items.length === 0) continue;
+    // The old engine still counted links between a row and its own ancestor or descendant; such projects differ by design.
+    if (findFamilyLinks(items, dependencies).length > 0) {
+      console.log(`${project.name}: links inside a row's own family — not compared with the old engine`);
+      continue;
+    }
     const timings = { legacy: 0, shared: 0 };
     const compare = (options: Parameters<typeof calculateWbsScheduleUpdates>[3], label: string) => {
       let started = performance.now();

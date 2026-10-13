@@ -7,6 +7,7 @@ import { isJiraConfigured } from '../jira.js';
 import { openApiDocument } from '../openapi.js';
 import { createProjectEventsRouter, projectLiveEventsMiddleware } from '../routes/project-events.routes.js';
 import { markStructureDeltaAnswers } from '../services/wbs-structure-delta.js';
+import { StructureWriteRejection } from '../services/wbs-structure-write.js';
 import { createProjectHistoryRouter } from '../routes/project-history.routes.js';
 import { createAdminRouter } from '../routes/admin.routes.js';
 import { createBusinessUnitsRouter } from '../routes/business-units.routes.js';
@@ -245,6 +246,11 @@ export function createApp() {
     }
     if (res.headersSent) {
       next(error);
+      return;
+    }
+    // A Structure write refused inside its transaction answers with its own status and reason, whatever route ran it.
+    if (error instanceof StructureWriteRejection) {
+      res.status(error.status).json(error.body);
       return;
     }
     if (error && typeof error === 'object' && 'status' in error && error.status === 413) {

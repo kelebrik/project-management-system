@@ -56,6 +56,7 @@ export async function calculateProjectCriticalPath(projectId: string, db: Pick<t
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       select: {
         id: true,
+        parentId: true,
         code: true,
         title: true,
         type: true,

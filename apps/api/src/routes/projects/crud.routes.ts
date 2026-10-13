@@ -310,6 +310,7 @@ export function registerProjectCrudRoutes(
         structureVersion,
       });
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -516,6 +517,7 @@ export function registerProjectCrudRoutes(
 
       res.json({ ...updated, currentUserAccessLevel });
     } catch (error) {
+      if (respondToStructureRejection(res, error)) return;
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'

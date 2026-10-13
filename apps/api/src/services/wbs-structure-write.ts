@@ -1,5 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import type { Response } from 'express';
+import { buildRenumberPlan, findFamilyLinks, type FamilyLink, type FamilyLinkItem } from '@pms/shared';
 import { prisma } from '../db.js';
 
 /** The client a Structure write runs on: the transaction that holds the project's lock. */
@@ -33,7 +34,44 @@ export type StructureWriteContext = {
   commandOrdinal: number;
   itemIdsBefore: Set<string>;
   dependencyIdsBefore: Set<string>;
+  /** Links between a row and its own ancestor or descendant the project already had, in the hierarchy as it stood and as renumbering would make it: only new ones are refused. */
+  familyLinksBefore: FamilyKeys;
 };
+
+/** What the lock and the journal read of rows and links: their ids, and what tells a link inside a row's own family. */
+const FAMILY_ITEM_COLUMNS = {
+  id: true, code: true, title: true, parentId: true, wbsLevel: true, sortOrder: true, createdAt: true,
+  predecessor1: true, predecessor2: true, predecessor3: true, predecessor4: true, predecessor5: true, predecessor6: true,
+} as const;
+const FAMILY_LINK_COLUMNS = { id: true, predecessorId: true, successorId: true } as const;
+
+type FamilyRow = FamilyLinkItem & { wbsLevel: number | null; sortOrder: number; createdAt: Date };
+
+/**
+ * The links inside a row's own family: in the hierarchy as it stands, and in
+ * the one renumbering will make of the rows' levels and order (a row given a
+ * deeper level is renumbered under the row above it in the next request).
+ */
+function familyLinksOf(items: FamilyRow[], dependencies: FamilyLink[]) {
+  const byCode = new Map(items.map((item) => [item.code, item.id]));
+  const fields = items.flatMap((item) =>
+    [item.predecessor1, item.predecessor2, item.predecessor3, item.predecessor4, item.predecessor5, item.predecessor6]
+      .map((code) => (code ? byCode.get(code.trim()) : undefined))
+      .filter((id): id is string => Boolean(id))
+      .map((predecessorId) => ({ predecessorId, successorId: item.id })),
+  );
+  const ordered = [...items].sort((left, right) => left.sortOrder - right.sortOrder || left.createdAt.getTime() - right.createdAt.getTime() || (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const planned = buildRenumberPlan(ordered).normalizedRows.map((row) => ({ id: row.id, code: row.code, parentId: row.parentId }));
+  return { actual: findFamilyLinks(items, dependencies), planned: findFamilyLinks(planned, [...dependencies, ...fields]) };
+}
+
+type FamilyKeys = { actual: Set<string>; planned: Set<string> };
+const keyOf = (link: FamilyLink) => `${link.predecessorId}:${link.successorId}`;
+
+function familyKeys(items: FamilyRow[], links: FamilyLink[]): FamilyKeys {
+  const found = familyLinksOf(items, links);
+  return { actual: new Set(found.actual.map(keyOf)), planned: new Set(found.planned.map(keyOf)) };
+}
 
 const contexts = new WeakMap<object, Map<string, StructureWriteContext>>();
 
@@ -54,8 +92,8 @@ export async function lockProjectStructure(db: StructureDb, projectId: string) {
   await db.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
   const [version, items, dependencies] = await Promise.all([
     db.projectStructureVersion.findUnique({ where: { projectId }, select: { version: true } }),
-    db.wbsItem.findMany({ where: { projectId }, select: { id: true } }),
-    db.wbsDependency.findMany({ where: { projectId }, select: { id: true } }),
+    db.wbsItem.findMany({ where: { projectId }, select: FAMILY_ITEM_COLUMNS }),
+    db.wbsDependency.findMany({ where: { projectId }, select: FAMILY_LINK_COLUMNS }),
   ]);
   const baseVersion = version?.version ?? 0n;
   const context: StructureWriteContext = {
@@ -65,6 +103,7 @@ export async function lockProjectStructure(db: StructureDb, projectId: string) {
     commandOrdinal: 0,
     itemIdsBefore: new Set(items.map((item) => item.id)),
     dependencyIdsBefore: new Set(dependencies.map((dependency) => dependency.id)),
+    familyLinksBefore: familyKeys(items, dependencies),
   };
   const byProject = contexts.get(db) ?? new Map<string, StructureWriteContext>();
   byProject.set(projectId, context);
@@ -82,6 +121,30 @@ export function nextCommandStamp(db: unknown, projectId: string) {
 }
 
 /**
+ * A row cannot wait for its own ancestor or descendant: a write that leaves
+ * such a link the project did not have (a link, a predecessor code, a row
+ * moved under the row it is linked with) is refused whole. Links the project
+ * already had stay; the schedule does not count them.
+ */
+function refuseNewFamilyLinks(context: StructureWriteContext, items: FamilyRow[], dependencies: FamilyLink[]) {
+  // Each hierarchy against itself: a pair only foreseen before must not become a real one unnoticed.
+  const found = familyLinksOf(items, dependencies);
+  const addedKeys = new Map<string, FamilyLink>();
+  for (const link of found.actual) if (!context.familyLinksBefore.actual.has(keyOf(link))) addedKeys.set(keyOf(link), link);
+  for (const link of found.planned) if (!context.familyLinksBefore.planned.has(keyOf(link))) addedKeys.set(keyOf(link), link);
+  const added = [...addedKeys.values()];
+  if (added.length === 0) return;
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const name = (id: string) => `«${byId.get(id)?.code ?? ''} ${byId.get(id)?.title ?? ''}»`.replace(' »', '»');
+  const [first] = added;
+  rejectStructureWrite(
+    409,
+    `Строка ${name(first!.successorId)} не может зависеть от ${name(first!.predecessorId)}: связь строки с её родительской или дочерней строкой недопустима`,
+    { code: 'FAMILY_LINK', links: added },
+  );
+}
+
+/**
  * Notes the write in the project's change journal: its version, and every row
  * and link it wrote (whatever path wrote them: a row written by this
  * transaction carries its id in xmin) or deleted. A reader of the changes
@@ -90,9 +153,10 @@ export function nextCommandStamp(db: unknown, projectId: string) {
 async function journalStructureWrite(db: StructureDb, context: StructureWriteContext) {
   const { projectId, nextVersion } = context;
   const [items, dependencies] = await Promise.all([
-    db.wbsItem.findMany({ where: { projectId }, select: { id: true } }),
-    db.wbsDependency.findMany({ where: { projectId }, select: { id: true } }),
+    db.wbsItem.findMany({ where: { projectId }, select: FAMILY_ITEM_COLUMNS }),
+    db.wbsDependency.findMany({ where: { projectId }, select: FAMILY_LINK_COLUMNS }),
   ]);
+  refuseNewFamilyLinks(context, items, dependencies);
   const itemsNow = new Set(items.map((row) => row.id));
   const dependenciesNow = new Set(dependencies.map((row) => row.id));
   const deletedItems = [...context.itemIdsBefore].filter((id) => !itemsNow.has(id));
