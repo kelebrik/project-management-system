@@ -4,6 +4,7 @@ import type { ScenarioResult } from "@pms/shared";
 import { LocateFixed, Maximize2, Minimize2, Redo2, Undo2 } from "lucide-react";
 
 import { usePageContext } from "./PageContext";
+import type { PreviewDisplay } from "../app/structurePreviewDisplay";
 import { ProjectGanttPanel } from "./ProjectGanttPanel";
 import { ScenarioPanel } from '../components/automation/ScenarioPanel';
 
@@ -36,6 +37,7 @@ export function ProjectGanttSection() {
     undoWbsChange,
     wbsRedoStack,
     wbsUndoStack,
+    structurePreviewDisplay,
   } = usePageContext();
   // The level is part of this person's view: clicking the active one opens everything (no level).
   const chooseHierarchyLevel = (level: number) => {
@@ -51,6 +53,12 @@ export function ProjectGanttSection() {
                             <ScenarioPanel projectId={project.id} userId={currentUser?.id ?? 'viewer'} items={project.wbsItems} sourceKey={sourceKey} result={scenario} onResult={setScenario} />
                             <div className="gantt-controls">
                               <div className="gantt-controls-row">
+                              {/* A row edit waiting for the server is drawn as worked out on this device. */}
+                              {(structurePreviewDisplay as PreviewDisplay | undefined)?.active && (
+                                <span className="wbs-preview-state" role="status" title={uiText("structure.preliminaryHint")}>
+                                  {uiText("structure.preliminary")}
+                                </span>
+                              )}
                               {scenario && <div className="gantt-scenario-notice">
                                 <span role="status">{uiText("ui.projects.ganttScenarioPreviewNotice")}</span>
                                 <button type="button" onClick={() => setScenario(null)}>{uiText("ui.projects.ganttBackToWorkingPlan")}</button>

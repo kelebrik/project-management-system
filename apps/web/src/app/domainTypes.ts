@@ -263,6 +263,8 @@ export type WbsItem = {
   comment: string | null;
   closedAt: string | null;
   sortOrder: number;
+  /** When the row was created, as the server sends it; it orders rows that share a plan position. */
+  createdAt?: string;
 };
 
 export type WbsTreeItem = WbsItem & {

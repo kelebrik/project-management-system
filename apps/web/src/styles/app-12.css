@@ -28,6 +28,22 @@
   color: var(--brand);
 }
 
+/* A row edit shown as the browser worked it out, until the server answers. */
+.wbs-preview-state {
+  background: var(--brand-soft-2);
+  border: 1px dashed var(--brand-border-strong);
+  border-radius: 999px;
+  color: var(--brand);
+  font-size: 12px;
+  font-weight: 700;
+  margin-left: auto;
+  padding: 5px 9px;
+}
+
+.wbs-preview-state + .wbs-save-state {
+  margin-left: 8px;
+}
+
 .wbs-row-stack {
   content-visibility: auto;
   contain-intrinsic-size: 44px;
@@ -682,6 +698,13 @@
 .wbs-cell-level.dirty,
 .wbs-cell-structure.dirty {
   background: var(--warning-bg);
+}
+
+.wbs-table-row .wbs-cell.preliminary input,
+.wbs-table-row .wbs-cell.preliminary select {
+  color: var(--text-muted);
+  font-style: italic;
+  text-decoration: underline dotted;
 }
 
 .wbs-table-row.milestone {

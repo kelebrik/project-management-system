@@ -3,7 +3,8 @@ import type {
   MutableRefObject,
   SetStateAction,
 } from "react";
-import { apiClient } from "../api/client";
+import { useRef } from "react";
+import { ApiError, apiClient } from "../api/client";
 import { createChangedPatch } from "../app/changedPatch";
 import type {
   ProjectDetails,
@@ -15,6 +16,7 @@ import type {
 } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
 import { apiBase, authenticatedFetch, isHttpsUrl, isMattermostUrl } from "../app/http";
+import { withStructureOperation } from "../app/structureStore";
 import {
   WBS_PREDECESSOR_KEYS,
   WBS_PREDECESSOR_TYPE_BY_KEY,
@@ -39,6 +41,9 @@ type WbsRowActionsDeps = {
   ) => void;
   dirtyWbsItemIds: Set<string>;
   draftWbsCodes: Map<string, string>;
+  /** Shows a row edit worked out in the browser until the server answers; see useStructurePreview. */
+  startPreview: (project: ProjectDetails, itemId: string, patch: Record<string, unknown>, sentDraft: WbsFormState, pendingSaves: number) => number | null;
+  endPreview: (operationId: number | null, serverItems?: WbsItem[]) => void;
   latestWbsSaveSequenceByItemRef: MutableRefObject<Record<string, number>>;
   pendingWbsSaveCountRef: MutableRefObject<number>;
   project: ProjectDetails | null;
@@ -69,6 +74,8 @@ export function useWbsRowActions({
   applyWbsSnapshotResult,
   dirtyWbsItemIds,
   draftWbsCodes,
+  endPreview,
+  startPreview,
   latestWbsSaveSequenceByItemRef,
   pendingWbsSaveCountRef,
   project,
@@ -94,6 +101,29 @@ export function useWbsRowActions({
   pushToast,
 }: WbsRowActionsDeps) {
   const warnScheduleOverrides = useScheduleOverrideWarning(pushToast);
+  // A project whose edit may have been saved without the page hearing back: it is read again once no edit is on its way.
+  const reconcileProjectRef = useRef<string | null>(null);
+
+  function reconcileWhenIdle() {
+    const projectId = reconcileProjectRef.current;
+    if (!projectId || pendingWbsSaveCountRef.current > 0) return;
+    reconcileProjectRef.current = null;
+    // Another project is open now: it was read when it opened.
+    if ((projectRef.current ?? project)?.id !== projectId) return;
+    const saveSequenceAtStart = wbsSaveSequenceRef.current;
+    refreshProject(projectId)
+      .then(() => {
+        // An edit sent meanwhile kept the reading from being applied: it is read again now if that edit has ended, or when it ends.
+        if (wbsSaveSequenceRef.current === saveSequenceAtStart) return;
+        reconcileProjectRef.current ??= projectId;
+        reconcileWhenIdle();
+      })
+      .catch(() => {
+        // Not read: the next edit that ends tries again, rather than retrying in a loop while the server is out of reach.
+        reconcileProjectRef.current ??= projectId;
+      });
+  }
+
   function wbsPayload(
     itemId: string,
     form: WbsFormState,
@@ -310,6 +340,7 @@ export function useWbsRowActions({
         pendingWbsSaveCountRef.current - 1,
       );
       setSavingWbsBulk(false);
+      reconcileWhenIdle();
     }
   }
 
@@ -534,16 +565,25 @@ export function useWbsRowActions({
     if (rowChanged) rememberWbsSnapshot();
     setError(null);
     if (!options.silent) setNotice(null);
+    const patchBody = wbsItemPatchPayload(nextPayload, currentPayload);
+    // An edit of the row's own dates, duration or status shows its effect at once, worked out here, until the server answers.
+    const previewOperation =
+      currentItem && !predecessorsChanged && !requiresRenumber
+        ? startPreview(activeProject, itemId, patchBody, draft, pendingWbsSaveCountRef.current)
+        : null;
+    let reloadAfterLostAnswer = false;
     const saveSequence = wbsSaveSequenceRef.current + 1;
     wbsSaveSequenceRef.current = saveSequence;
     latestWbsSaveSequenceByItemRef.current[itemId] = saveSequence;
     pendingWbsSaveCountRef.current += 1;
     try {
-      const patchResult = await apiClient.patch<WbsSnapshotResponse>(
-        `/api/wbs-items/${itemId}`,
-        wbsItemPatchPayload(nextPayload, currentPayload),
-        "Не удалось сохранить элемент Структуры",
-        { "X-WBS-Project-ID": activeProject.id },
+      const patchResult = await withStructureOperation(previewOperation, () =>
+        apiClient.patch<WbsSnapshotResponse>(
+          `/api/wbs-items/${itemId}`,
+          patchBody,
+          "Не удалось сохранить элемент Структуры",
+          { "X-WBS-Project-ID": activeProject.id },
+        ),
       );
       const predecessorResult = predecessorsChanged
         ? await saveWbsPredecessors(itemId, { remember: false, draftOverride: draft })
@@ -574,6 +614,7 @@ export function useWbsRowActions({
         const snapshotResult = predecessorResult?.wbsItems
           ? predecessorResult
           : patchResult;
+        endPreview(previewOperation, snapshotResult.wbsItems);
         applyWbsSnapshotResult(
           snapshotResult.wbsItems,
           snapshotResult.wbsDependencies,
@@ -584,6 +625,8 @@ export function useWbsRowActions({
       }
       if (!options.silent && !warned) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
+      // Without an answer the write may still have been saved: the project is read again once nothing else is on its way.
+      reloadAfterLostAnswer = previewOperation !== null && !(saveError instanceof ApiError);
       if (!isLatestWbsSave(itemId, saveSequence)) return;
       setError(
         saveError instanceof Error
@@ -591,10 +634,13 @@ export function useWbsRowActions({
           : "Не удалось сохранить элемент Структуры",
       );
     } finally {
+      endPreview(previewOperation);
       pendingWbsSaveCountRef.current = Math.max(
         0,
         pendingWbsSaveCountRef.current - 1,
       );
+      if (reloadAfterLostAnswer) reconcileProjectRef.current = activeProject.id;
+      reconcileWhenIdle();
     }
   }
 

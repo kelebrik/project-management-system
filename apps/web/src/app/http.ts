@@ -27,7 +27,7 @@ export async function authenticatedFetch(
     // An answer with Structure changes is read here, so it is counted out before it is expanded.
     const body = response.ok && response.headers.get("X-PMS-Structure") === "delta" ? await response.json() : undefined;
     return { response, body };
-  });
+  }, typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url);
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("pms-auth-required"));
   }

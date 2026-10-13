@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState }
 import { createPortal } from "react-dom";
 
 import { usePageContext } from "./PageContext";
+import { PREVIEW_COLUMN, type PreviewDisplay } from "../app/structurePreviewDisplay";
 import { useConfirm } from "../hooks/useConfirm";
 import type { WbsFormState } from "../app/formState";
 import { wbsToForm } from "../app/formState";
@@ -40,6 +41,7 @@ export function ProjectStructureSection() {
     activeWbsHierarchyLevel,
     activeWbsItemId,
     dirtyWbsItemIds,
+    structurePreviewDisplay,
     deleteSelectedWbsItems,
     draggedWbsColumn,
     draggedWbsItemId,
@@ -571,6 +573,11 @@ export function ProjectStructureSection() {
                                 </button>
                               ))}
                             </div>
+                            {(structurePreviewDisplay as PreviewDisplay).active && (
+                              <span className="wbs-preview-state" role="status" title={uiText("structure.preliminaryHint")}>
+                                {uiText("structure.preliminary")}
+                              </span>
+                            )}
                             <span
                               className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
                             >
@@ -804,6 +811,9 @@ export function ProjectStructureSection() {
                           const item = visibleStructureWbsTree[slot.index];
                           const draft = wbsDrafts[item.id];
                           if (!draft) return null;
+                          // A row edit waiting for the server shows what it moves; the cells keep editing the row's own draft.
+                          const shownDraft = (structurePreviewDisplay as PreviewDisplay).drafts[item.id] ?? draft;
+                          const preliminaryFields = (structurePreviewDisplay as PreviewDisplay).preliminary.get(item.id);
                           return (
                             <div
                               key={item.id}
@@ -848,7 +858,9 @@ export function ProjectStructureSection() {
                                 {orderedWbsColumns.map((column) => (
                                   <div
                                     key={`${item.id}-${column.key}`}
-                                    className={`${isWbsCellDirty(column.key, item, draft) ? "dirty" : ""} ${
+                                    data-column={column.key}
+                                    title={preliminaryFields?.has(PREVIEW_COLUMN[column.key as WbsTableColumnKey]!) ? uiText("structure.preliminaryCell") : undefined}
+                                    className={`${isWbsCellDirty(column.key, item, draft) ? "dirty" : ""} ${preliminaryFields?.has(PREVIEW_COLUMN[column.key as WbsTableColumnKey]!) ? "preliminary" : ""} ${
                                       column.key === "level"
                                         ? "wbs-cell-level"
                                         : column.key === "structure"
@@ -856,7 +868,7 @@ export function ProjectStructureSection() {
                                         : "wbs-cell"
                                     }`}
                                   >
-                                    {renderWbsCell(column.key, item, draft)}
+                                    {renderWbsCell(column.key, item, shownDraft)}
                                   </div>
                                 ))}
                               </div>

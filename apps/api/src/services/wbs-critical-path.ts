@@ -38,16 +38,18 @@ export function safeCalculateWbsCriticalPath(
   items: WbsCriticalPathItemInput[],
   dependencies: WbsCriticalPathDependencyInput[],
   calendarOverrides: WbsCriticalPathCalendarOverride[],
+  today?: Date,
 ) {
   try {
-    return calculateWbsCriticalPath(items, dependencies, calendarOverrides);
+    return calculateWbsCriticalPath(items, dependencies, calendarOverrides, today);
   } catch (error) {
     console.error("Failed to calculate WBS critical path", error);
     return criticalPathFallback(error);
   }
 }
 
-export async function calculateProjectCriticalPath(projectId: string, db: Pick<typeof prisma, 'wbsItem' | 'wbsDependency' | 'projectCalendarOverride'> = prisma) {
+/** The project's critical path; a plan without dates starts on today, the server's day unless the caller names it. */
+export async function calculateProjectCriticalPath(projectId: string, db: Pick<typeof prisma, 'wbsItem' | 'wbsDependency' | 'projectCalendarOverride'> = prisma, today?: Date) {
   const [items, dependencies, calendarOverrides] = await Promise.all([
     db.wbsItem.findMany({
       where: { projectId },
@@ -93,5 +95,5 @@ export async function calculateProjectCriticalPath(projectId: string, db: Pick<t
     }),
   ]);
 
-  return safeCalculateWbsCriticalPath(items, dependencies, calendarOverrides);
+  return safeCalculateWbsCriticalPath(items, dependencies, calendarOverrides, today);
 }

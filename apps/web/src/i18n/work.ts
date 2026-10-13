@@ -91,6 +91,18 @@ export const work = {
     "en": "Unsaved changes: {count}",
     "ru": "Есть изменения: {count}"
   },
+  "structure.preliminary": {
+    "en": "Preliminary calculation",
+    "ru": "Предварительный расчёт"
+  },
+  "structure.preliminaryHint": {
+    "en": "Dates, durations, statuses, the critical path and the Gantt chart are recalculated on this device; the server's answer will confirm or correct them.",
+    "ru": "Даты, длительности, статусы, критический путь и Гант пересчитаны на этом устройстве; ответ сервера подтвердит или поправит их."
+  },
+  "structure.preliminaryCell": {
+    "en": "Preliminary: recalculated on this device, waiting for the server",
+    "ru": "Предварительно: пересчитано на этом устройстве, ждём сервер"
+  },
   "structure.savedAt": {
     "en": "Saved at {time}",
     "ru": "Сохранено в {time}"

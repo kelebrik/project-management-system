@@ -45,6 +45,7 @@ import { useRaidState } from "./hooks/useRaidState";
 import { useWbsStructureTableController } from "./hooks/useWbsStructureTableController";
 import { useWbsColumnActions } from "./hooks/useWbsColumnActions";
 import { useWbsRowActions } from "./hooks/useWbsRowActions";
+import { useStructurePreview } from "./hooks/useStructurePreview";
 import { useWbsSnapshotActions } from "./hooks/useWbsSnapshotActions";
 import { useWbsWorkspaceState } from "./hooks/useWbsWorkspaceState";
 import { hasPendingWbsBuffers } from "./app/wbsBuffers";
@@ -350,7 +351,8 @@ function AppController() {
     setWbsRedoStack(nextStack);
   }, [setWbsRedoStack, wbsRedoStackRef]);
 
-  const derived = useAppDerivedData({ activeView, activeWbsItemId, authMode, collapsedWbsIds, currentUser, ganttPanelHeight, ganttPanelWidth, ganttRangeDays, ganttScale, ganttWbsWidth, hoveredGanttItemId, isAdminUser, isAuthenticated, isClosedProject, project, projectModules, projectRef, projectSearch, projects, raidDecisionOnly, raidHighOnly, raidOverdueOnly, raidTypeFilter, recentProjectIds, selectedCalendarYear, selectedProjectId, setCollapsedWbsIds, setError, setGanttPanelHeight, setGanttPanelWidth, setGanttRangeDays, setGanttScale, setGanttWbsWidth, setNotice, setProject, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setShowGanttBaseline, setShowGanttCriticalPath, setShowGanttDependencies, setShowGanttForecast, setShowStructureCriticalPath, setWbsColumnOrder, setWbsColumnWidths, setWbsHiddenColumns, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, wbsColumnOrder, wbsColumnWidths, wbsDrafts, wbsHiddenColumns, wbsSort });
+  const { preview: structurePreview, startPreview, endPreview } = useStructurePreview();
+  const derived = useAppDerivedData({ activeView, activeWbsItemId, authMode, collapsedWbsIds, currentUser, ganttPanelHeight, ganttPanelWidth, ganttRangeDays, ganttScale, ganttWbsWidth, hoveredGanttItemId, isAdminUser, isAuthenticated, isClosedProject, project, projectModules, projectRef, projectSearch, projects, raidDecisionOnly, raidHighOnly, raidOverdueOnly, raidTypeFilter, recentProjectIds, selectedCalendarYear, selectedProjectId, setCollapsedWbsIds, setError, setGanttPanelHeight, setGanttPanelWidth, setGanttRangeDays, setGanttScale, setGanttWbsWidth, setNotice, setProject, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter, setShowGanttBaseline, setShowGanttCriticalPath, setShowGanttDependencies, setShowGanttForecast, setShowStructureCriticalPath, setWbsColumnOrder, setWbsColumnWidths, setWbsHiddenColumns, setWbsSort, showGanttBaseline, showGanttCriticalPath, showGanttDependencies, showGanttForecast, showStructureCriticalPath, structurePreview, wbsColumnOrder, wbsColumnWidths, wbsDrafts, wbsHiddenColumns, wbsSort });
   const { calendarOverridesByKey, dirtyWbsItemIds, draftWbsCodes, filteredProjectOptions, firstEnabledProjectView, isProjectModuleEnabled, isReadOnly, normalizedProjectModules, orderedWbsColumns, projectTargetSummary, recentProjects, selectedProjectListItem, topbarScheduleHealth, visibleStructureWbsTree, visibleWbsTree, wbsTree } = derived;
   const { openView } = useAppRouting({
     activeView,
@@ -737,6 +739,8 @@ function AppController() {
   } = useWbsRowActions({
     applyWbsItems,
     applyWbsSnapshotResult,
+    endPreview,
+    startPreview,
     dirtyWbsItemIds,
     draftWbsCodes,
     latestWbsSaveSequenceByItemRef,

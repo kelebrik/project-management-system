@@ -28,6 +28,9 @@ export function registerProjectOverviewRoutes(
   router.get('/projects/:projectId/overview', async (req, res) => {
     await ensureDefaultJiraWorkSections(req.params.projectId);
     // The version, the rows and the critical path come from one snapshot of the database.
+    // The day the path was worked out for comes along: the browser works out the next ones for it.
+    const today = new Date();
+    const structureToday = today.toISOString().slice(0, 10);
     const { structureVersion, project, criticalPath, closedIssues } = await prisma.$transaction(async (tx) => {
       const structureVersion = await readStructureVersion(req.params.projectId, tx);
       const [project, criticalPath, closedIssues] = await Promise.all([
@@ -35,7 +38,7 @@ export function registerProjectOverviewRoutes(
           where: { id: req.params.projectId },
           include: projectDetailsInclude,
         }),
-        calculateProjectCriticalPath(req.params.projectId, tx),
+        calculateProjectCriticalPath(req.params.projectId, tx, today),
         tx.issue.findMany({
           ...closedIssuesInclude,
           where: {
@@ -64,7 +67,7 @@ export function registerProjectOverviewRoutes(
 
     // The person's own view comes with the project, so the page opens with their layout at once.
     const myViewState = await loadProjectViewState(user?.id, project.id);
-    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion });
+    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion, structureToday });
   });
 
   router.post('/projects/:projectId/executive-overviews/generate', async (req, res) => {

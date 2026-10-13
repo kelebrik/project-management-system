@@ -72,7 +72,7 @@ async function request<T>(
       },
     });
     return { response, text: response.status === 204 ? "" : await response.text() };
-  });
+  }, path);
   if (response.ok) noticeScheduleShift(response);
   let result: unknown = null;
   if (text) {

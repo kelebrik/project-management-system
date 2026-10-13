@@ -8,3 +8,4 @@ export * from "./schedule-patch.js";
 export * from "./critical-path.js";
 export * from "./ordering.js";
 export * from "./statuses.js";
+export * from "./relevance.js";

@@ -64,6 +64,7 @@ import {
   filterStructureWbsTreeByCriticalPath,
 } from "../app/wbsViewModels";
 import { createWbsGantt } from "../app/wbsGanttModel";
+import { previewDisplay } from "../app/structurePreviewDisplay";
 import { isoDate } from "../app/dateUtils";
 import { useMilestoneLabelLayoutState } from "./useMilestoneLabelLayoutState";
 import { useWorkspaceFullscreen } from "./useWorkspaceFullscreen";
@@ -98,6 +99,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     setError,
     setProject,
     showStructureCriticalPath,
+    structurePreview,
     wbsColumnOrder,
     wbsColumnWidths,
     wbsDrafts,
@@ -321,16 +323,29 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     () => groupRaidItems(filteredRaidItems),
     [filteredRaidItems],
   );
+  // A row edit waiting for the server is drawn as the browser worked it out; the confirmed rows stay the ones edited.
+  const structurePreviewDisplay = useMemo(
+    () => previewDisplay(structurePreview ?? null, project, wbsDrafts),
+    [project, structurePreview, wbsDrafts],
+  );
+  const ganttWbsTree = useMemo(() => {
+    if (!structurePreviewDisplay.active) return visibleWbsTree;
+    const previewById = new Map(structurePreviewDisplay.items.map((item) => [item.id, item]));
+    return visibleWbsTree.map((node: (typeof visibleWbsTree)[number]) => {
+      const item = previewById.get(node.id);
+      return item ? { ...node, ...item } : node;
+    });
+  }, [structurePreviewDisplay, visibleWbsTree]);
   const wbsGantt = useMemo(
     () =>
       createWbsGantt({
-        visibleWbsTree,
-        criticalPath: project?.criticalPath,
+        visibleWbsTree: ganttWbsTree,
+        criticalPath: structurePreviewDisplay.criticalPath,
         wbsDependencies: project?.wbsDependencies ?? [],
         rangeDays: ganttRangeDays,
         locale,
       }),
-    [ganttRangeDays, locale, project?.criticalPath, project?.wbsDependencies, visibleWbsTree],
+    [ganttRangeDays, ganttWbsTree, locale, project?.wbsDependencies, structurePreviewDisplay.criticalPath],
   );
   const wbsColumnsByKey = useMemo(
     () =>
@@ -458,6 +473,7 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
     raidSummary,
     selectedProjectListItem,
     setWbsHierarchyLevel,
+    structurePreviewDisplay,
     startMilestoneLabelDrag,
     topbarScheduleHealth,
     toggleWorkspaceFullscreen,

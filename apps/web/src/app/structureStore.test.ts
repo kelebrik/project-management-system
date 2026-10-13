@@ -13,7 +13,7 @@ const noReload = async () => {
 };
 
 test("a change replaces and adds rows, drops deleted ones and keeps the server's order", () => {
-  const state = { version: "4", items: [row("a", "1", 10), row("b", "2", 20), row("c", "3", 30)], dependencies: [], criticalPath: null, calendarOverrides: null };
+  const state = { version: "4", items: [row("a", "1", 10), row("b", "2", 20), row("c", "3", 30)], dependencies: [], criticalPath: null, calendarOverrides: null, today: null };
   const next = mergeStructureDelta(state, delta("4", "5", { items: [row("b", "3", 30, "B"), row("n", "2", 15), row("c", "4", 40)], deletedItemIds: ["a"] }).structureDelta);
   assert.equal(next.version, "5");
   assert.deepEqual(next.items.map((item) => [item.id, item.code]), [["n", "2"], ["b", "3"], ["c", "4"]]);

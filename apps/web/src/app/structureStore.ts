@@ -16,6 +16,8 @@ export type StructureState = {
   dependencies: WbsDependency[];
   criticalPath: WbsCriticalPath | null;
   calendarOverrides: ProjectCalendarOverride[] | null;
+  /** The last day the server named as today, with the path it sent or for the path worked out here. */
+  today: string | null;
 };
 
 export type StructureDelta = {
@@ -117,14 +119,60 @@ const waiters = new Map<string, Array<() => void>>();
 /** Writes this page has sent and not yet heard back from: only they can bring a missing earlier change. */
 let writesInFlight = 0;
 
+const writeStartListeners = new Set<(operation: unknown) => void>();
+let writeOperation: unknown = null;
+/** Writes that can change a project's Structure, by their path: rows, links, the calendar, issues with work packages, automation, Jira, dates of the project. Layout, views and registers do not. */
+const STRUCTURE_WRITE = /\/(wbs|calendar-overrides|open-issues|issues|automation|jira|target-date|close|milestones)/;
+let structureWrites = 0;
+
+/**
+ * Sends the writes started inside `send` as one operation of the page: the
+ * ones started then are announced with it, so the page tells its own writes
+ * from others. `send` must start them before its first await.
+ */
+export function withStructureOperation<T>(operation: unknown, send: () => T): T {
+  const outer = writeOperation;
+  writeOperation = operation;
+  try {
+    return send();
+  } finally {
+    writeOperation = outer;
+  }
+}
+
+/** Hears every write that can change a Structure as it leaves, with the operation it belongs to (null for none); answers the function that stops listening. */
+export function onStructureWriteStart(listener: (operation: unknown) => void) {
+  writeStartListeners.add(listener);
+  return () => {
+    writeStartListeners.delete(listener);
+  };
+}
+
+/** How many writes that can change a Structure this page has sent and not yet heard back from. */
+export function structureWritesInFlight() {
+  return structureWrites;
+}
+
+/** The Structure of a project as the server last confirmed it here, if this page holds it. */
+export function confirmedStructure(projectId: string): Readonly<StructureState> | null {
+  return states.get(projectId) ?? null;
+}
+
 /** Counts a write while it is on its way; the answer is counted out before it is expanded. */
-export async function trackStructureWrite<T>(method: string | undefined, send: () => Promise<T>) {
+export async function trackStructureWrite<T>(method: string | undefined, send: () => Promise<T>, path = "") {
   const write = (method ?? "GET").toUpperCase() !== "GET";
+  const structureWrite = write && STRUCTURE_WRITE.test(path);
   if (write) writesInFlight += 1;
+  if (structureWrite) {
+    structureWrites += 1;
+    const operation = writeOperation;
+    writeStartListeners.forEach((listener) => listener(operation));
+  }
   try {
     return await send();
   } finally {
     if (write) writesInFlight -= 1;
+    if (structureWrite) structureWrites -= 1;
   }
 }
 
@@ -168,6 +216,7 @@ export function mergeStructureDelta(state: StructureState, delta: StructureDelta
     dependencies: nextDependencies,
     criticalPath: "criticalPath" in delta ? delta.criticalPath ?? null : browserCriticalPath(nextItems, nextDependencies, state.calendarOverrides!, delta.today!),
     calendarOverrides: state.calendarOverrides,
+    today: delta.today ?? state.today,
   };
 }
 
@@ -190,6 +239,7 @@ export function rememberStructure(answer: unknown) {
     dependencies: (project.wbsDependencies as WbsDependency[] | undefined) ?? [],
     criticalPath: (project.criticalPath as WbsCriticalPath | null | undefined) ?? null,
     calendarOverrides: Array.isArray(project.calendarOverrides) ? (project.calendarOverrides as ProjectCalendarOverride[]) : null,
+    today: typeof project.structureToday === "string" ? project.structureToday : null,
   });
   settle(project.id);
 }
@@ -258,4 +308,7 @@ export function forgetStructures() {
   writeTag = () => null;
   waiters.clear();
   writesInFlight = 0;
+  writeStartListeners.clear();
+  writeOperation = null;
+  structureWrites = 0;
 }
