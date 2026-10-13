@@ -2,7 +2,7 @@ import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
-import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, withStructureActivity } from "./structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, structureEpoch, trackStructureWrite, withStructureActivity } from "./structureStore";
 import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "./structureMutations";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
@@ -18,6 +18,8 @@ export async function authenticatedFetch(
 
 async function sendAuthenticated(input: RequestInfo | URL, init: RequestInit, requestPath: string) {
   const tag = currentWriteTag();
+  // What the answer brings is kept only in the session of copies the request was sent in.
+  const epoch = structureEpoch();
   // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
   const mutation = isStructureMutation(init.method, requestPath);
   const headers = requestHeaders({
@@ -52,8 +54,8 @@ async function sendAuthenticated(input: RequestInfo | URL, init: RequestInit, re
   if (body !== undefined) {
     // The answer carries Structure changes, or stands for a write whose changes are unknown: whoever reads it gets the whole Structure at that version.
     const expanded = isIncompleteReplay(response)
-      ? await expandIncompleteAnswer(body, incompleteReplay(response), reloadProject, requestPath, tag, readChanges)
-      : await expandStructureAnswer(body, reloadProject, requestPath, tag, readChanges);
+      ? await expandIncompleteAnswer(body, incompleteReplay(response), reloadProject, requestPath, tag, readChanges, epoch)
+      : await expandStructureAnswer(body, reloadProject, requestPath, tag, readChanges, epoch);
     Object.defineProperty(response, "json", { value: async () => expanded });
     Object.defineProperty(response, "text", { value: async () => JSON.stringify(expanded) });
   } else if (text !== undefined) {

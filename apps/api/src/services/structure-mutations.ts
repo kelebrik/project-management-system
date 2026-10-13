@@ -378,6 +378,12 @@ export function structureMutationMiddleware(options: {
       next();
       return;
     }
+    // A write kept on a device for one person is not run under another's session (signed in in another tab).
+    const expected = req.get('x-pms-expected-user');
+    if (expected && expected !== user.id) {
+      res.status(401).json({ error: 'Изменение сделано другим пользователем: войдите под ним, чтобы отправить его', code: 'SESSION_USER_MISMATCH' });
+      return;
+    }
     const base = req.get('x-pms-base-version');
     const key = { userId: user.id, mutationId: header.toLowerCase() };
     void (async () => {

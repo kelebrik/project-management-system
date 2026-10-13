@@ -19,6 +19,7 @@ import {
 import { projectModuleKeyByView } from "./app/projectModules";
 import { isDefaultWorkingDay } from "./app/dateUtils";
 import { guardStructureCatchUp } from "./app/structureStore";
+import { useStructureLocal } from "./app/structureLocal/useStructureLocal";
 import { useEditableCaptureHandlers } from "./app/useEditableCapture";
 import { useGlobalSearch } from "./app/useGlobalSearch";
 import { AppPresentation } from "./components/AppPresentation";
@@ -385,6 +386,8 @@ function AppController() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirtyWbsItemIds]);
+  // The signed-in person's Structures are kept on this device; signing out forgets them.
+  useStructureLocal(isAuthenticated ? currentUser?.id ?? null : null);
   // A change someone else made is taken in once this page's own saves are done, and never over a row edited here that it removes.
   const dirtyWbsItemIdsRef = useRef(dirtyWbsItemIds);
   dirtyWbsItemIdsRef.current = dirtyWbsItemIds;

@@ -132,6 +132,20 @@ export const structureDeltaHeaders = { "X-PMS-Structure-Delta": "2" } as const;
 const GAP_WAIT_MS = 2_000;
 
 const states = new Map<string, StructureState>();
+const storedListeners = new Set<(projectId: string, state: StructureState) => void>();
+
+/** Hears every copy confirmed here (to keep it on the device); answers the function that stops listening. */
+export function onStructureStored(listener: (projectId: string, state: StructureState) => void) {
+  storedListeners.add(listener);
+  return () => {
+    storedListeners.delete(listener);
+  };
+}
+
+function store(projectId: string, state: StructureState) {
+  states.set(projectId, state);
+  storedListeners.forEach((listener) => listener(projectId, state));
+}
 const waiters = new Map<string, Array<() => void>>();
 /** Writes this page has sent and not yet heard back from: only they can bring a missing earlier change. */
 let writesInFlight = 0;
@@ -179,6 +193,11 @@ export function confirmedStructure(projectId: string): Readonly<StructureState> 
 let writeGeneration = 0;
 /** Moves when every copy is forgotten (a sign-out): a catch-up read before must not publish after. */
 let storeEpoch = 0;
+
+/** The session of copies a request starts in; what it brings back is kept only in the same one. */
+export function structureEpoch() {
+  return storeEpoch;
+}
 /** Structure writes on their way or with answers still being applied; a catch-up waits until there are none. */
 let structureActivity = 0;
 const idleListeners = new Set<() => void>();
@@ -314,15 +333,16 @@ export function mergeStructureChanges(state: StructureState | undefined, changes
  * since its version. Answers whether the copy is now current; a late answer
  * never takes a newer copy back.
  */
-async function catchUp(projectId: string, readChanges: ReadStructureChanges) {
+async function catchUp(projectId: string, readChanges: ReadStructureChanges, epoch = storeEpoch) {
   const before = states.get(projectId);
-  if (!before) return false;
+  if (!before || epoch !== storeEpoch) return false;
   const changes = await readChanges(projectId, before.version).catch(() => null);
+  if (epoch !== storeEpoch) return false;
   if (!changes || changes.projectId !== projectId) return false;
   const current = states.get(projectId);
   if (current && !newer(changes.version, current.version)) return true;
   if (!changes.full && current && changes.baseVersion !== null && newer(changes.baseVersion, current.version)) return false;
-  states.set(projectId, mergeStructureChanges(current, changes));
+  store(projectId, mergeStructureChanges(current, changes));
   settle(projectId);
   return true;
 }
@@ -334,13 +354,13 @@ function settle(projectId: string) {
 }
 
 /** Keeps a whole Structure an answer brought (the project page), unless this page already knows a newer one. */
-export function rememberStructure(answer: unknown) {
-  if (!answer || typeof answer !== "object") return;
+export function rememberStructure(answer: unknown, epoch = storeEpoch) {
+  if (!answer || typeof answer !== "object" || epoch !== storeEpoch) return;
   const project = answer as Answer;
   if (typeof project.id !== "string" || typeof project.structureVersion !== "string" || !Array.isArray(project.wbsItems)) return;
   const known = states.get(project.id);
   if (known && newer(known.version, project.structureVersion)) return;
-  states.set(project.id, {
+  store(project.id, {
     version: project.structureVersion,
     items: project.wbsItems as WbsItem[],
     dependencies: (project.wbsDependencies as WbsDependency[] | undefined) ?? [],
@@ -372,30 +392,36 @@ function waitForVersion(projectId: string, version: string) {
  * and replaced by the whole Structure at its version; other answers pass,
  * and a whole Structure in them is remembered.
  */
-export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>, requestPath = "", tag: unknown = null, readChanges?: ReadStructureChanges): Promise<T> {
+export async function expandStructureAnswer<T>(answer: T, reloadProject: (projectId: string) => Promise<unknown>, requestPath = "", tag: unknown = null, readChanges?: ReadStructureChanges, epoch = storeEpoch): Promise<T> {
   if (!answer || typeof answer !== "object" || !("structureDelta" in answer)) {
-    rememberStructure(answer);
+    rememberStructure(answer, epoch);
     return answer;
   }
+  // An answer to a request of a session since signed out is not kept, nor expanded from the new one's copies.
+  if (epoch !== storeEpoch) return answer;
   const { structureDelta, ...rest } = answer as Answer & { structureDelta: StructureDelta };
   const delta = structureDelta;
   let state = states.get(delta.projectId);
   if (state && newer(delta.baseVersion, state.version) && writesInFlight > 0) {
     // An earlier change this page sent may still be on its way; otherwise someone else wrote, and waiting is useless.
     await waitForVersion(delta.projectId, delta.baseVersion);
+    if (epoch !== storeEpoch) return answer;
     state = states.get(delta.projectId);
   }
   if (state && state.version === delta.baseVersion && canMergeStructureDelta(state, delta)) {
     const change = describeChange(state, delta, requestPath, tag);
     state = mergeStructureDelta(state, delta);
-    states.set(delta.projectId, state);
+    store(delta.projectId, state);
     settle(delta.projectId);
     announce(change);
   } else if (!state || !newer(state.version, delta.baseVersion)) {
     // A change this page never saw, or one it cannot work out the critical path for: the page catches up with
     // what changed since its copy, or reads the project again; either way its Structure includes this change.
-    const caughtUp = readChanges ? await catchUp(delta.projectId, readChanges).catch(() => false) : false;
-    if (!caughtUp) rememberStructure(await reloadProject(delta.projectId).catch(() => null));
+    const caughtUp = readChanges ? await catchUp(delta.projectId, readChanges, epoch).catch(() => false) : false;
+    // A session since signed out reads nothing more: the reading would belong to the next one.
+    if (epoch !== storeEpoch) return answer;
+    if (!caughtUp) rememberStructure(await reloadProject(delta.projectId).catch(() => null), epoch);
+    if (epoch !== storeEpoch) return answer;
     state = states.get(delta.projectId);
     announce({ projectId: delta.projectId, baseVersion: delta.baseVersion, version: delta.version, requestPath, tag, complete: false, items: [], links: [] });
     // The write is made; a page that could not read up to it must not take an older Structure for its answer.
@@ -464,14 +490,18 @@ export async function expandIncompleteAnswer<T>(
   requestPath = "",
   tag: unknown = null,
   readChanges?: ReadStructureChanges,
+  epoch = storeEpoch,
 ): Promise<T> {
   const body = (answer && typeof answer === "object" ? answer : {}) as Answer;
   const projectId = replay.projectId || (typeof body.projectId === "string" ? body.projectId : null);
   const version = replay.version || (typeof body.structureVersion === "string" ? body.structureVersion : null);
   if (!projectId || !version) throw new StructureWriteSettledError("Изменение сохранено, но ответ сервера потерян — обновите страницу", projectId ?? "", false);
+  if (epoch !== storeEpoch) return answer;
   const before = states.get(projectId)?.version ?? version;
-  const caughtUp = readChanges ? await catchUp(projectId, readChanges) : false;
-  if (!caughtUp) rememberStructure(await reloadProject(projectId).catch(() => null));
+  const caughtUp = readChanges ? await catchUp(projectId, readChanges, epoch) : false;
+  if (epoch !== storeEpoch) return answer;
+  if (!caughtUp) rememberStructure(await reloadProject(projectId).catch(() => null), epoch);
+  if (epoch !== storeEpoch) return answer;
   const state = states.get(projectId);
   const current = Boolean(state && !newer(version, state.version));
   announce({ projectId, baseVersion: before, version: current ? state!.version : version, requestPath, tag, complete: false, items: [], links: [] });
@@ -535,16 +565,30 @@ export async function catchUpWithServer(projectId: string, hint: string | null, 
   if (!changes.full && changes.baseVersion !== null && newer(changes.baseVersion, current.version)) return "failed";
   const candidate = mergeStructureChanges(current, changes);
   if (liveGuard.conflicts(projectId, candidate)) return "conflict";
-  states.set(projectId, candidate);
+  store(projectId, candidate);
   settle(projectId);
   noticeSettled(projectId);
   return hint !== null && newer(hint, candidate.version) ? "failed" : "applied";
 }
 
-/** Forgets every copy, for a sign-out or a test. */
+/** Forgets every copy (a sign-out): a catch-up or answer on its way publishes nothing; the page's listeners stay. */
+export function forgetStructureCopies() {
+  storeEpoch += 1;
+  states.clear();
+  settleAll();
+}
+
+function settleAll() {
+  const pending = [...waiters.values()].flat();
+  waiters.clear();
+  pending.forEach((wake) => wake());
+}
+
+/** Forgets every copy and everything listening, for a test. */
 export function forgetStructures() {
   storeEpoch += 1;
   states.clear();
+  storedListeners.clear();
   listeners.clear();
   writeTag = () => null;
   waiters.clear();

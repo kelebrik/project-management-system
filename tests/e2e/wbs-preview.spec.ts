@@ -415,3 +415,173 @@ test("text typed into a row and not yet taken in survives that row being removed
   await expect(typed).toHaveValue("9");
   await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
 });
+
+/** What the signed-in person's database on this device holds for the project. */
+function keptBase(page: Page) {
+  return page.evaluate(() => new Promise<{ version: string; items: number } | null>((resolve) => {
+    const opening = indexedDB.open("pms-structure-admin-1");
+    opening.onupgradeneeded = () => {
+      opening.transaction?.abort();
+      resolve(null);
+    };
+    opening.onerror = () => resolve(null);
+    opening.onsuccess = () => {
+      const db = opening.result;
+      if (!db.objectStoreNames.contains("base")) {
+        db.close();
+        resolve(null);
+        return;
+      }
+      const read = db.transaction("base").objectStore("base").get("project-1");
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result ? { version: read.result.version, items: read.result.items.length } : null);
+      };
+    };
+  }));
+}
+
+test("the Structure the server confirmed is kept on the device across a reload, and forgotten on sign-out", async ({ page }) => {
+  await openPlan(page);
+  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  await page.reload();
+  await expect(page.locator('[data-wbs-row-id="p"]')).toBeVisible();
+  expect(await keptBase(page)).toEqual({ version: "1", items: 3 });
+  await page.route("**/api/auth/logout", (route) => route.fulfill({ status: 204 }));
+  await page.getByRole("button", { name: "Выйти" }).first().click();
+  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toBeNull();
+});
+
+test("a tab holding an older Structure does not overwrite a newer one kept by another, and one tab leads at a time", async ({ page, context }) => {
+  await openPlan(page);
+  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  // Another tab of the same person keeps a newer version meanwhile.
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const opening = indexedDB.open("pms-structure-admin-1");
+    opening.onsuccess = () => {
+      const db = opening.result;
+      const transaction = db.transaction("base", "readwrite");
+      transaction.objectStore("base").put({ projectId: "project-1", version: "9", items: [], dependencies: [], calendarOverrides: [], today: "2026-10-13", savedAt: "" });
+      transaction.oncomplete = () => {
+        db.close();
+        resolve();
+      };
+    };
+  }));
+  const second = await context.newPage();
+  await openPlan(second);
+  await second.waitForTimeout(1_500);
+  expect(await keptBase(second)).toEqual({ version: "9", items: 0 });
+
+  const leadership = (tab: Page) => tab.evaluate(async () => {
+    const state = await navigator.locks.query();
+    const mine = (lock: { name?: string }) => lock.name === "pms-outbox-admin-1";
+    return { held: (state.held ?? []).filter(mine).length, waiting: (state.pending ?? []).filter(mine).length };
+  });
+  await expect.poll(() => leadership(second)).toEqual({ held: 1, waiting: 1 });
+  await page.close();
+  await expect.poll(() => leadership(second)).toEqual({ held: 1, waiting: 0 });
+});
+
+test("a tab whose database another tab removed on sign-out stops and lets the lead go, staying closed when the session is gone", async ({ page, context }) => {
+  await openPlan(page);
+  const second = await context.newPage();
+  await openPlan(second);
+  const leadership = (tab: Page) => tab.evaluate(async () => {
+    const state = await navigator.locks.query();
+    const mine = (lock: { name?: string }) => lock.name === "pms-outbox-admin-1";
+    return { held: (state.held ?? []).filter(mine).length, waiting: (state.pending ?? []).filter(mine).length };
+  });
+  await expect.poll(() => leadership(second)).toEqual({ held: 1, waiting: 1 });
+  // The session ends for every tab: the second learns it when it asks.
+  await second.route("**/api/auth/me", (route) => route.fulfill({ status: 401, json: { error: "Требуется вход в систему" } }));
+  await page.route("**/api/auth/logout", (route) => route.fulfill({ status: 204 }));
+  await page.getByRole("button", { name: "Выйти" }).first().click();
+  await expect.poll(() => leadership(second)).toEqual({ held: 0, waiting: 0 });
+  await expect.poll(() => keptBase(second)).toBeNull();
+});
+
+test("a database of the first version keeps numbering its writes on from the ones it holds", async ({ page }) => {
+  await page.goto("/");
+  // The first version: base and outbox, writes numbered 1 to 3, no counter.
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    const opening = indexedDB.open("pms-structure-admin-1", 1);
+    opening.onupgradeneeded = () => {
+      const db = opening.result;
+      db.createObjectStore("base", { keyPath: "projectId" });
+      const outbox = db.createObjectStore("outbox", { keyPath: "mutationId" });
+      outbox.createIndex("seq", "seq");
+      for (const seq of [1, 2, 3]) outbox.put({ mutationId: `m${seq}`, seq, projectId: "project-1", method: "PATCH", path: "/wbs-items/a", body: {}, baseVersion: null, dependsOn: [], state: "rejected", attempts: 1, createdAt: new Date().toISOString(), ackVersion: null, error: null });
+    };
+    opening.onsuccess = () => {
+      opening.result.close();
+      resolve();
+    };
+  }));
+  await openPlan(page);
+  const counter = () => page.evaluate(() => new Promise<number | null>((resolve) => {
+    const opening = indexedDB.open("pms-structure-admin-1");
+    opening.onsuccess = () => {
+      const db = opening.result;
+      if (!db.objectStoreNames.contains("meta")) {
+        db.close();
+        resolve(null);
+        return;
+      }
+      const read = db.transaction("meta").objectStore("meta").get("seq");
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result ?? null);
+      };
+    };
+  }));
+  await expect.poll(counter).toBe(3);
+});
+
+test("a write another tab keeps while this one signs out is not lost with the database", async ({ page, context }) => {
+  await openPlan(page);
+  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  const second = await context.newPage();
+  await openPlan(second);
+  // The other tab keeps a write under the database lock, as the queue does, finishing while this tab signs out.
+  await second.evaluate(() => {
+    void navigator.locks.request("pms-structure-db-admin-1", { mode: "shared" }, () => new Promise<void>((resolve) => {
+      (window as unknown as { keep: () => void }).keep = () => {
+        const opening = indexedDB.open("pms-structure-admin-1");
+        opening.onsuccess = () => {
+          const db = opening.result;
+          const transaction = db.transaction("outbox", "readwrite");
+          transaction.objectStore("outbox").put({ mutationId: "kept-elsewhere", seq: 1, projectId: "project-1", method: "PATCH", path: "/wbs-items/a", body: { title: "x" }, baseVersion: "1", dependsOn: [], state: "pending", attempts: 0, createdAt: new Date().toISOString(), ackVersion: null, error: null });
+          transaction.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+        };
+      };
+    }));
+  });
+  await page.route("**/api/auth/logout", (route) => route.fulfill({ status: 204 }));
+  await page.getByRole("button", { name: "Выйти" }).first().click();
+  await page.waitForTimeout(300);
+  await second.evaluate(() => (window as unknown as { keep: () => void }).keep());
+  await page.waitForTimeout(1_000);
+  const kept = await second.evaluate(() => new Promise<string[]>((resolve) => {
+    const opening = indexedDB.open("pms-structure-admin-1");
+    opening.onsuccess = () => {
+      const db = opening.result;
+      if (!db.objectStoreNames.contains("outbox")) {
+        db.close();
+        resolve([]);
+        return;
+      }
+      const read = db.transaction("outbox").objectStore("outbox").getAllKeys();
+      read.onsuccess = () => {
+        db.close();
+        resolve(read.result.map(String));
+      };
+    };
+  }));
+  expect(kept).toEqual(["kept-elsewhere"]);
+  // The database stayed as it was (it was not removed and made anew): the Structure kept before is still there.
+  expect(await keptBase(second)).toEqual({ version: "1", items: 3 });
+});

@@ -159,6 +159,17 @@ test('a Structure write sent again with its mutation id runs once and is answere
     await prisma.project.delete({ where: { id: gone.id } });
     assert.equal((await send(`/api/projects/${gone.id}/wbs-items`, 'POST', { ...add, code: '1', parentId: null, wbsLevel: 1, type: 'PHASE' }, goneId)).status, 404);
 
+    // A write kept on a device for someone else is not run under this session.
+    const elsewhereId = randomUUID();
+    const elsewhere = await fetch(`${baseUrl}/api/projects/${project.id}/wbs-items`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'x-business-unit-id': unit.id, 'Content-Type': 'application/json', 'X-PMS-Mutation-Id': elsewhereId, 'X-PMS-Expected-User': 'someone-else' },
+      body: JSON.stringify({ ...add, code: '1.8' }),
+    });
+    assert.equal(elsewhere.status, 401);
+    assert.equal((await elsewhere.json()).code, 'SESSION_USER_MISMATCH');
+    assert.equal(await receipt(elsewhereId), null);
+
     // Without an id nothing is kept: two sends make two rows.
     const before = await rows();
     await send(`/api/projects/${project.id}/wbs-items`, 'POST', { ...add, code: '1.6' });

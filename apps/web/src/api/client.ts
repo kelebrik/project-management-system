@@ -2,7 +2,7 @@ import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
-import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, withStructureActivity, type StructureChanges } from "../app/structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, structureEpoch, trackStructureWrite, withStructureActivity, type StructureChanges } from "../app/structureStore";
 import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "../app/structureMutations";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
@@ -64,6 +64,8 @@ async function request<T>(
 
 async function send<T>(path: string, options: RequestInit, fallback: string): Promise<T> {
   const tag = currentWriteTag();
+  // What the answer brings is kept only in the session of copies the request was sent in.
+  const epoch = structureEpoch();
   // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
   const headers = requestHeaders({
     ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
@@ -107,6 +109,7 @@ async function send<T>(path: string, options: RequestInit, fallback: string): Pr
       path,
       tag,
       (projectId, since) => request<StructureChanges>(`/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`),
+      epoch,
     );
   }
   // A Structure write answers with its changes; the pages receive the whole Structure at that version.
@@ -116,6 +119,7 @@ async function send<T>(path: string, options: RequestInit, fallback: string): Pr
     path,
     tag,
     (projectId, since) => request<StructureChanges>(`/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`),
+    epoch,
   );
 }
 
