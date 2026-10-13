@@ -13,11 +13,25 @@ async function idsWrittenHere(db: StructureDb, table: 'WbsItem' | 'WbsDependency
 }
 
 /**
+ * Who works out the critical path after a change: the server sends it with
+ * the change; the browser works it out itself from the day the server names
+ * as today; or nobody needs it with the change (the command journal, or an
+ * answer that carries the whole Structure with its own).
+ */
+export type CriticalPathMode = 'server' | 'browser' | 'none';
+
+/** The server's calendar day, the one a plan without dates starts on. */
+function serverToday() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/**
  * What this transaction changed in the project's Structure, from the version
  * it started at to the one it produces: the rows and links it wrote (and the
- * links whose ends were renumbered), what it deleted, and the critical path.
+ * links whose ends were renumbered), what it deleted, and, as the mode says,
+ * the critical path or the day the browser works it out for.
  */
-export async function readStructureDelta(db: StructureDb, projectId: string) {
+export async function readStructureDelta(db: StructureDb, projectId: string, criticalPathMode: CriticalPathMode = 'none') {
   const context = structureWriteContext(db, projectId);
   if (!context) throw new Error('A Structure change is read only inside a Structure write');
   const [writtenItemIds, writtenDependencyIds, itemIds, dependencyIds] = await Promise.all([
@@ -45,7 +59,7 @@ export async function readStructureDelta(db: StructureDb, projectId: string) {
         successor: { select: { id: true, code: true, title: true } },
       },
     }),
-    calculateProjectCriticalPath(projectId, db),
+    criticalPathMode === 'server' ? calculateProjectCriticalPath(projectId, db) : undefined,
   ]);
   return {
     projectId,
@@ -55,15 +69,26 @@ export async function readStructureDelta(db: StructureDb, projectId: string) {
     deletedItemIds: [...context.itemIdsBefore].filter((id) => !currentItemIds.has(id)),
     dependencies,
     deletedDependencyIds: [...context.dependencyIdsBefore].filter((id) => !currentDependencyIds.has(id)),
-    criticalPath,
+    ...(criticalPathMode === 'server' ? { criticalPath } : {}),
+    ...(criticalPathMode === 'browser' ? { today: serverToday() } : {}),
   };
 }
 
 export type StructureDelta = Awaited<ReturnType<typeof readStructureDelta>>;
 
-/** Whether the browser asked for changes only; other clients keep the whole Structure in answers. */
+/**
+ * Whether the browser asked for changes only (1), and works out the critical
+ * path itself (2); other clients keep the whole Structure in answers. A page
+ * loaded before the browser worked it out still sends 1.
+ */
 export function wantsStructureDelta(req: Pick<Request, 'get'>) {
-  return req.get?.('x-pms-structure-delta') === '1';
+  const asked = req.get?.('x-pms-structure-delta');
+  return asked === '1' || asked === '2';
+}
+
+function criticalPathModeFor(req: Pick<Request, 'get'>): CriticalPathMode {
+  const asked = req.get?.('x-pms-structure-delta');
+  return asked === '2' ? 'browser' : asked === '1' ? 'server' : 'none';
 }
 
 /**
@@ -72,7 +97,7 @@ export function wantsStructureDelta(req: Pick<Request, 'get'>) {
  * every write and recalculation.
  */
 export async function finishStructureChange(db: StructureDb, projectId: string, req: Pick<Request, 'get'>) {
-  const delta = await readStructureDelta(db, projectId);
+  const delta = await readStructureDelta(db, projectId, criticalPathModeFor(req));
   const snapshot = wantsStructureDelta(req) ? null : await getProjectWbsSnapshot(projectId, db);
   return { delta, snapshot };
 }

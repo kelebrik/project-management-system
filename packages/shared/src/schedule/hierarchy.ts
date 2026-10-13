@@ -40,7 +40,9 @@ export function buildChildrenByParent<T extends HierarchyItem>(items: T[], items
     const inferredParentId = inferredParentCode ? itemsByCode.get(inferredParentCode)?.id ?? null : null;
     const parentId = inferredParentId ?? explicitParentId;
     if (!parentId || parentId === item.id) continue;
-    childrenByParent.set(parentId, [...(childrenByParent.get(parentId) ?? []), item]);
+    const children = childrenByParent.get(parentId);
+    if (children) children.push(item);
+    else childrenByParent.set(parentId, [item]);
   }
   return childrenByParent;
 }

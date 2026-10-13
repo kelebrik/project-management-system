@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { WbsItem } from "./domainTypes";
+import type { WbsCriticalPath, WbsItem } from "./domainTypes";
 import { expandStructureAnswer, forgetStructures, mergeStructureDelta, onStructureChange, rememberStructure, trackStructureWrite, type StructureChange, type StructureDelta } from "./structureStore";
 
 const row = (id: string, code: string, sortOrder: number, title = id) => ({ id, code, sortOrder, title }) as unknown as WbsItem;
@@ -13,7 +13,7 @@ const noReload = async () => {
 };
 
 test("a change replaces and adds rows, drops deleted ones and keeps the server's order", () => {
-  const state = { version: "4", items: [row("a", "1", 10), row("b", "2", 20), row("c", "3", 30)], dependencies: [], criticalPath: null };
+  const state = { version: "4", items: [row("a", "1", 10), row("b", "2", 20), row("c", "3", 30)], dependencies: [], criticalPath: null, calendarOverrides: null };
   const next = mergeStructureDelta(state, delta("4", "5", { items: [row("b", "3", 30, "B"), row("n", "2", 15), row("c", "4", 40)], deletedItemIds: ["a"] }).structureDelta);
   assert.equal(next.version, "5");
   assert.deepEqual(next.items.map((item) => [item.id, item.code]), [["n", "2"], ["b", "3"], ["c", "4"]]);
@@ -79,4 +79,66 @@ test("each applied change is announced with the rows as they were and as they be
   // A gap is announced as a change the page could not follow.
   await expandStructureAnswer(delta("9", "10", {}), async () => project("10", []), "/api/wbs-items/b", "step-2");
   assert.equal(heard[1]!.complete, false);
+});
+
+const task = (id: string, code: string, sortOrder: number, startDate: string, workDays: number) =>
+  ({
+    id, code, title: id, sortOrder, type: "TASK", status: "NOT_STARTED", startDate: `${startDate}T00:00:00.000Z`, dueDate: null, workDays, calendarCode: "RU", leadLagDays: 0,
+    predecessor1: null, predecessor2: null, predecessor3: null, predecessor4: null, predecessor5: null, predecessor6: null,
+  }) as unknown as WbsItem;
+const calendar = [{ id: "o", projectId: "p", calendarCode: "RU" as const, date: "2026-10-14T00:00:00.000Z", isWorkingDay: false, description: null }];
+const loaded = (version: string, items: WbsItem[]) => ({ ...project(version, items), calendarOverrides: calendar });
+const browserDelta = (baseVersion: string, version: string, change: Partial<StructureDelta>) => {
+  const { structureDelta } = delta(baseVersion, version, change);
+  delete structureDelta.criticalPath;
+  return { structureDelta: { ...structureDelta, today: "2026-10-13" } };
+};
+
+test("a change without its critical path gets one worked out here, with the project calendar, in the server's date format", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  const expanded = (await expandStructureAnswer(browserDelta("1", "2", { items: [task("b", "2", 20, "2026-10-12", 1)] }), noReload)) as unknown as { criticalPath: WbsCriticalPath };
+  // Three working days from Monday skip the day off on Wednesday.
+  assert.equal(expanded.criticalPath.projectFinishDate, "2026-10-15T00:00:00.000Z");
+  assert.deepEqual(expanded.criticalPath.criticalItemIds, ["a"]);
+  assert.equal(expanded.criticalPath.items.find((item) => item.itemId === "b")!.totalFloatWorkDays, 2);
+});
+
+test("a critical path the server sent is kept as it is, even an empty one", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  const expanded = (await expandStructureAnswer(delta("1", "2", { items: [task("b", "2", 20, "2026-10-12", 1)], criticalPath: null }), noReload)) as unknown as { criticalPath: WbsCriticalPath | null };
+  assert.equal(expanded.criticalPath, null);
+});
+
+test("without the calendar or the server's day the project is read again rather than guessed", async () => {
+  for (const [state, change] of [
+    [project("1", [task("a", "1", 10, "2026-10-12", 3)]), browserDelta("1", "2", {})],
+    [loaded("1", [task("a", "1", 10, "2026-10-12", 3)]), (() => { const answer = browserDelta("1", "2", {}); delete (answer.structureDelta as Partial<StructureDelta>).today; return answer; })()],
+  ] as const) {
+    forgetStructures();
+    rememberStructure(state);
+    let reloads = 0;
+    const expanded = await expandStructureAnswer(change, async () => {
+      reloads += 1;
+      return loaded("2", [task("a", "1", 10, "2026-10-12", 3)]);
+    });
+    assert.equal(reloads, 1);
+    assert.equal((expanded as { structureVersion: string }).structureVersion, "2");
+  }
+});
+
+test("a critical path that cannot be worked out is empty with the reason, and the change still applies", async () => {
+  forgetStructures();
+  rememberStructure(loaded("1", [task("a", "1", 10, "2026-10-12", 3)]));
+  const quiet = console.error;
+  console.error = () => undefined;
+  try {
+    const expanded = (await expandStructureAnswer(browserDelta("1", "2", { items: [task("a", "1", 10, "2026-10-12", 30_000)] }), noReload)) as unknown as { criticalPath: WbsCriticalPath; structureVersion: string };
+    assert.equal(expanded.structureVersion, "2");
+    assert.deepEqual(expanded.criticalPath.items, []);
+    assert.match(expanded.criticalPath.warnings[0]!, /^Расчет критического пути временно недоступен: /);
+  } finally {
+    console.error = quiet;
+  }
 });

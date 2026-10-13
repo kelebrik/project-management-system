@@ -1,17 +1,21 @@
-import type { WbsCriticalPath, WbsDependency, WbsItem } from "./domainTypes";
+import type { ProjectCalendarOverride, WbsCriticalPath, WbsDependency, WbsItem } from "./domainTypes";
+import { browserCriticalPath } from "./structureCriticalPath";
 
 /**
  * The browser's copy of each project's Structure at a known version. A write
  * answers with its changes only; they are applied here in version order and
  * the answer is handed on as the whole Structure at that version, so the
  * pages keep reading `wbsItems` as before. A gap in the versions (a change
- * this page never saw) is closed by reading the project again.
+ * this page never saw) is closed by reading the project again. The critical
+ * path is worked out here after each change; the calendar it counts with is
+ * the one read with the Structure, null when the answer did not carry it.
  */
 export type StructureState = {
   version: string;
   items: WbsItem[];
   dependencies: WbsDependency[];
   criticalPath: WbsCriticalPath | null;
+  calendarOverrides: ProjectCalendarOverride[] | null;
 };
 
 export type StructureDelta = {
@@ -22,7 +26,10 @@ export type StructureDelta = {
   deletedItemIds: string[];
   dependencies: WbsDependency[];
   deletedDependencyIds: string[];
-  criticalPath: WbsCriticalPath | null;
+  /** Sent by a server asked for the critical path with the change (version 1 of the protocol). */
+  criticalPath?: WbsCriticalPath | null;
+  /** The server's day, for the critical path this page works out (version 2). */
+  today?: string;
 };
 
 type Answer = Record<string, unknown>;
@@ -100,7 +107,7 @@ function describeChange(state: StructureState, delta: StructureDelta, requestPat
 }
 
 /** Sent with every request: Structure writes then answer with their changes only. */
-export const structureDeltaHeaders = { "X-PMS-Structure-Delta": "1" } as const;
+export const structureDeltaHeaders = { "X-PMS-Structure-Delta": "2" } as const;
 
 /** How long a change waits for the one before it, sent at the same time, before the project is read again. */
 const GAP_WAIT_MS = 2_000;
@@ -135,7 +142,16 @@ function byCreation(left: WbsDependency, right: WbsDependency) {
   return leftAt < rightAt ? -1 : leftAt > rightAt ? 1 : left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
 }
 
-/** The Structure after a change: written rows replace or join, deleted ones leave; the order is the server's. */
+/** Whether a change can be applied here: the server sent its critical path, or this page can work it out. */
+export function canMergeStructureDelta(state: StructureState, delta: StructureDelta) {
+  return "criticalPath" in delta || (typeof delta.today === "string" && state.calendarOverrides !== null);
+}
+
+/**
+ * The Structure after a change: written rows replace or join, deleted ones
+ * leave; the order is the server's. The critical path is the server's when it
+ * sent one, otherwise worked out here.
+ */
 export function mergeStructureDelta(state: StructureState, delta: StructureDelta): StructureState {
   const deletedItems = new Set(delta.deletedItemIds);
   const items = new Map(state.items.filter((item) => !deletedItems.has(item.id)).map((item) => [item.id, item]));
@@ -143,11 +159,15 @@ export function mergeStructureDelta(state: StructureState, delta: StructureDelta
   const deletedLinks = new Set(delta.deletedDependencyIds);
   const dependencies = new Map(state.dependencies.filter((link) => !deletedLinks.has(link.id)).map((link) => [link.id, link]));
   for (const link of delta.dependencies) dependencies.set(link.id, link);
+  const nextItems = [...items.values()].sort(byPlanOrder);
+  const nextDependencies = [...dependencies.values()].sort(byCreation);
+  if (!canMergeStructureDelta(state, delta)) throw new Error("A change without its critical path needs the project calendar and the server's day");
   return {
     version: delta.version,
-    items: [...items.values()].sort(byPlanOrder),
-    dependencies: [...dependencies.values()].sort(byCreation),
-    criticalPath: delta.criticalPath,
+    items: nextItems,
+    dependencies: nextDependencies,
+    criticalPath: "criticalPath" in delta ? delta.criticalPath ?? null : browserCriticalPath(nextItems, nextDependencies, state.calendarOverrides!, delta.today!),
+    calendarOverrides: state.calendarOverrides,
   };
 }
 
@@ -169,6 +189,7 @@ export function rememberStructure(answer: unknown) {
     items: project.wbsItems as WbsItem[],
     dependencies: (project.wbsDependencies as WbsDependency[] | undefined) ?? [],
     criticalPath: (project.criticalPath as WbsCriticalPath | null | undefined) ?? null,
+    calendarOverrides: Array.isArray(project.calendarOverrides) ? (project.calendarOverrides as ProjectCalendarOverride[]) : null,
   });
   settle(project.id);
 }
@@ -207,14 +228,14 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
     await waitForVersion(delta.projectId, delta.baseVersion);
     state = states.get(delta.projectId);
   }
-  if (state && state.version === delta.baseVersion) {
+  if (state && state.version === delta.baseVersion && canMergeStructureDelta(state, delta)) {
     const change = describeChange(state, delta, requestPath, tag);
     state = mergeStructureDelta(state, delta);
     states.set(delta.projectId, state);
     settle(delta.projectId);
     announce(change);
-  } else if (!state || newer(delta.baseVersion, state.version)) {
-    // A change this page never saw: the project is read again, and its Structure includes this one.
+  } else if (!state || !newer(state.version, delta.baseVersion)) {
+    // A change this page never saw, or one it cannot work out the critical path for: the project is read again, and its Structure includes this one.
     rememberStructure(await reloadProject(delta.projectId));
     state = states.get(delta.projectId);
     announce({ projectId: delta.projectId, baseVersion: delta.baseVersion, version: delta.version, requestPath, tag, complete: false, items: [], links: [] });

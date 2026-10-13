@@ -16,6 +16,7 @@ import { registerProjectCalendarRoutes } from '../../apps/api/src/routes/project
 import { createDefaultProjectStructure } from '../../apps/api/src/routes/projects/default-structure.js';
 import { restoreWbsTombstone } from '../../apps/api/src/services/wbs-tombstones.js';
 import { getProjectWbsSnapshot } from '../../apps/api/src/services/wbs.js';
+import { mergeStructureDelta, type StructureState } from '../../apps/web/src/app/structureStore.js';
 
 const enabled = process.env.WORKFLOW_TEST_DATABASE === 'true';
 type Row = Record<string, unknown> & { id: string };
@@ -59,7 +60,8 @@ function handlers() {
   };
 }
 
-async function call(handler: Function, params: Record<string, string>, body: unknown) {
+/** Calls a route as the browser does; deltaVersion is the X-PMS-Structure-Delta it sends, none for another client. */
+async function call(handler: Function, params: Record<string, string>, body: unknown, deltaVersion: '1' | '2' | null = '2') {
   const res: any = {
     statusCode: 200,
     body: undefined as unknown,
@@ -68,7 +70,7 @@ async function call(handler: Function, params: Record<string, string>, body: unk
     json(value: unknown) { this.body = value; return this; },
     setHeader(name: string, value: string) { this.headers[name] = value; },
   };
-  const req = { params, body, ip: '127.0.0.1', headers: {}, get: (name: string) => (name.toLowerCase() === 'x-pms-structure-delta' ? '1' : undefined) };
+  const req = { params, body, ip: '127.0.0.1', headers: {}, get: (name: string) => (name.toLowerCase() === 'x-pms-structure-delta' ? deltaVersion ?? undefined : undefined) };
   await handler(req, res);
   return res;
 }
@@ -76,19 +78,22 @@ async function call(handler: Function, params: Record<string, string>, body: unk
 const plain = (value: unknown) => JSON.parse(JSON.stringify(value));
 const byId = (rows: Row[]) => [...rows].sort((left, right) => left.id.localeCompare(right.id));
 
-/** The Structure a browser holds after applying a change, the way the web client does. */
-function applied(before: { wbsItems: Row[]; wbsDependencies: Row[] }, delta: { items: Row[]; deletedItemIds: string[]; dependencies: Row[]; deletedDependencyIds: string[] }) {
-  const items = new Map(before.wbsItems.filter((row) => !delta.deletedItemIds.includes(row.id)).map((row) => [row.id, row]));
-  for (const row of delta.items) items.set(row.id, row);
-  const links = new Map(before.wbsDependencies.filter((row) => !delta.deletedDependencyIds.includes(row.id)).map((row) => [row.id, row]));
-  for (const row of delta.dependencies) links.set(row.id, row);
-  return { items: byId([...items.values()]), links: byId([...links.values()]) };
+/** The Structure as the browser keeps it, read with the project's calendar as the project page reads it. */
+async function browserState(projectId: string): Promise<StructureState> {
+  const snapshot = plain(await getProjectWbsSnapshot(projectId));
+  return {
+    version: await readStructureVersion(projectId),
+    items: snapshot.wbsItems,
+    dependencies: snapshot.wbsDependencies,
+    criticalPath: snapshot.criticalPath,
+    calendarOverrides: plain(await prisma.projectCalendarOverride.findMany({ where: { projectId } })),
+  };
 }
 
 /** Runs a write and checks that its changes, applied to the Structure before it, give the Structure after it. */
 async function expectExactChange(projectId: string, write: () => Promise<any>) {
-  const before = plain(await getProjectWbsSnapshot(projectId));
-  const version = BigInt(await readStructureVersion(projectId));
+  const before = await browserState(projectId);
+  const version = BigInt(before.version);
   const res = await write();
   assert.ok(res.statusCode < 300, `answer ${res.statusCode}: ${JSON.stringify(res.body)}`);
   assert.equal(res.headers['X-PMS-Structure'], undefined, 'the header is set by the app middleware, not the route');
@@ -100,10 +105,13 @@ async function expectExactChange(projectId: string, write: () => Promise<any>) {
   assert.equal(delta.version, String(version + 1n));
   assert.equal(await readStructureVersion(projectId), String(version + 1n));
   const after = plain(await getProjectWbsSnapshot(projectId));
-  const mine = applied(before, delta);
-  assert.deepEqual(mine.items, byId(after.wbsItems));
-  assert.deepEqual(mine.links, byId(after.wbsDependencies));
-  assert.deepEqual(delta.criticalPath, after.criticalPath);
+  // The browser applies the change and works out the critical path itself, for the server's day.
+  assert.equal('criticalPath' in delta, false, 'the server leaves the critical path to the browser');
+  assert.equal(delta.today, new Date().toISOString().slice(0, 10));
+  const mine = mergeStructureDelta(before, delta);
+  assert.deepEqual(byId(mine.items as unknown as Row[]), byId(after.wbsItems));
+  assert.deepEqual(byId(mine.dependencies as unknown as Row[]), byId(after.wbsDependencies));
+  assert.deepEqual(mine.criticalPath, after.criticalPath);
   // The write's last journal command carries the same changes, numbered in the write.
   const commands = await prisma.wbsCommand.findMany({ where: { projectId, structureVersion: version + 1n }, orderBy: { commandOrdinal: 'asc' } });
   assert.ok(commands.length > 0, 'the write is journaled with its version');
@@ -133,6 +141,11 @@ test('every Structure route answers with exactly the changes it made, and moves 
     const order = (await prisma.wbsItem.findMany({ where: { projectId: id }, orderBy: { sortOrder: 'asc' } })).map((row) => row.id);
     await expectExactChange(id, () => call(route('post /projects/:projectId/wbs-items/reorder'), { projectId: id }, { orderedIds: [order[0], order[3], order[1], order[2], ...order.slice(4)] }));
     await expectExactChange(id, () => call(route('post /projects/:projectId/wbs-items/renumber'), { projectId: id }, {}));
+    // A day off in the calendar: the page reads the project again, and the next change counts with it.
+    const calendar = new Map<string, Function>();
+    registerProjectCalendarRoutes(new Proxy({}, { get: (_t, verb) => (path: string, ...callbacks: Function[]) => calendar.set(`${String(verb)} ${path}`, callbacks.at(-1)!) }) as unknown as Router, {} as never);
+    assert.equal((await call(calendar.get('put /projects/:projectId/calendar-overrides')!, { projectId: id }, { calendarCode: 'RU', date: '2026-10-07', isWorkingDay: false })).statusCode, 200);
+    await expectExactChange(id, () => call(route('patch /wbs-items/:itemId'), { itemId: tasks[0]!.id }, { workDays: 6, scheduleDriver: 'workDays' }));
     await expectExactChange(id, () => call(route('post /projects/:projectId/wbs-baseline'), { projectId: id }, {}));
     await expectExactChange(id, () => call(route('post /projects/:projectId/wbs-items/append'), { projectId: id }, { parentId: phase.id, title: 'С нагрузки', owner: 'Анна', type: 'TASK', startDate: '2026-10-12', dueDate: '2026-10-14' }));
     const saved = plain(await getProjectWbsSnapshot(id));
@@ -142,6 +155,25 @@ test('every Structure route answers with exactly the changes it made, and moves 
       wbsItems: saved.wbsItems,
       wbsDependencies: saved.wbsDependencies.map((row: Row) => ({ predecessorId: row.predecessorId, successorId: row.successorId, type: row.type, lagDays: row.lagDays })),
     }));
+  } finally {
+    await cleanup();
+  }
+});
+
+test('a page loaded before the browser worked out the critical path still gets it, and other clients the whole Structure', { skip: !enabled }, async () => {
+  const route = handlers();
+  const { project, tasks, cleanup } = await fixture();
+  try {
+    const older = await call(route('patch /wbs-items/:itemId'), { itemId: tasks[0]!.id }, { workDays: 7, scheduleDriver: 'workDays' }, '1');
+    const after = plain(await getProjectWbsSnapshot(project.id));
+    assert.deepEqual(plain(older.body.structureDelta.criticalPath), after.criticalPath);
+    assert.equal(older.body.structureDelta.today, undefined);
+    const whole = await call(route('patch /wbs-items/:itemId'), { itemId: tasks[0]!.id }, { workDays: 4, scheduleDriver: 'workDays' }, null);
+    assert.equal(whole.body.structureDelta, undefined);
+    assert.deepEqual(plain(whole.body.criticalPath), plain(await getProjectWbsSnapshot(project.id)).criticalPath);
+    // The journal keeps the changes without any critical path.
+    const command = await prisma.wbsCommand.findFirstOrThrow({ where: { projectId: project.id }, orderBy: [{ structureVersion: 'desc' }, { commandOrdinal: 'desc' }] });
+    assert.equal('criticalPath' in ((command.payload as { structureDelta: object }).structureDelta), false);
   } finally {
     await cleanup();
   }

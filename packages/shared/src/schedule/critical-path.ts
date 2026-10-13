@@ -9,6 +9,7 @@ import {
   type ScheduleCalendarOverride,
 } from "./calendar.js";
 import { isWbsZeroDurationItem, sortByPlanOrder } from "./hierarchy.js";
+import { PlanQueue } from "./plan-queue.js";
 import { dayNumber, plainDate, type PlainDate } from "./plain-date.js";
 import type { ScheduleItemStatus, ScheduleItemType } from "./types.js";
 
@@ -177,16 +178,19 @@ function orderItemsTopologically(items: Item[], dependencies: CriticalPathDepend
   const outgoingByPredecessor = new Map<string, CriticalPathDependencyInput[]>();
   for (const dependency of dependencies) {
     incomingCount.set(dependency.successorId, (incomingCount.get(dependency.successorId) ?? 0) + 1);
-    outgoingByPredecessor.set(dependency.predecessorId, [...(outgoingByPredecessor.get(dependency.predecessorId) ?? []), dependency]);
+    const outgoing = outgoingByPredecessor.get(dependency.predecessorId);
+    if (outgoing) outgoing.push(dependency);
+    else outgoingByPredecessor.set(dependency.predecessorId, [dependency]);
   }
   const queued = new Set<string>();
-  const queue = items.filter((item) => (incomingCount.get(item.id) ?? 0) === 0);
-  for (const item of queue) queued.add(item.id);
+  const queue = new PlanQueue<Item>(sortByPlanOrder);
+  for (const item of items) {
+    if ((incomingCount.get(item.id) ?? 0) !== 0) continue;
+    queue.push(item);
+    queued.add(item.id);
+  }
   const ordered: Item[] = [];
-  while (queue.length > 0) {
-    queue.sort(sortByPlanOrder);
-    const current = queue.shift();
-    if (!current) continue;
+  for (let current = queue.take(); current; current = queue.take()) {
     ordered.push(current);
     for (const dependency of outgoingByPredecessor.get(current.id) ?? []) {
       const nextIncoming = (incomingCount.get(dependency.successorId) ?? 0) - 1;
@@ -284,7 +288,9 @@ export function calculateCriticalPath(
   const projectStart = existingDays.length > 0 ? existingDays.reduce((earliest, day) => Math.min(earliest, day)) : dayNumber(today);
   const incomingBySuccessor = new Map<string, CriticalPathDependencyInput[]>();
   for (const dependency of dependencies) {
-    incomingBySuccessor.set(dependency.successorId, [...(incomingBySuccessor.get(dependency.successorId) ?? []), dependency]);
+    const incoming = incomingBySuccessor.get(dependency.successorId);
+    if (incoming) incoming.push(dependency);
+    else incomingBySuccessor.set(dependency.successorId, [dependency]);
   }
   const { ordered, outgoingByPredecessor } = orderItemsTopologically(items, dependencies, warnings);
   const computedById = forwardPass(ordered, projectStart, incomingBySuccessor, overrides);

@@ -18,6 +18,7 @@ import {
   startFromFinish,
   wbsLevelFromItem,
 } from "./hierarchy.js";
+import { PlanQueue } from "./plan-queue.js";
 import { dayNumber, plainDate, type PlainDate } from "./plain-date.js";
 import type { DayItem, DayUpdate, ScheduleDependency, ScheduleItem, ScheduleOptions, ScheduleUpdate } from "./types.js";
 
@@ -43,17 +44,22 @@ function calculateSchedulePass(items: DayItem[], dependencies: ScheduleDependenc
   for (const [successorId, predecessorRefs] of predecessorRefsByItem.entries()) {
     incomingCount.set(successorId, predecessorRefs.length);
     for (const predecessorRef of predecessorRefs) {
-      successorsByPredecessor.set(predecessorRef.predecessorId, [...(successorsByPredecessor.get(predecessorRef.predecessorId) ?? []), successorId]);
+      const successors = successorsByPredecessor.get(predecessorRef.predecessorId);
+      if (successors) successors.push(successorId);
+      else successorsByPredecessor.set(predecessorRef.predecessorId, [successorId]);
     }
   }
 
   const byOrder = [...items].sort(sortByPlanOrder);
-  const queue = byOrder.filter((item) => (incomingCount.get(item.id) ?? 0) === 0);
+  const queue = new PlanQueue<DayItem>(sortByPlanOrder);
+  const queued = new Set<string>();
+  for (const item of byOrder) {
+    if ((incomingCount.get(item.id) ?? 0) !== 0) continue;
+    queue.push(item);
+    queued.add(item.id);
+  }
   const scheduledOrder: DayItem[] = [];
-  const queued = new Set(queue.map((item) => item.id));
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) continue;
+  for (let current = queue.take(); current; current = queue.take()) {
     scheduledOrder.push(current);
     for (const successorId of successorsByPredecessor.get(current.id) ?? []) {
       const nextCount = (incomingCount.get(successorId) ?? 0) - 1;
@@ -63,7 +69,6 @@ function calculateSchedulePass(items: DayItem[], dependencies: ScheduleDependenc
         if (successor) {
           queue.push(successor);
           queued.add(successorId);
-          queue.sort(sortByPlanOrder);
         }
       }
     }
