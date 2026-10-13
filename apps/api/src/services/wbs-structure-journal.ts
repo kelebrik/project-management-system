@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
+import { pruneStructureMutationReceipts } from './structure-mutations.js';
 
 /** How long the journal keeps changes; a browser that last looked earlier reads the Structure whole. */
 export const STRUCTURE_JOURNAL_RETENTION_DAYS = 30;
@@ -105,6 +106,8 @@ export function startStructureJournalPrune(client: typeof prisma = prisma, log: 
     for (const { projectId } of projects) {
       await pruneStructureJournal(projectId, new Date(), client).catch((error) => log(error instanceof Error ? error.message : String(error), projectId));
     }
+    // Receipts of repeated writes live as long as the journal a repeat would catch up through.
+    await pruneStructureMutationReceipts(new Date(), STRUCTURE_JOURNAL_RETENTION_DAYS, client).catch((error) => log(error instanceof Error ? error.message : String(error), ''));
   };
   const first = setTimeout(() => void run().catch(() => undefined), 5 * 60_000);
   first.unref();

@@ -12,6 +12,7 @@ import type {
   WbsDependencyType,
   WbsItem,
 } from "../app/domainTypes";
+import { reportStructureWriteFailure } from "../app/structureStore";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
 
 type GanttLinkDraft = GanttLinkEndpoint & {
@@ -99,11 +100,7 @@ export function useGanttDependencyActions({
       }
       setNotice("Связь на Гантте удалена");
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Не удалось удалить связь на Гантте",
-      );
+      reportStructureWriteFailure(deleteError, "Не удалось удалить связь на Гантте", setError, setNotice);
     } finally {
       setGanttLinkDraft(null);
     }
@@ -224,11 +221,7 @@ export function useGanttDependencyActions({
           : "Связь на Гантте создана",
       );
     } catch (linkError) {
-      setError(
-        linkError instanceof Error
-          ? linkError.message
-          : "Не удалось создать связь на Гантте",
-      );
+      reportStructureWriteFailure(linkError, "Не удалось создать связь на Гантте", setError, setNotice);
     } finally {
       setGanttLinkDraft(null);
     }

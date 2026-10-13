@@ -212,6 +212,7 @@ export const workloadMessages = {
   "ui.workload.newWorkCancel": { en: "Cancel", ru: "Отмена" },
   "ui.workload.newWorkFailed": { en: "Could not create the work", ru: "Не удалось создать работу" },
   "ui.workload.newWorkCreated": { en: "Created {code} {title} in {project}", ru: "Создана работа {code} {title} в {project}" },
+  "ui.workload.newWorkSaved": { en: "The work is created in {project}; the list is refreshed", ru: "Работа создана в {project}, список обновлён" },
   "ui.workload.newWorkOpen": { en: "Open in the Structure", ru: "Открыть в Структуре" },
   "ui.workload.share.overloadedOnly": { en: "Only overloaded", ru: "Только перегруженные" },
   "ui.workload.share.title": { en: "Project shares: {name}", ru: "Доли в проектах: {name}" },

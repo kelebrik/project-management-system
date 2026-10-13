@@ -54,7 +54,7 @@ test('requireAuth rejects anonymous read requests', () => {
   });
 
   assert.equal(statusCode, 401);
-  assert.deepEqual(body, { error: 'Требуется вход в систему' });
+  assert.deepEqual(body, { error: 'Требуется вход в систему', code: 'SESSION_REQUIRED' });
   assert.equal(nextCalled, false);
 });
 

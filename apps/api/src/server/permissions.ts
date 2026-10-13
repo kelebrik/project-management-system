@@ -229,7 +229,8 @@ export async function writePermissionMiddleware(req: Request, res: Response, nex
     method: req.method,
   });
   if (!decision.ok) {
-    res.status(decision.status).json({ error: decision.error });
+    // A page sending its changes later tells a refusal of the person from one of the moment.
+    res.status(decision.status).json({ error: decision.error, code: decision.status === 401 ? 'SESSION_REQUIRED' : decision.status === 403 ? 'PROJECT_WRITE_FORBIDDEN' : undefined });
     return;
   }
   next();

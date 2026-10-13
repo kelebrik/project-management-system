@@ -2,6 +2,12 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import type { Response } from 'express';
 import { buildRenumberPlan, findFamilyLinks, type FamilyLink, type FamilyLinkItem } from '@pms/shared';
 import { prisma } from '../db.js';
+import {
+  commitStructureMutation,
+  confirmStructureMutationCommit,
+  forgetStructureMutationCommit,
+  noteStructureMutationProject,
+} from './structure-mutations.js';
 
 /** The client a Structure write runs on: the transaction that holds the project's lock. */
 export type StructureDb = Prisma.TransactionClient;
@@ -88,6 +94,8 @@ export function structureWriteContext(db: StructureDb, projectId: string) {
 export async function lockProjectStructure(db: StructureDb, projectId: string) {
   const known = structureWriteContext(db, projectId);
   if (known) return known;
+  // A mutation sent with an id writes one project: a second one breaks its contract before anything is read.
+  noteStructureMutationProject(projectId);
   await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wbs:${projectId}`}))`;
   await db.$queryRaw`SELECT id FROM "Project" WHERE id = ${projectId} FOR UPDATE`;
   const [version, items, dependencies] = await Promise.all([
@@ -182,6 +190,8 @@ async function finishStructureWrites(db: StructureDb) {
       update: { version: context.nextVersion },
     });
   }
+  // The receipt of the request's mutation commits with the write it describes.
+  await commitStructureMutation(db, locked.map((context) => context.projectId), (projectId) => locked.find((context) => context.projectId === projectId)!.nextVersion);
 }
 
 /**
@@ -199,6 +209,15 @@ export function structureTransaction<T>(
       return result;
     },
     { timeout: options.timeout ?? STRUCTURE_WRITE_TIMEOUT_MS, maxWait: 10_000, isolationLevel: options.isolationLevel },
+  ).then(
+    (result) => {
+      confirmStructureMutationCommit();
+      return result;
+    },
+    (error: unknown) => {
+      forgetStructureMutationCommit();
+      throw error;
+    },
   );
 }
 

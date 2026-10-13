@@ -355,10 +355,14 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
   } else if (!state || !newer(state.version, delta.baseVersion)) {
     // A change this page never saw, or one it cannot work out the critical path for: the page catches up with
     // what changed since its copy, or reads the project again; either way its Structure includes this change.
-    const caughtUp = readChanges ? await catchUp(delta.projectId, readChanges) : false;
-    if (!caughtUp) rememberStructure(await reloadProject(delta.projectId));
+    const caughtUp = readChanges ? await catchUp(delta.projectId, readChanges).catch(() => false) : false;
+    if (!caughtUp) rememberStructure(await reloadProject(delta.projectId).catch(() => null));
     state = states.get(delta.projectId);
     announce({ projectId: delta.projectId, baseVersion: delta.baseVersion, version: delta.version, requestPath, tag, complete: false, items: [], links: [] });
+    // The write is made; a page that could not read up to it must not take an older Structure for its answer.
+    if (!state || newer(delta.version, state.version)) {
+      throw new StructureWriteSettledError("Изменение сохранено, но обновить данные не удалось — обновите страницу", delta.projectId, false);
+    }
   }
   // Otherwise the copy is already past this change, which it includes.
   if (!state) return answer;
@@ -369,6 +373,73 @@ export async function expandStructureAnswer<T>(answer: T, reloadProject: (projec
     criticalPath: state.criticalPath,
     structureVersion: state.version,
   } as T;
+}
+
+/**
+ * A write the server did, whose answer this page cannot give its caller: the
+ * answer was lost (only the version is known), or the page could not catch up
+ * with it. Nothing was refused; the caller must not send it as a new write.
+ */
+export class StructureWriteSettledError extends Error {
+  readonly saved = true;
+  readonly projectId: string;
+  readonly caughtUp: boolean;
+  constructor(message: string, projectId: string, caughtUp: boolean) {
+    super(message);
+    this.name = "StructureWriteSettledError";
+    this.projectId = projectId;
+    this.caughtUp = caughtUp;
+  }
+}
+
+/**
+ * Shows why a Structure write did not come back as asked: a write the server
+ * made, whose answer was lost, as a notice (the page shows it once caught up,
+ * and it must not be sent again); anything else as the error it is.
+ */
+export function reportStructureWriteFailure(failure: unknown, fallback: string, setError: (message: string) => void, setNotice: (message: string) => void) {
+  if (failure instanceof StructureWriteSettledError) {
+    setNotice(failure.message);
+    return;
+  }
+  setError(failure instanceof Error ? failure.message : fallback);
+}
+
+/** Tells the page a project's Structure changed here without an answer it applied: it shows the copy this module now holds. */
+function noticeSettled(projectId: string) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("pms-structure-settled", { detail: { projectId } }));
+}
+
+/**
+ * The answer to a repeated write whose changes the server did not keep: the
+ * write happened. The page catches up with the project up to its version (or
+ * reads it again), the undo history learns the step is not whole, and the
+ * caller gets the answer kept, with the Structure as it now is. When only the
+ * version was kept, or catching up failed, the caller learns it from
+ * StructureWriteSettledError instead of a stale Structure.
+ */
+export async function expandIncompleteAnswer<T>(
+  answer: T,
+  replay: { projectId: string | null; version: string | null },
+  reloadProject: (projectId: string) => Promise<unknown>,
+  requestPath = "",
+  tag: unknown = null,
+  readChanges?: ReadStructureChanges,
+): Promise<T> {
+  const body = (answer && typeof answer === "object" ? answer : {}) as Answer;
+  const projectId = replay.projectId || (typeof body.projectId === "string" ? body.projectId : null);
+  const version = replay.version || (typeof body.structureVersion === "string" ? body.structureVersion : null);
+  if (!projectId || !version) throw new StructureWriteSettledError("Изменение сохранено, но ответ сервера потерян — обновите страницу", projectId ?? "", false);
+  const before = states.get(projectId)?.version ?? version;
+  const caughtUp = readChanges ? await catchUp(projectId, readChanges) : false;
+  if (!caughtUp) rememberStructure(await reloadProject(projectId).catch(() => null));
+  const state = states.get(projectId);
+  const current = Boolean(state && !newer(version, state.version));
+  announce({ projectId, baseVersion: before, version: current ? state!.version : version, requestPath, tag, complete: false, items: [], links: [] });
+  if (current) noticeSettled(projectId);
+  if (!current) throw new StructureWriteSettledError("Изменение сохранено, но обновить данные не удалось — обновите страницу", projectId, false);
+  if (body.replayed === true && body.incomplete === true) throw new StructureWriteSettledError("Изменение сохранено, данные обновлены", projectId, true);
+  return { ...body, wbsItems: state!.items, wbsDependencies: state!.dependencies, criticalPath: state!.criticalPath, structureVersion: state!.version } as T;
 }
 
 /** Forgets every copy, for a sign-out or a test. */

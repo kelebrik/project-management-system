@@ -16,7 +16,7 @@ import type {
 } from "../app/domainTypes";
 import { wbsToForm, type WbsFormState } from "../app/formState";
 import { apiBase, authenticatedFetch, isHttpsUrl, isMattermostUrl } from "../app/http";
-import { withStructureOperation } from "../app/structureStore";
+import { reportStructureWriteFailure, StructureWriteSettledError, withStructureOperation } from "../app/structureStore";
 import {
   WBS_PREDECESSOR_KEYS,
   WBS_PREDECESSOR_TYPE_BY_KEY,
@@ -283,11 +283,7 @@ export function useWbsRowActions({
         return { id: itemId, patch, predecessorsChanged, requiresRenumber };
       });
     } catch (prepareError) {
-      setError(
-        prepareError instanceof Error
-          ? prepareError.message
-          : "Не удалось подготовить изменения Структуры",
-      );
+      reportStructureWriteFailure(prepareError, "Не удалось подготовить изменения Структуры", setError, setNotice);
       return;
     }
 
@@ -329,11 +325,7 @@ export function useWbsRowActions({
         setNotice("Изменения Структуры сохранены");
       }
     } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Не удалось сохранить изменения Структуры",
-      );
+      reportStructureWriteFailure(saveError, "Не удалось сохранить изменения Структуры", setError, setNotice);
     } finally {
       pendingWbsSaveCountRef.current = Math.max(
         0,
@@ -428,12 +420,9 @@ export function useWbsRowActions({
       if (previousSnapshot) {
         setWbsUndoHistory(wbsUndoStackRef.current.filter((step) => step !== previousSnapshot));
       }
-      await refreshProject(project.id);
-      setError(
-        reorderError instanceof Error
-          ? reorderError.message
-          : "Не удалось обновить Структуру",
-      );
+      // A move the server made keeps its notice: the page shows it once caught up, a further reading must not replace it with its own failure.
+      if (!(reorderError instanceof StructureWriteSettledError)) await refreshProject(project.id);
+      reportStructureWriteFailure(reorderError, "Не удалось обновить Структуру", setError, setNotice);
     } finally {
       setDraggedWbsItemId(null);
       setWbsDropTargetId(null);
@@ -628,11 +617,7 @@ export function useWbsRowActions({
       // Without an answer the write may still have been saved: the project is read again once nothing else is on its way.
       reloadAfterLostAnswer = previewOperation !== null && !(saveError instanceof ApiError);
       if (!isLatestWbsSave(itemId, saveSequence)) return;
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Не удалось сохранить элемент Структуры",
-      );
+      reportStructureWriteFailure(saveError, "Не удалось сохранить элемент Структуры", setError, setNotice);
     } finally {
       endPreview(previewOperation);
       pendingWbsSaveCountRef.current = Math.max(
@@ -686,11 +671,7 @@ export function useWbsRowActions({
         await refreshProject(project.id);
       }
     } catch (insertError) {
-      setError(
-        insertError instanceof Error
-          ? insertError.message
-          : "Не удалось вставить строку Структуры",
-      );
+      reportStructureWriteFailure(insertError, "Не удалось вставить строку Структуры", setError, setNotice);
     }
   }
 
@@ -762,12 +743,9 @@ export function useWbsRowActions({
       if (previousSnapshot) {
         setWbsUndoHistory(wbsUndoStackRef.current.filter((step) => step !== previousSnapshot));
       }
-      await refreshProject(project.id);
-      setError(
-        reorderError instanceof Error
-          ? reorderError.message
-          : "Не удалось переместить строку Структуры",
-      );
+      // A move the server made keeps its notice: the page shows it once caught up, a further reading must not replace it with its own failure.
+      if (!(reorderError instanceof StructureWriteSettledError)) await refreshProject(project.id);
+      reportStructureWriteFailure(reorderError, "Не удалось переместить строку Структуры", setError, setNotice);
     } finally {
       setDraggedWbsItemId(null);
       setWbsDropTargetId(null);
@@ -915,11 +893,7 @@ export function useWbsRowActions({
       }
       setNotice("Элемент Структуры удален");
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Не удалось удалить элемент Структуры",
-      );
+      reportStructureWriteFailure(deleteError, "Не удалось удалить элемент Структуры", setError, setNotice);
     }
   }
 
@@ -958,11 +932,7 @@ export function useWbsRowActions({
       setSelectedWbsIds(new Set());
       setNotice(`Удалено элементов Структуры: ${result?.deletedCount ?? itemIds.length}`);
     } catch (deleteError) {
-      setError(
-        deleteError instanceof Error
-          ? deleteError.message
-          : "Не удалось удалить выбранные элементы Структуры",
-      );
+      reportStructureWriteFailure(deleteError, "Не удалось удалить выбранные элементы Структуры", setError, setNotice);
     } finally {
       setSavingWbsBulk(false);
     }

@@ -32,15 +32,21 @@ async function openPlan(page: Page) {
     });
   });
   const patches: Array<{ itemId: string; body: Record<string, unknown>; answer: (status: number, json: unknown) => Promise<void>; lose: () => Promise<void> }> = [];
+  // An edit whose answer is lost stays lost: the page sends it again with the same mutation id, and those answers are lost too.
+  const lost = new Set<string>();
+  const attempts = new Map<string, number>();
   await page.route(/\/api\/wbs-items\/[^/]+$/, async (route) => {
     if (route.request().method() !== "PATCH") return route.fallback();
+    const mutationId = (await route.request().headerValue("x-pms-mutation-id")) ?? "";
+    attempts.set(mutationId, (attempts.get(mutationId) ?? 0) + 1);
+    if (lost.has(mutationId)) return route.abort("connectionreset");
     const itemId = route.request().url().split("/").at(-1)!;
     await new Promise<void>((resolve) => {
       patches.push({
         itemId,
         body: route.request().postDataJSON(),
         answer: async (status, json) => { await route.fulfill({ status, json }); resolve(); },
-        lose: async () => { await route.abort("connectionreset"); resolve(); },
+        lose: async () => { lost.add(mutationId); await route.abort("connectionreset"); resolve(); },
       });
     });
   });
@@ -48,7 +54,7 @@ async function openPlan(page: Page) {
   await expect(page.locator('[data-wbs-row-id="p"]')).toBeVisible();
   if ((await page.locator('[data-wbs-row-id="b"]').count()) === 0) await page.getByRole("button", { name: "2", exact: true }).click();
   await expect(page.locator('[data-wbs-row-id="b"]')).toBeVisible();
-  return { phase, first, second, patches, project };
+  return { phase, first, second, patches, project, attempts };
 }
 
 const cell = (page: Page, rowId: string, column: string) => page.locator(`[data-wbs-row-id="${rowId}"] [data-column="${column}"]`);
@@ -144,7 +150,7 @@ test("Escape in another row during a preview restores that row as confirmed, not
 });
 
 test("an edit whose answer is lost reads the project again, since the server may have saved it", async ({ page }) => {
-  const { patches } = await openPlan(page);
+  const { patches, attempts } = await openPlan(page);
   let reads = 0;
   page.on("request", (request) => {
     if (request.url().endsWith("/api/projects/project-1/overview")) reads += 1;
@@ -153,6 +159,8 @@ test("an edit whose answer is lost reads the project again, since the server may
   await expect.poll(() => patches.length).toBe(1);
   await patches[0]!.lose();
   await expect.poll(() => reads).toBeGreaterThan(0);
+  // Sent three times under one mutation id before the page gave up and read the project.
+  expect([...attempts.values()]).toEqual([3]);
   await expect(page.getByRole("status").filter({ hasText: "Предварительный расчёт" })).toHaveCount(0);
 });
 
@@ -246,4 +254,82 @@ test("a lost answer is reconciled when a refused save of all changes ends after 
   await bulk[0]!();
   await expect(cell(page, "a", "due").locator("input")).toHaveValue("2026-10-16");
   await expect(page.locator('[data-wbs-row-id="a"] .dirty')).toHaveCount(0);
+});
+
+/** The first row made five days long, as the server saved it at version 2. */
+async function saveLongerFirstTask(page: Page, plan: Awaited<ReturnType<typeof openPlan>>) {
+  const { phase, first, second, patches } = plan;
+  await longerFirstTask(page);
+  await expect.poll(() => patches.length).toBe(1);
+  const day = (start: string, due: string) => ({ startDate: at(start), dueDate: at(due), forecastStartDate: at(start), forecastDueDate: at(due) });
+  await patches[0]!.answer(200, {
+    item: { ...first, workDays: 5, ...day("2026-10-12", "2026-10-16") },
+    structureVersion: "2",
+    structureDelta: {
+      projectId: "project-1", baseVersion: "1", version: "2", today: "2026-10-13", deletedItemIds: [], dependencies: [], deletedDependencyIds: [],
+      items: [
+        { ...phase, ...day("2026-10-12", "2026-10-20"), workDays: 7, calendarDays: 9 },
+        { ...first, workDays: 5, calendarDays: 5, ...day("2026-10-12", "2026-10-16") },
+        { ...second, calendarDays: 2, ...day("2026-10-19", "2026-10-20") },
+      ],
+    },
+  });
+  await expect(cell(page, "a", "due").locator("input")).toHaveValue("2026-10-16");
+}
+
+for (const caughtUp of [true, false]) {
+  test(`an undo the server made whose answer was lost is done: it is not offered again, nor its way back (${caughtUp ? "caught up" : "not caught up"})`, async ({ page }) => {
+    const plan = await openPlan(page);
+    await saveLongerFirstTask(page, plan);
+    const reverts: string[] = [];
+    await page.route("**/api/projects/project-1/wbs-snapshot/revert", async (route) => {
+      reverts.push((await route.request().headerValue("x-pms-mutation-id")) ?? "");
+      await route.fulfill({
+        status: 200,
+        headers: { "X-PMS-Mutation-Replayed": "1", "X-PMS-Mutation-Incomplete": "1", "X-PMS-Structure-Project": "project-1", "X-PMS-Structure-Version": "3" },
+        json: { replayed: true, incomplete: true, projectId: "project-1", structureVersion: "3" },
+      });
+    });
+    await page.route("**/api/projects/project-1/structure?since=*", (route) =>
+      caughtUp
+        ? route.fulfill({ json: { projectId: "project-1", version: "3", baseVersion: "2", full: false, today: "2026-10-13", calendarOverrides: [], items: [{ ...plan.first }], dependencies: [], deletedItemIds: [], deletedDependencyIds: [] } })
+        : route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }),
+    );
+    if (!caughtUp) await page.route("**/api/projects/project-1/overview", (route) => route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }));
+    const undo = page.getByRole("button", { name: "Откатить последнее изменение Структуры" });
+    const redo = page.getByRole("button", { name: "Вернуть отмененное изменение Структуры" });
+    await expect(undo).toBeEnabled();
+    await undo.click();
+
+    await expect(page.getByText(caughtUp ? "Изменение сохранено, данные обновлены" : "Изменение сохранено, но обновить данные не удалось — обновите страницу")).toBeVisible();
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+    expect(reverts).toHaveLength(1);
+    if (caughtUp) await expect(cell(page, "a", "due").locator("input")).toHaveValue("2026-10-14");
+  });
+}
+
+test("a move the server made whose answer was lost keeps its notice when reading the project fails too", async ({ page }) => {
+  const plan = await openPlan(page);
+  const moves: string[] = [];
+  await page.route("**/api/projects/project-1/wbs-items/reorder", async (route) => {
+    moves.push((await route.request().headerValue("x-pms-mutation-id")) ?? "");
+    await route.fulfill({
+      status: 200,
+      headers: { "X-PMS-Mutation-Replayed": "1", "X-PMS-Mutation-Incomplete": "1", "X-PMS-Structure-Project": "project-1", "X-PMS-Structure-Version": "2" },
+      json: { replayed: true, incomplete: true, projectId: "project-1", structureVersion: "2" },
+    });
+  });
+  await page.route("**/api/projects/project-1/structure?since=*", (route) => route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }));
+  await page.route("**/api/projects/project-1/overview", (route) => route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }));
+  await expect(page.locator(`[data-wbs-row-id="${plan.second.id}"]`)).toBeVisible();
+  // Drag the second task onto the first.
+  const source = page.locator('[data-wbs-row-id="b"] .wbs-row-drag-handle');
+  const target = page.locator('[data-wbs-row-id="a"]');
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer());
+  await source.dispatchEvent("dragstart", { dataTransfer });
+  await target.dispatchEvent("dragover", { dataTransfer });
+  await target.dispatchEvent("drop", { dataTransfer });
+  await expect.poll(() => moves.length).toBe(1);
+  await expect(page.getByText("Изменение сохранено, но обновить данные не удалось — обновите страницу")).toBeVisible();
 });

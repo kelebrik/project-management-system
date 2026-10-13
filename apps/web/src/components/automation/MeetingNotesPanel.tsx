@@ -2,6 +2,7 @@ import { Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { parseMeetingNotes, type MeetingDraft } from "@pms/shared";
 import { ApiError, apiClient } from "../../api/client";
+import { StructureWriteSettledError } from "../../app/structureStore";
 import type { ProjectDetails } from "../../app/domainTypes";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { useI18n as useInterfaceTranslation } from "../../i18n/I18nProvider";
@@ -164,6 +165,13 @@ export function MeetingNotesContent() {
         savedTitles.add(normalized(row.title));
         setRows((current) => current.map((item) => (item.id === row.id ? { ...item, selected: false, state: "saved", message: uiText("meeting.created") } : item)));
       } catch (failure) {
+        // A row the server made, whose answer was lost, is made: it is not sent again.
+        if (failure instanceof StructureWriteSettledError) {
+          count++;
+          savedTitles.add(normalized(row.title));
+          setRows((current) => current.map((item) => (item.id === row.id ? { ...item, selected: false, state: "saved", message: uiText("meeting.created") } : item)));
+          continue;
+        }
         const knownFailure = failure instanceof ApiError && failure.status >= 400 && failure.status < 500;
         setRows((current) =>
           current.map((item) =>

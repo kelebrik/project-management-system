@@ -2,6 +2,7 @@ import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { apiClient } from "../../api/client";
+import { StructureWriteSettledError } from "../../app/structureStore";
 import { countWorkingDays, projectCalendarTest, type ProjectCalendarCode, type ProjectCalendarOverrideDay } from "../../app/projectCalendar";
 import type { WorkloadProject } from "../../app/workloadModel";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
@@ -10,7 +11,8 @@ import type { NewWorkRequest } from "./useNewWorkSelection";
 
 type Parent = { id: string; code: string; title: string; type: string; level: number; calendarCode: ProjectCalendarCode };
 type Targets = { projectId: string; defaultCalendarCode: ProjectCalendarCode; parents: Parent[]; calendar: ProjectCalendarOverrideDay[] };
-export type CreatedWork = { item: { id: string; code: string; title: string }; project: WorkloadProject };
+/** The work made; null when the server made it but its answer was lost, so only the project is known. */
+export type CreatedWork = { item: { id: string; code: string; title: string } | null; project: WorkloadProject };
 const TOP = "__top__";
 
 /**
@@ -82,6 +84,11 @@ export function NewWorkDialog({
       );
       onCreated({ item: answer.item, project });
     } catch (failure) {
+      // Made, though its answer was lost: the form is done, sending it again would make a second one.
+      if (failure instanceof StructureWriteSettledError) {
+        onCreated({ item: null, project });
+        return;
+      }
       setError(failure instanceof Error ? failure.message : t("ui.workload.newWorkFailed"));
     } finally {
       setBusy(false);

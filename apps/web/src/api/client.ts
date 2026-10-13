@@ -2,7 +2,8 @@ import { liveClientHeaders } from "../app/liveClient";
 import { businessUnitHeaders } from "../app/businessUnitContext";
 import { noticeScheduleShift } from "../app/scheduleShiftNotice";
 import { viewSectionHeaders } from "../app/sectionHeader";
-import { currentWriteTag, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, type StructureChanges } from "../app/structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite, type StructureChanges } from "../app/structureStore";
+import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "../app/structureMutations";
 import { readLocale } from "../i18n/locale";
 import { createTranslator } from "../i18n/translate";
 
@@ -58,21 +59,18 @@ async function request<T>(
   fallback = clientText()("ui.common.apiRequestFailed"),
 ): Promise<T> {
   const tag = currentWriteTag();
-  const { response, text } = await trackStructureWrite(options.method, async () => {
-    const response = await fetch(`${apiBase}${path}`, {
-      ...options,
-      credentials: "include",
-      headers: {
-        ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
-        ...businessUnitHeaders(),
-        ...viewSectionHeaders(),
-        ...liveClientHeaders(),
-        ...structureDeltaHeaders,
-        ...options.headers,
-      },
-    });
+  // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
+  const headers = requestHeaders({
+    ...(options.body && !(options.body instanceof FormData) ? { "Content-Type": "application/json" } : {}),
+    ...businessUnitHeaders(),
+    ...viewSectionHeaders(),
+    ...liveClientHeaders(),
+    ...structureDeltaHeaders,
+  }, options.headers, options.method, path);
+  const { response, text } = await trackStructureWrite(options.method, () => sendWithMutationRetry(isStructureMutation(options.method, path), async () => {
+    const response = await fetch(`${apiBase}${path}`, { ...options, credentials: "include", headers });
     return { response, text: response.status === 204 ? "" : await response.text() };
-  }, path);
+  }), path);
   if (response.ok) noticeScheduleShift(response);
   let result: unknown = null;
   if (text) {
@@ -94,6 +92,17 @@ async function request<T>(
       window.dispatchEvent(new CustomEvent("pms-auth-required"));
     }
     throw new ApiError(errorMessage(result, fallback), response.status, result);
+  }
+  if (isIncompleteReplay(response)) {
+    // A repeated write whose changes the server did not keep: the page catches up with the project instead.
+    return expandIncompleteAnswer(
+      result as T,
+      incompleteReplay(response),
+      (projectId) => request(`/api/projects/${encodeURIComponent(projectId)}/overview`),
+      path,
+      tag,
+      (projectId, since) => request<StructureChanges>(`/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`),
+    );
   }
   // A Structure write answers with its changes; the pages receive the whole Structure at that version.
   return expandStructureAnswer(

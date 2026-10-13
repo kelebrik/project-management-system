@@ -10,7 +10,7 @@ import type {
 import type { WbsFormState, wbsToForm } from "../app/formState";
 import { mergeWbsDrafts } from "../app/wbsDraftMerge";
 import { apiBase, authenticatedFetch } from "../app/http";
-import { onStructureChange, provideWriteTag } from "../app/structureStore";
+import { confirmedStructure, onStructureChange, provideWriteTag, reportStructureWriteFailure, StructureWriteSettledError } from "../app/structureStore";
 import { capUndoHistory, openUndoStep, rebaseAfterExactRevert, recordChange, revertRequest, stepIsEmpty, type WbsUndoStep } from "../app/undoHistory";
 import { useConfirm } from "./useConfirm";
 
@@ -108,6 +108,19 @@ export function useWbsSnapshotActions({
   const openStepRef = useRef<WbsUndoStep | null>(null);
   const revertStepRef = useRef<WbsUndoStep | null>(null);
 
+  // A write the server made whose answer was lost: the copy caught up with it, the page shows that copy.
+  useEffect(() => {
+    const onSettled = (event: Event) => {
+      const projectId = (event as CustomEvent<{ projectId?: string }>).detail?.projectId;
+      const current = projectRef.current;
+      const state = projectId ? confirmedStructure(projectId) : null;
+      if (!current || !state || current.id !== projectId) return;
+      applyWbsSnapshotResult(state.items, state.dependencies, state.criticalPath);
+    };
+    window.addEventListener("pms-structure-settled", onSettled);
+    return () => window.removeEventListener("pms-structure-settled", onSettled);
+  });
+
   // A write leaving now belongs to the open step; its answer is recorded there even when another edit has begun since.
   useEffect(() => provideWriteTag(() => openStepRef.current), []);
   useEffect(() => onStructureChange((change) => {
@@ -194,11 +207,9 @@ export function useWbsSnapshotActions({
       if (!stepIsEmpty(recorded) || recorded.incomplete) setTo(capUndoHistory([...to.current, recorded]));
       setNotice(direction === "undo" ? "Откат Структуры выполнен" : "Изменение Структуры восстановлено");
     } catch (restoreError) {
-      setError(
-        restoreError instanceof Error
-          ? restoreError.message
-          : "Не удалось восстановить Структуру",
-      );
+      // The server took the step back, its answer was lost: the step is done, and the way back is not known well enough to offer.
+      if (restoreError instanceof StructureWriteSettledError) setFrom(stack.slice(0, -1));
+      reportStructureWriteFailure(restoreError, "Не удалось восстановить Структуру", setError, setNotice);
     } finally {
       revertStepRef.current = null;
       setRestoringWbsSnapshot(false);
@@ -262,11 +273,7 @@ export function useWbsSnapshotActions({
           : t("baseline.savedAll"),
       );
     } catch (baselineError) {
-      setError(
-        baselineError instanceof Error
-          ? baselineError.message
-          : t("baseline.saveError"),
-      );
+      reportStructureWriteFailure(baselineError, t("baseline.saveError"), setError, setNotice);
     } finally {
       setSavingBaseline(false);
     }

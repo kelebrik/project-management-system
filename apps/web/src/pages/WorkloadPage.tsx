@@ -548,11 +548,17 @@ export function WorkloadPage() {
           onClose={() => setNewWork(null)}
           onCreated={({ item, project }) => {
             setNewWork(null);
-            setFeedback({
-              tone: "done",
-              message: t("ui.workload.newWorkCreated", { code: item.code, title: item.title, project: project.code }),
-              open: { projectId: project.id, href: `${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(item.id)}` },
-            });
+            setFeedback(item
+              ? {
+                  tone: "done",
+                  message: t("ui.workload.newWorkCreated", { code: item.code, title: item.title, project: project.code }),
+                  open: { projectId: project.id, href: `${appPathForView("project-structure", project.code)}?focusWbs=${encodeURIComponent(item.id)}` },
+                }
+              : {
+                  tone: "done",
+                  message: t("ui.workload.newWorkSaved", { project: project.code }),
+                  open: { projectId: project.id, href: appPathForView("project-structure", project.code) },
+                });
             setReloadToken((value) => value + 1);
           }}
           people={employeeNames}

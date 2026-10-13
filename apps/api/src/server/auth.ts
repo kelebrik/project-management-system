@@ -287,7 +287,7 @@ export function currentSessionId(req: Request) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!currentUser(req) && !currentApiToken(req)) {
-    res.status(401).json({ error: 'Требуется вход в систему' });
+    res.status(401).json({ error: 'Требуется вход в систему', code: 'SESSION_REQUIRED' });
     return;
   }
   next();

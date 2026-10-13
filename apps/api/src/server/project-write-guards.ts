@@ -39,6 +39,7 @@ export async function ensureProjectWritable(
   if (project.status === 'CLOSED') {
     res.status(423).json({
       error: 'Проект закрыт и доступен только для чтения',
+      code: 'PROJECT_CLOSED',
     });
     return null;
   }
@@ -61,6 +62,7 @@ export async function ensureEntityProjectWritable(
   if (project.status === 'CLOSED') {
     res.status(423).json({
       error: 'Проект закрыт и доступен только для чтения',
+      code: 'PROJECT_CLOSED',
     });
     return false;
   }

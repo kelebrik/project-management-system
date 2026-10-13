@@ -2,7 +2,8 @@ import { liveClientHeaders } from "./liveClient";
 import { businessUnitHeaders } from "./businessUnitContext";
 import { noticeScheduleShift } from "./scheduleShiftNotice";
 import { viewSectionHeaders } from "./sectionHeader";
-import { currentWriteTag, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
+import { currentWriteTag, expandIncompleteAnswer, expandStructureAnswer, structureDeltaHeaders, trackStructureWrite } from "./structureStore";
+import { incompleteReplay, isIncompleteReplay, isStructureMutation, requestHeaders, sendWithMutationRetry } from "./structureMutations";
 
 export const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -11,39 +12,49 @@ export async function authenticatedFetch(
   init: RequestInit = {},
 ) {
   const tag = currentWriteTag();
-  const { response, body } = await trackStructureWrite(init.method, async () => {
-    const response = await fetch(input, {
-      ...init,
-      credentials: "include",
-      headers: {
-        ...(init.body ? { "Content-Type": "application/json" } : {}),
-        ...businessUnitHeaders(),
-        ...viewSectionHeaders(),
-        ...liveClientHeaders(),
-        ...structureDeltaHeaders,
-        ...init.headers,
-      },
-    });
+  const requestPath = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
+  // One id for every attempt of a Structure mutation, so a repeat is answered, not run again.
+  const mutation = isStructureMutation(init.method, requestPath);
+  const headers = requestHeaders({
+    ...(init.body ? { "Content-Type": "application/json" } : {}),
+    ...businessUnitHeaders(),
+    ...viewSectionHeaders(),
+    ...liveClientHeaders(),
+    ...structureDeltaHeaders,
+  }, init.headers, init.method, requestPath);
+  const { response, body, text } = await trackStructureWrite(init.method, () => sendWithMutationRetry(mutation, async () => {
+    const response = await fetch(input, { ...init, credentials: "include", headers });
+    // A mutation's whole answer is read here, so a connection lost while reading sends it again.
+    const text = mutation && response.status !== 204 ? await response.text() : undefined;
+    const delta = response.ok && response.headers.get("X-PMS-Structure") === "delta";
+    const incomplete = response.ok && isIncompleteReplay(response);
     // An answer with Structure changes is read here, so it is counted out before it is expanded.
-    const body = response.ok && response.headers.get("X-PMS-Structure") === "delta" ? await response.json() : undefined;
-    return { response, body };
-  }, typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url);
+    const body = delta || incomplete ? (text !== undefined ? JSON.parse(text) : await response.json()) : undefined;
+    return { response, body, text };
+  }), requestPath);
   if (response.status === 401) {
     window.dispatchEvent(new CustomEvent("pms-auth-required"));
   }
   if (response.ok) noticeScheduleShift(response);
+  const reloadProject = async (projectId: string) => {
+    const project = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/overview`);
+    return project.ok ? project.json() : null;
+  };
+  const readChanges = async (projectId: string, since: string) => {
+    const changes = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`);
+    return changes.ok ? changes.json() : null;
+  };
   if (body !== undefined) {
-    // The answer carries Structure changes: whoever reads it gets the whole Structure at that version.
-    const requestPath = typeof input === "string" ? input : input instanceof URL ? input.pathname : input.url;
-    const expanded = await expandStructureAnswer(body, async (projectId) => {
-      const project = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/overview`);
-      return project.ok ? project.json() : null;
-    }, requestPath, tag, async (projectId, since) => {
-      const changes = await authenticatedFetch(`${apiBase}/api/projects/${encodeURIComponent(projectId)}/structure?since=${encodeURIComponent(since)}`);
-      return changes.ok ? changes.json() : null;
-    });
+    // The answer carries Structure changes, or stands for a write whose changes are unknown: whoever reads it gets the whole Structure at that version.
+    const expanded = isIncompleteReplay(response)
+      ? await expandIncompleteAnswer(body, incompleteReplay(response), reloadProject, requestPath, tag, readChanges)
+      : await expandStructureAnswer(body, reloadProject, requestPath, tag, readChanges);
     Object.defineProperty(response, "json", { value: async () => expanded });
     Object.defineProperty(response, "text", { value: async () => JSON.stringify(expanded) });
+  } else if (text !== undefined) {
+    // The body was already read; callers read it again from here.
+    Object.defineProperty(response, "json", { value: async () => JSON.parse(text) });
+    Object.defineProperty(response, "text", { value: async () => text });
   }
   return response;
 }

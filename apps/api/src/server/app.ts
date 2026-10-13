@@ -5,6 +5,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { prisma } from '../db.js';
 import { isJiraConfigured } from '../jira.js';
 import { openApiDocument } from '../openapi.js';
+import { structureMutationMiddleware } from '../services/structure-mutations.js';
 import { createProjectEventsRouter, projectLiveEventsMiddleware } from '../routes/project-events.routes.js';
 import { markStructureDeltaAnswers } from '../services/wbs-structure-delta.js';
 import { StructureWriteRejection } from '../services/wbs-structure-write.js';
@@ -117,7 +118,7 @@ export function createApp() {
       origin: corsOrigin(),
       credentials: true,
       // The page reads which journal operation a structure edit made and whether it needs a reason.
-      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-PMS-Structure'],
+      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-PMS-Structure', 'X-PMS-Structure-Version', 'X-PMS-Mutation-Replayed', 'X-PMS-Mutation-Incomplete', 'X-PMS-Structure-Project'],
     }),
   );
   app.use('/api', (_req, res, next) => {
@@ -185,6 +186,8 @@ export function createApp() {
 
   app.use('/api', createProjectEventsRouter());
   app.use('/api', createProjectHistoryRouter());
+  // A Structure write sent again with its mutation id is answered with its first outcome, before write checks run it anew.
+  app.use('/api', structureMutationMiddleware());
   app.use('/api', writePermissionMiddleware);
   app.use('/api', projectLiveEventsMiddleware);
   app.use('/api', markStructureDeltaAnswers);

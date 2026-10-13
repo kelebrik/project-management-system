@@ -885,6 +885,32 @@ model ProjectStructureChange {
   @@id([projectId, version, entityType, entityId])
 }
 
+/// A Structure write sent with a mutation id: claimed while it runs, then its
+/// outcome, so the same request sent again is answered without running twice.
+model StructureMutationReceipt {
+  userId          String
+  mutationId      String
+  /// Null only for a refusal given before the project was known.
+  projectId       String?
+  method          String
+  path            String
+  payloadHash     String
+  baseVersion     BigInt?
+  /// IN_PROGRESS while its request runs, then COMMITTED or TERMINAL (refused for good).
+  state           String
+  /// Who runs it now: a claim left by a dead request is taken over with a new token.
+  claimToken      String
+  claimedAt       DateTime @default(now()) @db.Timestamptz(3)
+  commitVersion   BigInt?
+  /// The answer as sent: status, body and the headers the page reads.
+  outcome         Json?
+  outcomeComplete Boolean  @default(false)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([userId, mutationId])
+  @@index([createdAt])
+}
+
 model WbsCommand {
   id               String         @id @default(cuid())
   projectId        String

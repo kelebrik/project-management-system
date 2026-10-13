@@ -3,16 +3,20 @@ import { mockAdminProject } from "./overview-and-baseline.support";
 
 const V1 = "2026-10-01T09:00:00.000Z";
 
-type Captured = { method: string; url: string; body: unknown };
+type Captured = { method: string; url: string; body: unknown; mutationId?: string };
 
 /** Wednesday 7 October 2026. Ivanov works 5–9 October in a project planned in the Chinese calendar. */
-async function mockWorkload(page: Page, options: { savedViews?: Array<Record<string, unknown>> } = {}) {
+/** What the server answers when new work is made: the row, or a repeat whose answer was lost (only the version is known). */
+type AppendAnswer = "row" | "lost" | "replayed";
+
+async function mockWorkload(page: Page, options: { savedViews?: Array<Record<string, unknown>>; append?: AppendAnswer } = {}) {
   await page.clock.setFixedTime(new Date("2026-10-07T12:00:00"));
   await mockAdminProject(page);
   const calls: Captured[] = [];
   let views = options.savedViews ?? [];
-  await page.route(/\/api\/workload(\?.*)?$/, (route) =>
-    route.fulfill({
+  await page.route(/\/api\/workload(\?.*)?$/, (route) => {
+    calls.push({ method: "GET", url: route.request().url(), body: null });
+    return route.fulfill({
       json: {
         projects: [{ id: "project-1", code: "TV-OVERVIEW", name: "Телевизор" }],
         items: [
@@ -30,8 +34,8 @@ async function mockWorkload(page: Page, options: { savedViews?: Array<Record<str
         leaves: [],
         calendarDays: [],
       },
-    }),
-  );
+    });
+  });
   await page.route(/\/api\/workload\/parents\?.*/, (route) =>
     route.fulfill({
       json: {
@@ -42,8 +46,24 @@ async function mockWorkload(page: Page, options: { savedViews?: Array<Record<str
       },
     }),
   );
-  await page.route(/\/api\/projects\/project-1\/wbs-items\/append$/, (route) => {
-    calls.push({ method: "POST", url: route.request().url(), body: route.request().postDataJSON() });
+  await page.route(/\/api\/projects\/project-1\/wbs-items\/append$/, async (route) => {
+    calls.push({ method: "POST", url: route.request().url(), body: route.request().postDataJSON(), mutationId: (await route.request().headerValue("x-pms-mutation-id")) ?? undefined } as Captured);
+    if (options.append === "replayed") {
+      // The first answer is lost on the way; the same mutation sent again is answered with the first outcome.
+      if (calls.filter((call) => call.url.endsWith("/wbs-items/append")).length === 1) return route.abort("connectionreset");
+      return route.fulfill({
+        status: 201,
+        headers: { "X-PMS-Mutation-Replayed": "1", "X-PMS-Structure": "delta", "X-PMS-Structure-Version": "4" },
+        json: { item: { id: "new-1", code: "1.3", title: "Прошивка" }, structureDelta: { projectId: "project-1", baseVersion: "3", version: "4", items: [], deletedItemIds: [], dependencies: [], deletedDependencyIds: [], today: "2026-10-07" } },
+      });
+    }
+    if (options.append === "lost") {
+      return route.fulfill({
+        status: 200,
+        headers: { "X-PMS-Mutation-Replayed": "1", "X-PMS-Mutation-Incomplete": "1", "X-PMS-Structure-Project": "project-1", "X-PMS-Structure-Version": "4" },
+        json: { replayed: true, incomplete: true, projectId: "project-1", structureVersion: "4" },
+      });
+    }
     return route.fulfill({ status: 201, json: { item: { id: "new-1", code: "1.3", title: "Прошивка" } } });
   });
   await page.route(/\/api\/wbs-items\/[^/]+$/, (route) => {
@@ -169,4 +189,54 @@ test("filters stay as they were after leaving the page", async ({ page }) => {
   await page.getByRole("checkbox", { name: "Только с наложениями" }).check();
   await page.reload();
   await expect(page.getByRole("checkbox", { name: "Только с наложениями" })).toBeChecked();
+});
+
+/** Starts new work for Ivanov from Monday 12 to Wednesday 14 October and sends it. */
+async function createWork(page: Page) {
+  const box = (await bar(page, "1").boundingBox())!;
+  const dayWidth = box.width / 5;
+  const laneBox = (await page.locator('.workload-lane[data-owner="иванов"]').boundingBox())!;
+  const y = laneBox.y + laneBox.height - 3;
+  await page.mouse.move(box.x + 7 * dayWidth + dayWidth / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 9 * dayWidth + dayWidth / 2, y, { steps: 6 });
+  await page.mouse.up();
+  const dialog = page.getByRole("dialog", { name: "Новая работа" });
+  await dialog.getByLabel("Название").fill("Прошивка");
+  await dialog.getByRole("button", { name: "Создать" }).click();
+  return dialog;
+}
+
+for (const caughtUp of [true, false]) {
+  test(`work the server made whose answer was lost closes the form and reloads the list (${caughtUp ? "caught up" : "not caught up"})`, async ({ page }) => {
+    const calls = await mockWorkload(page, { append: "lost" });
+    if (caughtUp) {
+      // The page reads the project at the version the lost answer named.
+      await page.route("**/api/projects/project-1/overview", (route) => route.fulfill({ json: { id: "project-1", structureVersion: "4", wbsItems: [], wbsDependencies: [] } }));
+    }
+    const loadsBefore = calls.filter((call) => call.method === "GET").length;
+    const dialog = await createWork(page);
+
+    await expect(page.getByRole("status")).toContainText("Работа создана в TV-OVERVIEW, список обновлён");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Открыть в Структуре" })).toHaveAttribute("href", "/TV-OVERVIEW/wbs");
+    await expect.poll(() => calls.filter((call) => call.method === "GET").length).toBeGreaterThan(loadsBefore);
+    // Made once: nothing sends it again.
+    expect(calls.filter((call) => call.url.endsWith("/wbs-items/append"))).toHaveLength(1);
+  });
+}
+
+test("work answered again after a lost answer, whose project cannot be read, is still reported made and not sent anew", async ({ page }) => {
+  const calls = await mockWorkload(page, { append: "replayed" });
+  await page.route("**/api/projects/project-1/overview", (route) => route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }));
+  await page.route("**/api/projects/project-1/structure?**", (route) => route.fulfill({ status: 503, json: { error: "Сервис недоступен" } }));
+  const dialog = await createWork(page);
+
+  await expect(page.getByRole("status")).toContainText("Работа создана в TV-OVERVIEW, список обновлён");
+  await expect(dialog).toHaveCount(0);
+  const appends = calls.filter((call) => call.url.endsWith("/wbs-items/append"));
+  expect(appends).toHaveLength(2);
+  // Both attempts are one mutation.
+  expect(new Set(appends.map((call) => call.mutationId)).size).toBe(1);
+  expect(appends[0]!.mutationId).toMatch(/^[0-9a-f-]{36}$/);
 });
