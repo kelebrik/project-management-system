@@ -37,24 +37,6 @@ export const projectNavItems: ProjectNavItem[] = [
     icon: <ListChecks size={17} />,
   },
   {
-    key: "jiraWork",
-    view: "project-jira-work",
-    label: "view.project-jira-work",
-    icon: <BriefcaseBusiness size={17} />,
-  },
-  {
-    key: "passport",
-    view: "project-passport",
-    label: "view.project-passport",
-    icon: <FileText size={17} />,
-  },
-  {
-    key: "businessRequirements",
-    view: "project-business-requirements",
-    label: "view.project-business-requirements",
-    icon: <FileSpreadsheet size={17} />,
-  },
-  {
     key: "issues",
     view: "project-issues",
     label: "view.project-issues",
@@ -71,6 +53,24 @@ export const projectNavItems: ProjectNavItem[] = [
     view: "project-raid",
     label: "view.project-raid",
     icon: <BarChart3 size={17} />,
+  },
+  {
+    key: "jiraWork",
+    view: "project-jira-work",
+    label: "view.project-jira-work",
+    icon: <BriefcaseBusiness size={17} />,
+  },
+  {
+    key: "passport",
+    view: "project-passport",
+    label: "view.project-passport",
+    icon: <FileText size={17} />,
+  },
+  {
+    key: "businessRequirements",
+    view: "project-business-requirements",
+    label: "view.project-business-requirements",
+    icon: <FileSpreadsheet size={17} />,
   },
   {
     key: "artifacts",

@@ -161,11 +161,16 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
   );
   await expect(projectNav.getByRole("button", { name: "Риски" })).toBeVisible();
   const projectTabLabels = await projectNav.locator("button").allTextContents();
-  const jiraWorkIndex = projectTabLabels.findIndex((label) => label.trim() === "Работы Jira");
-  const structureIndex = projectTabLabels.findIndex((label) => label.trim() === "Структура");
-  expect(jiraWorkIndex).toBeGreaterThanOrEqual(0);
+  const trimmedTabLabels = projectTabLabels.map((label) => label.trim());
+  const structureIndex = trimmedTabLabels.indexOf("Структура");
   expect(structureIndex).toBeGreaterThanOrEqual(0);
-  expect(jiraWorkIndex).toBe(structureIndex + 1);
+  expect(trimmedTabLabels.slice(structureIndex, structureIndex + 5)).toEqual([
+    "Структура",
+    "Вопросы",
+    "Решения",
+    "Риски",
+    "Работы Jira",
+  ]);
   const projectTabsFit = await projectNav.locator(".section-tabs").evaluate(
     (element) => element.scrollWidth <= element.clientWidth + 1,
   );
@@ -362,6 +367,9 @@ test("project navigation and current work reflect the structure", async ({ page 
     "Гантт",
     "Текучка",
     "Структура",
+    "Вопросы",
+    "Решения",
+    "Риски",
     "Работы Jira",
     "Паспорт",
     "Требования",

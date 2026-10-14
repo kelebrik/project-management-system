@@ -57,14 +57,14 @@ test("English FAQ keeps the same anchors and section shape as the Russian FAQ", 
   );
 });
 
-test("FAQ documents Structure immediately before Jira Work", () => {
+test("FAQ documents Issues, Decisions and Risks between Structure and Jira Work", () => {
   assert.match(
     articleTextById(wikiGroups, "wiki-navigation-access"),
-    /Текучка, Структура, Работы Jira, Паспорт/,
+    /Текучка, Структура, Вопросы, Решения, Риски, Работы Jira, Паспорт/,
   );
   assert.match(
     articleTextById(englishWikiGroups, "wiki-navigation-access"),
-    /Current Work, WBS, Jira Work, Charter/,
+    /Current Work, WBS, Issues, Decisions, Risks, Jira Work, Charter/,
   );
 });
 
