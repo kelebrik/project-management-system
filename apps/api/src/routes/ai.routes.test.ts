@@ -29,6 +29,7 @@ type Setup = {
   reserve?: unknown;
   extract?: (input: any) => Promise<unknown>;
   body?: unknown;
+  now?: () => Date;
 };
 
 async function post(setup: Setup & { path?: string; report?: unknown; draft?: unknown; prep?: unknown; editable?: boolean }) {
@@ -36,6 +37,7 @@ async function post(setup: Setup & { path?: string; report?: unknown; draft?: un
   const audits: any[] = [];
   let extracted: any;
   const router = createAiRouter({
+    now: setup.now,
     config: setup.config ?? enabled,
     reserve: (async () => setup.reserve ?? { ok: true, id: 'usage-1' }) as any,
     finish: (async (id: string, status: string, usage: unknown) => {
@@ -330,7 +332,8 @@ test('a question about the project is answered from its data and only its length
 });
 
 test('workload rebalancing works across projects, needs one the user may change, and audits counters only', async () => {
-  const { res, audits, extracted } = await post({ path: '/ai/workload-rebalance', body: { horizonDays: 60, locale: 'en' } });
+  // A fixed day before the work ends, so the work stays in the window whatever the date.
+  const { res, audits, extracted } = await post({ path: '/ai/workload-rebalance', body: { horizonDays: 60, locale: 'en' }, now: () => new Date('2026-10-01T09:00:00Z') });
   assert.equal(res.statusCode, 200, JSON.stringify(res.body));
   assert.equal(extracted.locale, 'en');
   assert.equal(JSON.parse(extracted.facts.text).window.days, 60);
