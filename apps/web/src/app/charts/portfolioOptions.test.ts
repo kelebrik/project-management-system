@@ -3,12 +3,12 @@ import test from "node:test";
 
 import type { PortfolioGoalTimelineProjectRow, PortfolioRedRaidItem } from "../portfolioModels";
 import type { AppChartColors } from "./appChartTheme";
-import { PROGRESS_BOTTOM, PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioDaysUntil, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText } from "./portfolioOptions";
+import { PROGRESS_BOTTOM, PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioDaysUntil, progressEndDate, structureEndDateOf, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText } from "./portfolioOptions";
 
 const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
 const text: PortfolioChartText = {
   today: "Today", baseline: "Baseline", forecast: "Forecast", noBaseline: "no baseline", daysLater: (n) => `+${n} d`, daysEarlier: (n) => `-${n} d`, onTime: "on time",
-  start: "Start", target: "Target", done: (p) => `${p}% done`, noWork: "no work", overdue: "Overdue", daysUntil: "Days until due", score: "Score", impact: (d) => `+${d} d`, owner: "Owner", dueDate: "Due",
+  start: "Start", target: "Target", structureEnd: "WBS end", done: (p) => `${p}% done`, noWork: "no work", overdue: "Overdue", daysUntil: "Days until due", score: "Score", impact: (d) => `+${d} d`, owner: "Owner", dueDate: "Due",
   date: (d) => d.slice(0, 10), titles: { goals: "Goals", progress: "Progress", problems: "Problems", risks: "Risks" },
 };
 const today = "2026-10-08";
@@ -48,25 +48,61 @@ test("portfolio goals: one row per goal named with its project, bands per projec
 test("portfolio progress: start to target with the share done filled in; a project without work has no fill", () => {
   const options = portfolioProgressOption({
     projects: [
-      { id: "p1", code: "TV", name: "TV", rag: "GREEN", startDate: "2026-01-01", targetDate: "2026-12-31", completedPercent: 40 },
-      { id: "p2", code: "AU", name: "Audio", rag: "RED", startDate: "2026-02-01", targetDate: "2026-10-31", completedPercent: null },
+      { id: "p1", code: "TV", name: "TV", rag: "GREEN", startDate: "2026-01-01", targetDate: "2026-12-31", endDate: "2026-12-31", completedPercent: 40 },
+      { id: "p2", code: "AU", name: "Audio", rag: "RED", startDate: "2026-02-01", targetDate: "2026-10-31", endDate: "2027-03-24", completedPercent: null },
     ],
     today, colors, text, onPick: () => undefined,
   })!;
   const [tv, audio] = series(options);
   assert.deepEqual(tv!.partialFill, { amount: 0.4, fill: "#16a34a" });
   assert.equal("partialFill" in audio!, false);
+  // The bar runs to the project's end, past a target the Structure has outgrown.
+  assert.equal(audio!.x2, Date.parse("2027-03-24") + 86_400_000);
   // A row of fixed height per project, so the passport fields beside it line up row for row.
   assert.equal(options.chart?.height, PROGRESS_TOP + 2 * PROGRESS_ROW + PROGRESS_BOTTOM);
   assert.deepEqual([options.chart?.marginTop, options.chart?.marginBottom], [PROGRESS_TOP, PROGRESS_BOTTOM]);
   // The passport list draws the same projects in the same order as the chart.
   assert.deepEqual(drawableProgressProjects([
-    { id: "a", code: "A", name: "A", rag: "GREEN", startDate: "2026-05-01", targetDate: "2026-04-01", completedPercent: 0 },
-    { id: "b", code: "B", name: "B", rag: "GREEN", startDate: "2026-01-01", targetDate: "2026-04-01", completedPercent: 0 },
+    { id: "a", code: "A", name: "A", rag: "GREEN", startDate: "2026-05-01", targetDate: "2026-04-01", endDate: "2026-04-01", completedPercent: 0 },
+    { id: "b", code: "B", name: "B", rag: "GREEN", startDate: "2026-01-01", targetDate: "2026-04-01", endDate: "2026-04-01", completedPercent: 0 },
   ]).map((project) => project.id), ["b"]);
 });
 
 const item = (patch: Partial<PortfolioRedRaidItem>): PortfolioRedRaidItem => ({ id: "r", type: "RISK", title: "Late parts", owner: "Anna", dueDate: "2026-10-01", riskScore: 20, scheduleImpactDays: 5, jiraTicketKey: null, jiraTicketUrl: null, status: "OPEN", projectId: "p1", projectName: "TV", ...patch }) as PortfolioRedRaidItem;
+
+test("a project's bar ends at its target or the Structure's last date, whichever is later", () => {
+  // A stale target: a milestone of the Structure goes on to March.
+  assert.equal(progressEndDate("2026-09-03T00:00:00.000Z", "2027-03-24T00:00:00.000Z"), "2027-03-24");
+  // A target later than all the work stays the end.
+  assert.equal(progressEndDate("2027-01-01T00:00:00.000Z", "2026-11-25T00:00:00.000Z"), "2027-01-01");
+  // One of them alone; neither: no end.
+  assert.equal(progressEndDate(null, "2026-11-25T00:00:00.000Z"), "2026-11-25");
+  assert.equal(progressEndDate("2026-11-25T00:00:00.000Z", null), "2026-11-25");
+  assert.equal(progressEndDate(null, null), null);
+});
+
+test("a Structure's last date: a due or forecast date of a row not cancelled, as the projects list counts it", () => {
+  const row = (status: string, dueDate: string | null, forecastDueDate: string | null = null) => ({ status, dueDate, forecastDueDate });
+  assert.equal(structureEndDateOf([row("DONE", "2026-06-03T00:00:00.000Z"), row("NOT_STARTED", "2027-03-24T00:00:00.000Z"), row("CANCELLED", "2028-01-05T00:00:00.000Z")]), "2027-03-24");
+  assert.equal(structureEndDateOf([row("IN_PROGRESS", "2026-10-01", "2026-12-01")]), "2026-12-01");
+  assert.equal(structureEndDateOf([]), null);
+});
+
+test("the tooltip names the Structure's last date only when the bar ends there", () => {
+  const options = portfolioProgressOption({
+    projects: [
+      { id: "p1", code: "TV", name: "TV", rag: "GREEN", startDate: "2026-01-01T00:00:00.000Z", targetDate: "2027-01-01T00:00:00.000Z", endDate: "2027-01-01", completedPercent: 40 },
+      { id: "p2", code: "AU", name: "Audio", rag: "GREEN", startDate: "2026-01-01T00:00:00.000Z", targetDate: "2026-09-03T00:00:00.000Z", endDate: "2027-03-24", completedPercent: 40 },
+    ],
+    today, colors, text, onPick: () => undefined,
+  })!;
+  const tooltip = (y: number) => (options.tooltip!.formatter as unknown as (this: unknown) => string).call({ y });
+  const [tv, audio] = series(options);
+  assert.equal(tooltip(0).includes("WBS end"), false);
+  assert.equal(String((tv!.accessibility as { description: string }).description).includes("WBS end"), false);
+  assert.equal(tooltip(1).includes("WBS end: 2027-03-24"), true);
+  assert.equal(String((audio!.accessibility as { description: string }).description).includes("WBS end 2027-03-24"), true);
+});
 
 test("problems and risks: bubbles by days until due, score and impact; items without a due date are left to the list", () => {
   const picked: string[] = [];

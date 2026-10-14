@@ -31,6 +31,7 @@ export type PortfolioChartText = {
   onTime: string;
   start: string;
   target: string;
+  structureEnd: string;
   done: (percent: number) => string;
   noWork: string;
   overdue: string;
@@ -187,7 +188,20 @@ export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProject
   };
 }
 
-export type PortfolioProgressProject = { id: string; code: string; name: string; rag: string; startDate: string; targetDate: string; completedPercent: number | null };
+/** The bar runs from startDate to endDate: the target, or the Structure's last date when that is later. */
+export type PortfolioProgressProject = { id: string; code: string; name: string; rag: string; startDate: string; targetDate: string; endDate: string; completedPercent: number | null };
+
+/**
+ * Where a project's bar ends: its target date, or the last date of its
+ * Structure when that is later, so work, milestones and goals past the target
+ * stay on the bar. Both are days, YYYY-MM-DD.
+ */
+export function progressEndDate(targetDate: string | null | undefined, structureEndDate: string | null | undefined) {
+  const target = targetDate ? targetDate.slice(0, 10) : null;
+  const structure = structureEndDate ? structureEndDate.slice(0, 10) : null;
+  if (!target || !structure) return target ?? structure;
+  return structure > target ? structure : target;
+}
 
 const ragColor = (rag: string, colors: AppChartColors) => (rag === "GREEN" ? EARLY : rag === "AMBER" ? colors.warning : rag === "RED" ? LATE : colors.muted);
 
@@ -200,12 +214,28 @@ export const PROGRESS_ROW = 56;
 export const PROGRESS_TOP = 28;
 export const PROGRESS_BOTTOM = 34;
 
-/** The projects the progress chart draws, in its order: those with a start and a target not before it. */
-export function drawableProgressProjects(projects: PortfolioProgressProject[]) {
-  return projects.filter((project) => project.startDate && project.targetDate && time(project.targetDate) >= time(project.startDate));
+/** The last due or forecast date of a Structure's rows not cancelled, as the projects list counts it. */
+export function structureEndDateOf(items: Array<{ status: string; dueDate: string | null; forecastDueDate?: string | null }>) {
+  let end: string | null = null;
+  for (const item of items) {
+    if (item.status === "CANCELLED") continue;
+    for (const value of [item.dueDate, item.forecastDueDate]) {
+      const day = value ? value.slice(0, 10) : null;
+      if (day && (!end || day > end)) end = day;
+    }
+  }
+  return end;
 }
 
-/** Each project from its start to its target, the share of work done filled in, coloured by its RAG; a click opens it. */
+/** The Structure's last date is named when the bar ends there: no target, or past it. */
+const structureEndShown = (project: PortfolioProgressProject) => !project.targetDate || project.endDate > project.targetDate.slice(0, 10);
+
+/** The projects the progress chart draws, in its order: those with a start and an end not before it. */
+export function drawableProgressProjects(projects: PortfolioProgressProject[]) {
+  return projects.filter((project) => project.startDate && project.endDate && time(project.endDate) >= time(project.startDate));
+}
+
+/** Each project from its start to its end, the share of work done filled in, coloured by its RAG; a click opens it. */
 export function portfolioProgressOption(input: { projects: PortfolioProgressProject[]; today: string; colors: AppChartColors; text: PortfolioChartText; onPick: (projectId: string) => void }): Options | null {
   const { colors, text } = input;
   const projects = drawableProgressProjects(input.projects);
@@ -225,7 +255,9 @@ export function portfolioProgressOption(input: { projects: PortfolioProgressProj
       formatter: function () {
         const project = projects[(this as unknown as { y: number }).y];
         if (!project) return false;
-        return `<b>${project.code} · ${project.name}</b><br/>${text.start}: ${text.date(project.startDate)}<br/>${text.target}: ${text.date(project.targetDate)}<br/>${project.completedPercent === null ? text.noWork : text.done(project.completedPercent)}`;
+        const target = project.targetDate ? `<br/>${text.target}: ${text.date(project.targetDate)}` : "";
+        const end = structureEndShown(project) ? `<br/>${text.structureEnd}: ${text.date(project.endDate)}` : "";
+        return `<b>${project.code} · ${project.name}</b><br/>${text.start}: ${text.date(project.startDate)}${target}${end}<br/>${project.completedPercent === null ? text.noWork : text.done(project.completedPercent)}`;
       },
     },
     plotOptions: { series: { cursor: "pointer", point: { events: { click: function () { const project = projects[(this as unknown as { y: number }).y]; if (project) input.onPick(project.id); } } } } },
@@ -245,12 +277,12 @@ export function portfolioProgressOption(input: { projects: PortfolioProgressProj
         },
         data: projects.map((project, index): XrangePointOptionsObject => ({
           x: time(project.startDate),
-          x2: time(project.targetDate) + DAY,
+          x2: time(project.endDate) + DAY,
           y: index,
           color: `${ragColor(project.rag, colors)}40`,
           // No work, no fill: an empty bar is not "0 % done".
           ...(project.completedPercent === null ? {} : { partialFill: { amount: project.completedPercent / 100, fill: ragColor(project.rag, colors) } }),
-          accessibility: { description: `${project.code} · ${project.name}: ${text.start} ${text.date(project.startDate)}, ${text.target} ${text.date(project.targetDate)}, ${project.completedPercent === null ? text.noWork : text.done(project.completedPercent)}` },
+          accessibility: { description: `${project.code} · ${project.name}: ${text.start} ${text.date(project.startDate)}, ${project.targetDate ? `${text.target} ${text.date(project.targetDate)}, ` : ""}${structureEndShown(project) ? `${text.structureEnd} ${text.date(project.endDate)}, ` : ""}${project.completedPercent === null ? text.noWork : text.done(project.completedPercent)}` },
         })),
       },
     ],

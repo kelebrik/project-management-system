@@ -46,6 +46,14 @@ test('a project is created with its team and a Structure from a table, or not at
     // The table is the whole Structure: no standard rows beside it.
     assert.deepEqual(project.wbsItems.map((item) => item.code), ['1', '1.1', '1.2']);
 
+    // The projects list names the Structure's last date over all its rows, milestones too, cancelled ones not.
+    await prisma.wbsItem.create({ data: { projectId: project.id, code: '1.3', title: 'Поздняя веха', type: 'MILESTONE', status: 'NOT_STARTED', owner: '', sortOrder: 9000, wbsLevel: 2, parentId: project.wbsItems[0]!.id, startDate: new Date('2027-03-24'), dueDate: new Date('2027-03-24') } });
+    await prisma.wbsItem.create({ data: { projectId: project.id, code: '1.4', title: 'Отменённая', type: 'TASK', status: 'CANCELLED', owner: '', sortOrder: 9001, wbsLevel: 2, parentId: project.wbsItems[0]!.id, startDate: new Date('2028-01-01'), dueDate: new Date('2028-01-05') } });
+    const listed = await (await fetch(`${url}/api/projects`, { headers: { Cookie: cookie, 'x-business-unit-id': unit.id } })).json() as Array<{ id: string; structureEndDate: string | null; wbsItems: Array<{ type: string }> }>;
+    const row = listed.find((entry) => entry.id === project.id)!;
+    assert.equal(row.structureEndDate?.slice(0, 10), '2027-03-24');
+    assert.equal(row.wbsItems.some((item) => item.type === 'MILESTONE'), false);
+
     // Copying needs something to copy.
     assert.equal((await call('/api/projects', { ...base, code: `PTC-${suffix}`, structureSource: 'copy' })).status, 400);
     assert.equal((await call('/api/projects', { ...base, code: `PTT-${suffix}`, structureSource: 'table' })).status, 400);

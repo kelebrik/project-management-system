@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { useAppChartColors } from "../../app/charts/appChartTheme";
-import { PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioProgressOption, type PortfolioProgressProject } from "../../app/charts/portfolioOptions";
+import { PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioProgressOption, progressEndDate, type PortfolioProgressProject } from "../../app/charts/portfolioOptions";
 import { usePortfolioChartText } from "../../app/charts/usePortfolioChartText";
 import type { ProjectListItem } from "../../app/domainTypes";
 import { compactPassportRows } from "../../app/projectPassportRows";
@@ -32,7 +32,7 @@ export function ProjectProgressBoard({ projects, onOpenProject, onOpenPassport }
   const progressProjects = useMemo<PortfolioProgressProject[]>(
     () => projects.map((project) => {
       const progress = createProjectWorkProgress(project.wbsItems ?? []);
-      return { id: project.id, code: project.code, name: project.name, rag: project.rag, startDate: project.startDate, targetDate: project.targetDate, completedPercent: progress.totalDays > 0 ? progress.completedPercent : null };
+      return { id: project.id, code: project.code, name: project.name, rag: project.rag, startDate: project.startDate, targetDate: project.targetDate, endDate: progressEndDate(project.targetDate, project.structureEndDate) ?? "", completedPercent: progress.totalDays > 0 ? progress.completedPercent : null };
     }),
     [projects],
   );

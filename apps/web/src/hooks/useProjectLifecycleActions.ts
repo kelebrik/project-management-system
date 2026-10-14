@@ -31,6 +31,7 @@ import {
   type WbsTableColumnKey,
 } from "../app/wbsTable";
 import { shouldApplyProjectSnapshotAfterWbsSave } from "../wbsProjectLoadGuard";
+import { structureEndDateOf } from "../app/charts/portfolioOptions";
 
 type ProjectLifecycleActionsDeps = AppStateBag;
 
@@ -709,9 +710,10 @@ async function saveProjectTargetDate() {
       "Не удалось сохранить цель проекта",
     );
     applyProject(updated);
+    // The answer holds the whole Structure: the list's last date of it is counted again, as the goal moved.
     setProjects((currentProjects) =>
       currentProjects.map((item) =>
-        item.id === updated.id ? { ...item, ...updated } : item,
+        item.id === updated.id ? { ...item, ...updated, structureEndDate: structureEndDateOf(updated.wbsItems) } : item,
       ),
     );
     await reloadAuditEvents();

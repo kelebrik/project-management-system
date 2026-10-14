@@ -16,6 +16,7 @@ export function usePortfolioChartText() {
       onTime: uiText("ui.portfolio.chart.onTime"),
       start: uiText("ui.portfolio.chart.start"),
       target: uiText("ui.portfolio.chart.target"),
+      structureEnd: uiText("ui.portfolio.chart.structureEnd"),
       done: (percent) => uiText("ui.portfolio.chart.done", { percent }),
       noWork: uiText("ui.portfolio.chart.noWork"),
       overdue: uiText("ui.portfolio.chart.overdue"),

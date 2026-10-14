@@ -54,6 +54,8 @@ export type ProjectAccessLevel = "VIEW" | "EDIT" | "ADMIN";
 
 export type ProjectListItem = {
   id: string;
+  /** The last due or forecast date of the Structure's rows not cancelled, from the projects list. */
+  structureEndDate?: string | null;
   businessUnitId: string;
   businessUnit: { id: string; code: string; name: string };
   parentId: string | null;

@@ -73,11 +73,22 @@ export function registerProjectCrudRoutes(
   { requireAdmin, currentUser, ensureProjectWritable }: ProjectsRoutesContext,
 ) {
   router.get('/projects', async (req, res) => {
-    const projects = await prisma.project.findMany({
+    const listed = await prisma.project.findMany({
       where: await readableProjectWhere(req),
       orderBy: [{ sortOrder: 'asc' }, { updatedAt: 'desc' }],
       include: projectListInclude,
     });
+    // The list carries a part of each Structure; its last date is counted over all of it, milestones included.
+    const structureEnds = await prisma.wbsItem.groupBy({
+      by: ['projectId'],
+      where: { projectId: { in: listed.map((project) => project.id) }, status: { not: 'CANCELLED' } },
+      _max: { dueDate: true, forecastDueDate: true },
+    });
+    const structureEndById = new Map(structureEnds.map((row) => {
+      const days = [row._max.dueDate, row._max.forecastDueDate].filter((value): value is Date => value !== null);
+      return [row.projectId, days.length > 0 ? new Date(Math.max(...days.map((value) => value.getTime()))) : null] as const;
+    }));
+    const projects = listed.map((project) => ({ ...project, structureEndDate: structureEndById.get(project.id) ?? null }));
 
     const user = currentUser(req);
     if (!user) {

@@ -374,7 +374,8 @@ test("registry projects open their passport from the bar, the name or the passpo
 test("a registry project whose dates cannot be drawn stays listed and opens its passport", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   const [first, second] = navigableProjects();
-  const undated = { ...second, targetDate: "2026-01-01T00:00:00.000Z", startDate: "2026-06-01T00:00:00.000Z" };
+  // A target before the start and no Structure dates to stretch the bar to.
+  const undated = { ...second, targetDate: "2026-01-01T00:00:00.000Z", startDate: "2026-06-01T00:00:00.000Z", wbsItems: [] };
   await mockAdminPortfolio(page, [first, undated]);
   await page.route(/\/api\/projects\/(project-1|project-2)(\?.*)?$/, (route) => {
     const id = new URL(route.request().url()).pathname.split("/").at(-1);

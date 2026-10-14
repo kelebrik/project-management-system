@@ -6,7 +6,7 @@ export const portfolioMessages = {
     "ru": "Без даты старта или цели — не на графике:"
   },
   "ui.portfolio.openPassport": { "en": "Open the passport of {project}", "ru": "Открыть паспорт: {project}" },
-  "ui.portfolio.progressSubtitle": { "en": "From start to target; the filled part is the share of work done, the colour is the RAG; on the right, the passport fields. Click a bar to open the project, the fields to open its passport", "ru": "От старта до цели; залито — доля выполненных работ, цвет — светофор; справа — поля паспорта. Клик по полосе открывает проект, по полям — паспорт" },
+  "ui.portfolio.progressSubtitle": { "en": "From start to the project's last date (the target or the WBS, whichever is later); the filled part is the share of work done, the colour is the RAG; on the right, the passport fields. Click a bar to open the project, the fields to open its passport", "ru": "От старта до последней даты проекта (цель или Структура — что позже); залито — доля выполненных работ, цвет — светофор; справа — поля паспорта. Клик по полосе открывает проект, по полям — паспорт" },
   "ui.portfolio.raidChartHint": { "en": "Across — days until due (left of today is overdue), up — score, size — schedule impact; click a bubble to open it. Items without a due date are only in the list", "ru": "По горизонтали — дни до срока (левее «сегодня» — просрочено), по вертикали — оценка, размер — влияние на график; клик открывает запись. Без срока — только в списке" },
   "ui.portfolio.chart.today": { "en": "Today", "ru": "Сегодня" },
   "ui.portfolio.chart.baseline": { "en": "Baseline", "ru": "Базовый план" },
@@ -17,6 +17,7 @@ export const portfolioMessages = {
   "ui.portfolio.chart.onTime": { "en": "on the baseline", "ru": "по базовому плану" },
   "ui.portfolio.chart.start": { "en": "Start", "ru": "Старт" },
   "ui.portfolio.chart.target": { "en": "Target", "ru": "Цель" },
+  "ui.portfolio.chart.structureEnd": { "en": "Last date in the WBS", "ru": "Последняя дата в Структуре" },
   "ui.portfolio.chart.done": { "en": "{percent}% of work done", "ru": "Сделано {percent}% работ" },
   "ui.portfolio.chart.noWork": { "en": "no work planned", "ru": "работ нет" },
   "ui.portfolio.chart.overdue": { "en": "Overdue", "ru": "Просрочено" },
