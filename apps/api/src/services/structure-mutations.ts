@@ -47,7 +47,7 @@ const OUTCOME_LIMIT_BYTES = 512 * 1024;
 /** Refusals that stay refusals: the same request would be refused again, so it is answered the same. */
 const TERMINAL_STATUSES = new Set([400, 403, 404, 409, 422, 423]);
 /** The answer's headers a page reads, kept to answer a repeat the same way. */
-const KEPT_HEADERS = ['X-PMS-Structure', 'X-WBS-Updated-Count', 'X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed'];
+const KEPT_HEADERS = ['X-PMS-Structure', 'X-WBS-Updated-Count', 'X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-Schedule-Shift-Session-Id', 'X-Schedule-Shift-Project-Id', 'X-Schedule-Shift-Actor-Id'];
 
 const MUTATION_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VERSION = /^\d{1,19}$/;

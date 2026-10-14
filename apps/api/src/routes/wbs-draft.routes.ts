@@ -78,7 +78,7 @@ export function createWbsDraftRouter() {
     const draftKey = body.data.draftKey;
 
     const { createdIds, replayed, change } = await runWithWbsWriteQueue(project.id, () =>
-      trackScheduleShifts(project.id, { trigger: 'DRAFT', actor: shiftActor(demo ? null : user) }, async () => {
+      trackScheduleShifts(project.id, { trigger: 'DRAFT', actor: shiftActor(demo ? null : user), answer: res }, async () => {
       // The rows, their recalculation and the record of the draft commit together.
       return structureTransaction(async (tx) => {
         const written = await (async () => {
@@ -157,7 +157,7 @@ export function createWbsDraftRouter() {
         await recalculateProjectWbsHierarchyStatuses(project.id, tx);
         return { ...written, change: await finishStructureChange(tx, project.id, req) };
       });
-    }),
+    }, { replayed: (result) => result.replayed }),
     );
     res.status(replayed ? 200 : 201).json({ createdIds, replayed, ...structureResponse(change) });
   });

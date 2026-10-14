@@ -556,7 +556,7 @@ export function registerProjectCrudRoutes(
     const projectId = req.params.projectId;
     // The goal's new date is journaled with the reason given here, queued like any structure write.
     // The journal learns which goal moved once the goal is read under the lock.
-    const shiftContext: ShiftContext = { trigger: 'TARGET_DATE', sourceItemId: null, sourceNote: parsed.data.reason, actor: shiftActor(currentUser(req)) };
+    const shiftContext: ShiftContext = { trigger: 'TARGET_DATE', sourceItemId: null, sourceNote: parsed.data.reason, actor: shiftActor(currentUser(req)), answer: res };
     let outcome;
     try {
       outcome = await runWithWbsWriteQueue(projectId, () =>

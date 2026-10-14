@@ -133,8 +133,9 @@ test('days by reason count one operation once for a checkpoint, by its net move'
       row('m', 'SHIFT', 'late', 4, '2026-09-03T10:00:00Z'),
     ],
   );
-  // The move back takes back the latest move later first.
-  assert.deepEqual(ladder.reasonDays, { CUSTOMER: 3, NONE: 4 });
+  // The move back takes back the latest move later first. A step whose rows were given different
+  // reasons, or a reason only in part, counts as mixed: one reason does not explain the rest.
+  assert.deepEqual(ladder.reasonDays, { MIXED: 3, NONE: 4 });
 });
 
 test('a date sent far away and brought back counts nothing, and no baseline counts nothing', () => {
@@ -168,4 +169,105 @@ test('moves back take back later moves folded out of the ladder too', () => {
   const [ladder] = buildShiftLadders([checkpoint('m', '2026-11-07', '2026-11-01')], journal);
   assert.ok(ladder.earlierSteps);
   assert.deepEqual(ladder.reasonDays, { NONE: 6 });
+});
+
+// A move of one checkpoint from one date to another, in a session or none.
+const move = (checkpointId: string, operationId: string, from: string | null, to: string | null, at: string, extra: Record<string, unknown> = {}) =>
+  row(checkpointId, 'SHIFT', operationId, from && to ? calendarDaysBetween(day(from), day(to)) : null, at, { previousDate: from ? day(from) : null, newDate: to ? day(to) : null, ...extra });
+
+test('an editing session is one step of a checkpoint, by its net move', () => {
+  const [ladder] = buildShiftLadders(
+    [checkpoint('m', '2026-11-08', '2026-11-01')],
+    [
+      move('m', 'o1', '2026-11-01', '2026-11-10', '2026-10-14T10:00:00Z', { sessionId: 's1' }),
+      move('m', 'o2', '2026-11-10', '2026-11-04', '2026-10-14T10:05:00Z', { sessionId: 's1' }),
+      move('m', 'o3', '2026-11-04', '2026-11-08', '2026-10-14T10:09:00Z', { sessionId: 's1' }),
+    ],
+  );
+  assert.equal(ladder.steps.length, 1);
+  const [step] = ladder.steps;
+  assert.deepEqual([step.previousDate, step.newDate, step.deltaDays, step.trigger, step.operations, step.sessionId], ['2026-11-01', '2026-11-08', 7, 'SESSION', 3, 's1']);
+  assert.equal(step.shiftIds.length, 3);
+  assert.equal(step.needsReason, true);
+  assert.deepEqual(ladder.reasonDays, { NONE: 7 });
+  assert.deepEqual([ladder.varianceDays, ladder.unexplainedDays], [7, 0]);
+});
+
+test('a session that sent a date away and brought it back is no step; one from one person to another is two', () => {
+  const [back] = buildShiftLadders(
+    [checkpoint('m', '2026-11-01', '2026-11-01')],
+    [
+      move('m', 'o1', '2026-11-01', '2026-12-01', '2026-10-14T10:00:00Z', { sessionId: 's1' }),
+      move('m', 'o2', '2026-12-01', '2026-11-01', '2026-10-14T10:05:00Z', { sessionId: 's1' }),
+    ],
+  );
+  assert.equal(back, undefined, 'nothing moved and nothing is off the baseline');
+  const [two] = buildShiftLadders(
+    [checkpoint('m', '2026-11-06', '2026-11-01')],
+    [
+      move('m', 'o1', '2026-11-01', '2026-11-03', '2026-10-14T10:00:00Z', { sessionId: 's1' }),
+      move('m', 'o2', '2026-11-03', '2026-11-06', '2026-10-14T10:05:00Z', { sessionId: 's2' }),
+    ],
+  );
+  assert.deepEqual(two!.steps.map((step) => [step.sessionId, step.deltaDays]), [['s1', 2], ['s2', 3]]);
+});
+
+test('a date taken away and set again in a session counts by its ends, and is never hidden', () => {
+  const [ladder] = buildShiftLadders(
+    [checkpoint('m', '2026-11-15', '2026-11-10')],
+    [
+      move('m', 'o1', '2026-11-10', null, '2026-10-14T10:00:00Z', { sessionId: 's1' }),
+      move('m', 'o2', null, '2026-11-15', '2026-10-14T10:05:00Z', { sessionId: 's1' }),
+    ],
+  );
+  assert.deepEqual(ladder.steps.map((step) => step.deltaDays), [5]);
+  assert.deepEqual([ladder.varianceDays, ladder.unexplainedDays], [5, 0]);
+  assert.deepEqual(ladder.reasonDays, { NONE: 5 });
+  // An end without a date leaves the step without a number of days, but shown.
+  const [open] = buildShiftLadders(
+    [checkpoint('m', '2026-11-15', '2026-11-10')],
+    [move('m', 'o1', '2026-11-10', null, '2026-10-14T10:00:00Z', { sessionId: 's1' })],
+  );
+  assert.deepEqual(open.steps.map((step) => step.deltaDays), [null]);
+});
+
+test("rows before sessions stand by their operation; a session's reason is whole, none or mixed", () => {
+  const [ladder] = buildShiftLadders(
+    [checkpoint('m', '2026-11-12', '2026-11-01')],
+    [
+      move('m', 'old', '2026-11-01', '2026-11-03', '2026-10-01T10:00:00Z', { reasonCategory: 'SUPPLIER' }),
+      move('m', 'o1', '2026-11-03', '2026-11-05', '2026-10-14T10:00:00Z', { sessionId: 's1', reasonCategory: 'CUSTOMER', reasonText: 'Новые требования' }),
+      move('m', 'o2', '2026-11-05', '2026-11-07', '2026-10-14T10:05:00Z', { sessionId: 's1', reasonCategory: 'CUSTOMER', reasonText: 'Новые требования' }),
+      move('m', 'o3', '2026-11-07', '2026-11-09', '2026-10-15T10:00:00Z', { sessionId: 's2', reasonCategory: 'CUSTOMER' }),
+      move('m', 'o4', '2026-11-09', '2026-11-12', '2026-10-15T10:05:00Z', { sessionId: 's2' }),
+    ],
+  );
+  const [old, whole, mixed] = ladder.steps;
+  assert.deepEqual([old.sessionId, old.trigger, old.reason?.category, old.needsReason], [null, 'MANUAL_EDIT', 'SUPPLIER', false]);
+  assert.deepEqual(whole.reason, { category: 'CUSTOMER', text: 'Новые требования', raidItemId: null });
+  assert.equal(whole.needsReason, false);
+  // A reason given to part of a session does not explain the rest of it.
+  assert.deepEqual([mixed.reason?.category, mixed.needsReason], ['MIXED', true]);
+  assert.deepEqual(ladder.reasonDays, { SUPPLIER: 2, CUSTOMER: 4, MIXED: 5 });
+});
+
+test("a baseline saved within a session starts the checkpoint's history from it", () => {
+  const [ladder] = buildShiftLadders(
+    [checkpoint('m', '2026-11-12', '2026-11-10')],
+    [
+      move('m', 'o1', '2026-11-01', '2026-11-10', '2026-10-14T10:00:00Z', { sessionId: 's1' }),
+      row('m', 'BASELINE', 'o2', null, '2026-10-14T10:05:00Z', { sessionId: 's1' }),
+      move('m', 'o3', '2026-11-10', '2026-11-12', '2026-10-14T10:09:00Z', { sessionId: 's1' }),
+    ],
+  );
+  assert.deepEqual(ladder.steps.map((step) => [step.deltaDays, step.operations]), [[2, 1]]);
+});
+
+test('a step of an open session too large to name by its rows waits for the session to close', () => {
+  const rows = Array.from({ length: 51 }, (_, index) =>
+    move('m', `o${index}`, index % 2 ? '2026-11-02' : '2026-11-01', index % 2 ? '2026-11-01' : '2026-11-02', new Date(Date.UTC(2026, 9, 14, 10, index)).toISOString(), { sessionId: 's1' }));
+  const [open] = buildShiftLadders([checkpoint('m', '2026-11-02', '2026-11-01')], rows, new Set(['s1']));
+  assert.deepEqual([open.steps[0].sessionOpen, open.steps[0].reasonEditable], [true, false]);
+  const [closed] = buildShiftLadders([checkpoint('m', '2026-11-02', '2026-11-01')], rows);
+  assert.deepEqual([closed.steps[0].sessionOpen, closed.steps[0].reasonEditable], [false, true]);
 });

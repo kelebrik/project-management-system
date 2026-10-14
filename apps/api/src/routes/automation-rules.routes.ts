@@ -284,7 +284,7 @@ export function createAutomationRulesRouter() {
         const prepared = setStatusPayload.parse(proposal.payload);
         const itemId = proposal.wbsItemId;
         const { before, after, change } = await runWithWbsWriteQueue(project.id, () =>
-          trackScheduleShifts(project.id, { trigger: 'AUTOMATION', sourceItemId: itemId, actor: shiftActor(demo ? null : user) }, async () => {
+          trackScheduleShifts(project.id, { trigger: 'AUTOMATION', sourceItemId: itemId, actor: shiftActor(demo ? null : user), answer: res }, async () => {
             // The status, its recalculation and the journal commit together, on the versions the proposal saw.
             return structureTransaction(
               async (tx) => {

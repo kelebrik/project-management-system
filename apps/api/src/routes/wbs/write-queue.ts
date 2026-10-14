@@ -1,7 +1,7 @@
 import type { Request, RequestHandler, Response } from 'express';
 import { currentUser } from '../../server/auth.js';
 import { projectIdForWritePath } from '../../server/project-access.js';
-import { beginScheduleShiftTracking, type ShiftContext, type ShiftTracking } from '../../services/schedule-shifts.js';
+import { beginScheduleShiftTracking, shiftJournalHeaders, type OperationOutcome, type ShiftContext, type ShiftTracking } from '../../services/schedule-shifts.js';
 
 /** If a handler never answers after the client left, the queue is freed anyway after this long. */
 const ABANDONED_REQUEST_RELEASE_MS = 120_000;
@@ -91,10 +91,13 @@ function holdAnswerForJournal(res: Response, tracking: ShiftTracking | null, rel
     if (ending) return end(...args);
     ending = true;
     void (async () => {
-      const journal = tracking ? await tracking.finish() : null;
+      // A new change joins the person's editing session; a repeat or a refusal does not.
+      const outcome: OperationOutcome = res.getHeader('X-PMS-Mutation-Replayed')
+        ? 'replayed'
+        : res.statusCode >= 200 && res.statusCode < 300 ? 'succeeded' : 'failed';
+      const journal = tracking ? await tracking.finish(outcome) : null;
       if (journal && !res.headersSent) {
-        res.setHeader('X-Schedule-Shift-Operation-Id', journal.operationId);
-        res.setHeader('X-Schedule-Shift-Reason-Needed', String(journal.reasonNeeded));
+        for (const [name, value] of Object.entries(shiftJournalHeaders(journal))) res.setHeader(name, value);
       }
       try {
         end(...args);

@@ -16,6 +16,16 @@ export type ShiftStep = {
   actorName: string | null;
   reason: { category: string; text: string | null; raidItemId: string | null } | null;
   needsReason: boolean;
+  /** The editing session the step sums up; none for the system's and older steps. */
+  sessionId?: string | null;
+  /** The session is still being edited. */
+  sessionOpen?: boolean;
+  /** The journal rows the step sums up; a reason is given to all of them. */
+  shiftIds?: string[];
+  /** How many saves the step sums up. */
+  operations?: number;
+  /** False for an open session's step too large to name: its reason waits until the session ends. */
+  reasonEditable?: boolean;
 };
 
 export type ShiftLadder = {
@@ -67,6 +77,8 @@ export function shiftStepCause(step: ShiftStep, checkpointId: string, t: Transla
       return t("ui.shifts.causeRestoreDeleted");
     case "SYSTEM":
       return t("ui.shifts.causeSystem");
+    case "SESSION":
+      return t("ui.shifts.causeSession", { count: step.operations ?? 0 });
     default:
       return step.trigger;
   }

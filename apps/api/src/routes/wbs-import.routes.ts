@@ -191,7 +191,7 @@ export function createWbsImportRouter() {
     }
 
     const outcome = await runWithWbsWriteQueue(project.id, () =>
-      trackScheduleShifts(project.id, { trigger: 'IMPORT', actor: shiftActor(demo ? null : user) }, async () => {
+      trackScheduleShifts(project.id, { trigger: 'IMPORT', actor: shiftActor(demo ? null : user), answer: res }, async () => {
         // The import, its recalculation and its audit commit together or not at all.
         return structureTransaction(async (tx) => {
           const written = await applyWbsImport(tx, { projectId: project.id, rows, importKey, userId: demo ? null : user.id });
@@ -216,7 +216,7 @@ export function createWbsImportRouter() {
           }
           return { ...written, change: await finishStructureChange(tx, project.id, req) };
         });
-      }),
+      }, { replayed: (result) => result.replayed }),
     ).catch((error: unknown) => {
       if (error instanceof ImportRejected) {
         res.status(422).json(error.summary);

@@ -289,6 +289,7 @@ model Project {
   artifactFiles            ProjectArtifactFile[]
   businessRequirements     ProjectBusinessRequirements?
   scheduleShifts           ScheduleShift[]
+  scheduleShiftSessions    ScheduleShiftSession[]
   decisions                Decision[]
   planSnapshots            PlanSnapshot[]
   historySnapshots         ProjectHistorySnapshot[]
@@ -1629,6 +1630,8 @@ model ScheduleShift {
   actorId          String?
   actorName        String?
   operationId      String
+  /// The editing session the operation belongs to; none for the system and for rows before sessions.
+  sessionId        String?
   reasonCategory   String?
   reasonText       String?
   reasonRaidItemId String?
@@ -1636,10 +1639,34 @@ model ScheduleShift {
   reasonSetAt      DateTime?
   createdAt        DateTime  @default(now())
   project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  session          ScheduleShiftSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
 
   @@index([projectId, createdAt])
   @@index([checkpointId, createdAt])
   @@index([operationId])
+  @@index([sessionId])
+}
+
+/// One person's run of edits of a project: saves follow each other with pauses of
+/// at most 30 minutes and nobody else's change between them. The schedule shift
+/// journal counts a session as one step, and the reason for its moves is asked
+/// once it is closed: the person left the editing pages, stopped for 30 minutes
+/// or came back in a new tab. At most one session of a project is open; a closed
+/// one never gains rows (the session lock in services/schedule-shifts.ts).
+model ScheduleShiftSession {
+  id             String          @id @default(cuid())
+  projectId      String
+  actorId        String
+  actorName      String?
+  startedAt      DateTime        @default(now())
+  lastActivityAt DateTime        @default(now())
+  closedAt       DateTime?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shifts         ScheduleShift[]
+
+  @@index([projectId, actorId, closedAt])
 }
 
 /// A decision of the project: proposed, sent to one approver, or recorded as taken.

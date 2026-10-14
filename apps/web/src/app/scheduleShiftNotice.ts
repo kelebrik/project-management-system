@@ -1,12 +1,17 @@
-/** Sent when a save moved a milestone or goal past its baseline without a reason; carries the journal operation. */
-export const SCHEDULE_SHIFT_REASON_EVENT = "pms:schedule-shift-reason";
+import { noteShiftSession } from "./shiftSessions";
+
 /** Sent when reasons were saved, so the journal on the page reloads. */
 export const SCHEDULE_SHIFTS_CHANGED_EVENT = "pms:schedule-shifts-changed";
 
-/** Reads the journal headers of a structure save and asks for a reason when one is needed. */
+/**
+ * Reads the journal headers of a save: the editing session it joined and its
+ * project and person, as the server tells them, whatever page is shown by now. The reason
+ * for the moves is asked once the session ends, not after each save.
+ */
 export function noticeScheduleShift(response: Pick<Response, "headers">) {
-  const operationId = response.headers.get("X-Schedule-Shift-Operation-Id");
-  const needed = Number(response.headers.get("X-Schedule-Shift-Reason-Needed") ?? 0);
-  if (!operationId || !(needed > 0) || typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(SCHEDULE_SHIFT_REASON_EVENT, { detail: { operationId } }));
+  const sessionId = response.headers.get("X-Schedule-Shift-Session-Id");
+  const projectId = response.headers.get("X-Schedule-Shift-Project-Id");
+  const actorId = response.headers.get("X-Schedule-Shift-Actor-Id");
+  if (!sessionId || !projectId || !actorId) return;
+  noteShiftSession(projectId, sessionId, actorId);
 }

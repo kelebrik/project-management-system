@@ -16,23 +16,26 @@ async function setReason({
   const updates: any[] = [];
   const audits: any[] = [];
   const previous = prismaClientProvider.get;
-  prismaClientProvider.get = () =>
-    ({
-      project: { findUnique: async () => ({ id: 'p1', status }) },
-      projectAccess: { findUnique: async () => (access ? { level: access } : null) },
-      businessUnitMembership: { findFirst: async () => null },
-      scheduleShift: {
-        count: async (args: any) => {
-          assert.deepEqual(args.where.projectId, 'p1');
-          assert.equal(args.where.kind, 'SHIFT');
-          return found;
-        },
-        updateMany: async (args: any) => updates.push(args),
+  const client: Record<string, unknown> = {
+    project: { findUnique: async () => ({ id: 'p1', status }) },
+    projectAccess: { findUnique: async () => (access ? { level: access } : null) },
+    businessUnitMembership: { findFirst: async () => null },
+    scheduleShift: {
+      count: async (args: any) => {
+        assert.deepEqual(args.where.projectId, 'p1');
+        assert.equal(args.where.kind, 'SHIFT');
+        return found;
       },
-      raidItem: { findFirst: async (args: any) => (raidInProject && args.where.projectId === 'p1' ? { id: 'r1' } : null) },
-      auditEvent: { create: async (args: any) => audits.push(args.data) },
-      auditEventChange: { createMany: async () => ({}) },
-    }) as unknown as PrismaClient;
+      updateMany: async (args: any) => updates.push(args),
+    },
+    raidItem: { findFirst: async (args: any) => (raidInProject && args.where.projectId === 'p1' ? { id: 'r1' } : null) },
+    auditEvent: { create: async (args: any) => audits.push(args.data) },
+    auditEventChange: { createMany: async () => ({}) },
+    // The reason is written under the project's session lock.
+    $executeRaw: async () => 0,
+  };
+  client.$transaction = async (work: (db: unknown) => Promise<unknown>) => work(client);
+  prismaClientProvider.get = () => client as unknown as PrismaClient;
   const res: any = {
     statusCode: 200,
     body: undefined,

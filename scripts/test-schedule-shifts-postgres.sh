@@ -12,4 +12,4 @@ export DATABASE_URL="$SCHEDULE_SHIFT_TEST_DATABASE_URL"
 export SCHEDULE_SHIFT_TEST_DATABASE=true
 ./node_modules/.bin/prisma generate
 ./node_modules/.bin/prisma migrate deploy
-./node_modules/.bin/tsx --test tests/integration/schedule-shifts-postgres.test.ts
+./node_modules/.bin/tsx --test tests/integration/schedule-shifts-postgres.test.ts tests/integration/schedule-shift-sessions-postgres.test.ts

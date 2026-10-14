@@ -32,6 +32,7 @@ export function registerProjectCalendarRoutes(
             trigger: 'CALENDAR',
             sourceNote: `${date.toISOString().slice(0, 10)} ${parsed.data.isWorkingDay ? 'working' : 'day off'}`,
             actor: shiftActor(currentUser(req)),
+            answer: res,
           },
           () => runStructureWrite(projectId, async (db) => {
             const project = await db.project.findUnique({ where: { id: projectId }, select: { id: true } });
@@ -84,7 +85,7 @@ export function registerProjectCalendarRoutes(
       await runWithWbsWriteQueue(projectId, () =>
         trackScheduleShifts(
           projectId,
-          { trigger: 'CALENDAR', sourceNote: `${date.toISOString().slice(0, 10)} reset`, actor: shiftActor(currentUser(req)) },
+          { trigger: 'CALENDAR', sourceNote: `${date.toISOString().slice(0, 10)} reset`, actor: shiftActor(currentUser(req)), answer: res },
           () => runStructureWrite(projectId, async (db) => {
             const project = await db.project.findUnique({ where: { id: projectId }, select: { id: true, status: true } });
             if (!project) rejectStructureWrite(404, 'Проект не найден');

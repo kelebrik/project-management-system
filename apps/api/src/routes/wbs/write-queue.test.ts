@@ -75,6 +75,7 @@ function fakeResponse() {
   res.setHeader = (name: string, value: string) => {
     res.headers[name] = value;
   };
+  res.getHeader = (name: string) => res.headers[name];
   res.end = () => {
     res.ended = true;
     res.headersSent = true;
@@ -87,18 +88,31 @@ function fakeResponse() {
 function mockJournal() {
   let due = '2026-11-01';
   const created: any[] = [];
+  const sessions: any[] = [];
   const previous = prismaClientProvider.get;
-  prismaClientProvider.get = () =>
-    ({
-      wbsItem: {
-        findMany: async () => [
-          { id: 'm1', code: '1.5', title: 'Веха', type: 'MILESTONE', dueDate: new Date(`${due}T00:00:00Z`), baselineDueDate: new Date('2026-11-01T00:00:00Z') },
-        ],
-        findUnique: async () => ({ code: '1.2', title: 'Задача' }),
+  const client: Record<string, unknown> = {
+    wbsItem: {
+      findMany: async () => [
+        { id: 'm1', code: '1.5', title: 'Веха', type: 'MILESTONE', dueDate: new Date(`${due}T00:00:00Z`), baselineDueDate: new Date('2026-11-01T00:00:00Z') },
+      ],
+      findUnique: async () => ({ code: '1.2', title: 'Задача' }),
+    },
+    scheduleShift: { createMany: async (args: any) => created.push(...args.data) },
+    // Editing sessions: one open per project, as the session lock keeps it.
+    scheduleShiftSession: {
+      findFirst: async () => sessions.find((session) => !session.closedAt) ?? null,
+      update: async (args: any) => Object.assign(sessions.find((session) => session.id === args.where.id), args.data),
+      create: async (args: any) => {
+        const session = { id: `s${sessions.length + 1}`, closedAt: null, ...args.data };
+        sessions.push(session);
+        return session;
       },
-      scheduleShift: { createMany: async (args: any) => created.push(...args.data) },
-    }) as unknown as PrismaClient;
-  return { move: (next: string) => (due = next), created, restore: () => (prismaClientProvider.get = previous) };
+    },
+    $executeRaw: async () => 0,
+  };
+  client.$transaction = async (work: (db: unknown) => Promise<unknown>) => work(client);
+  prismaClientProvider.get = () => client as unknown as PrismaClient;
+  return { move: (next: string) => (due = next), created, sessions, restore: () => (prismaClientProvider.get = previous) };
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 5));
@@ -119,6 +133,11 @@ test('the answer waits for the journal, names the operation and says a reason is
     assert.deepEqual([journal.created[0].trigger, journal.created[0].deltaDays, journal.created[0].actorName, journal.created[0].sourceCode], ['BULK_EDIT', 5, 'Иванов', '1.2']);
     assert.equal(res.headers['X-Schedule-Shift-Operation-Id'], journal.created[0].operationId);
     assert.equal(res.headers['X-Schedule-Shift-Reason-Needed'], '1');
+    // The person's save opens their editing session; the page learns it and the project.
+    assert.equal(journal.sessions.length, 1);
+    assert.equal(journal.created[0].sessionId, journal.sessions[0].id);
+    assert.equal(res.headers['X-Schedule-Shift-Session-Id'], journal.sessions[0].id);
+    assert.equal(res.headers['X-Schedule-Shift-Project-Id'], 'p9');
   } finally {
     journal.restore();
   }

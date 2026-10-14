@@ -58,6 +58,11 @@ async function apply({ user = { id: 'u1', role: 'ADMIN', email: 'a@x', name: 'A'
   const res: any = {
     statusCode: 200,
     body: undefined as any,
+    headers: {} as Record<string, string>,
+    headersSent: false,
+    setHeader(name: string, value: string) {
+      this.headers[name] = value;
+    },
     status(code: number) {
       this.statusCode = code;
       return this;

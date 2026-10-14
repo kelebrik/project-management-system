@@ -11,19 +11,25 @@ type RiskOption = { id: string; title: string };
  * and optionally the risk or problem behind it. Saving it tells the journal on
  * the page to reload.
  */
+export type ShiftReason = { category: string; text: string; raidItemId: string | null };
+
 export function ShiftReasonForm({
   projectId,
-  shiftIds,
+  target,
   risks = [],
   initial,
+  onSubmit,
   onDone,
   onCancel,
   cancelLabel,
 }: {
   projectId: string;
-  shiftIds: string[];
+  /** The moves named: their journal rows, or some checkpoints' moves in one finished editing session. */
+  target?: { shiftIds: string[] } | { sessionId: string; checkpointIds: string[] };
   risks?: RiskOption[];
   initial?: { category: string; text: string | null; raidItemId: string | null } | null;
+  /** Saves the reason another way, for several targets at once. */
+  onSubmit?: (reason: ShiftReason) => Promise<void>;
   onDone: () => void;
   onCancel: () => void;
   cancelLabel?: string;
@@ -39,11 +45,9 @@ export function ShiftReasonForm({
     setSaving(true);
     setError("");
     try {
-      await apiClient.patch(
-        `/api/projects/${projectId}/schedule-shifts/reason`,
-        { shiftIds, category, text, raidItemId: raidItemId || null },
-        t("ui.shifts.reasonFailed"),
-      );
+      const reason = { category, text, raidItemId: raidItemId || null };
+      if (onSubmit) await onSubmit(reason);
+      else await apiClient.patch(`/api/projects/${projectId}/schedule-shifts/reason`, { ...target, ...reason }, t("ui.shifts.reasonFailed"));
       window.dispatchEvent(new CustomEvent(SCHEDULE_SHIFTS_CHANGED_EVENT));
       onDone();
     } catch (failure) {

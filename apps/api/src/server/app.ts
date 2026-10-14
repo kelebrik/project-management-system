@@ -118,7 +118,7 @@ export function createApp() {
       origin: corsOrigin(),
       credentials: true,
       // The page reads which journal operation a structure edit made and whether it needs a reason.
-      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-PMS-Structure', 'X-PMS-Structure-Version', 'X-PMS-Mutation-Replayed', 'X-PMS-Mutation-Incomplete', 'X-PMS-Structure-Project'],
+      exposedHeaders: ['X-Schedule-Shift-Operation-Id', 'X-Schedule-Shift-Reason-Needed', 'X-Schedule-Shift-Session-Id', 'X-Schedule-Shift-Project-Id', 'X-Schedule-Shift-Actor-Id', 'X-PMS-Structure', 'X-PMS-Structure-Version', 'X-PMS-Mutation-Replayed', 'X-PMS-Mutation-Incomplete', 'X-PMS-Structure-Project'],
     }),
   );
   app.use('/api', (_req, res, next) => {

@@ -158,7 +158,7 @@ router.post('/projects/:projectId/open-issues', async (req, res) => {
   // A work package follows the issue's due date, so checkpoints may move: journaled as the issue's doing.
   const { issue, workPackageMutation } = await runWithWbsWriteQueue(
     project.id,
-    () => trackScheduleShifts(project.id, { trigger: 'ISSUE', sourceNote: parsed.data.title, actor: shiftActor(currentUser(req)) }, async () => {
+    () => trackScheduleShifts(project.id, { trigger: 'ISSUE', sourceNote: parsed.data.title, actor: shiftActor(currentUser(req)), answer: res }, async () => {
       const result = await structureTransaction(async (tx) => {
         const mutation = phaseId
           ? await upsertIssueWorkPackage(tx, {
@@ -273,7 +273,7 @@ router.patch('/open-issues/:issueId', async (req, res) => {
   }
   const result = await runWithWbsWriteQueue(
     issue.projectId,
-    () => trackScheduleShifts(issue.projectId, { trigger: 'ISSUE', sourceIssueId: issue.id, sourceNote: issue.title, actor: shiftActor(currentUser(req)) }, async () => {
+    () => trackScheduleShifts(issue.projectId, { trigger: 'ISSUE', sourceIssueId: issue.id, sourceNote: issue.title, actor: shiftActor(currentUser(req)), answer: res }, async () => {
       const transactionResult = await structureTransaction(async (tx) => {
         await tx.$queryRaw(Prisma.sql`
           SELECT "id" FROM "Issue" WHERE "id" = ${issue.id} FOR UPDATE

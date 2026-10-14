@@ -72,41 +72,7 @@ test("a project on its baseline says so", async ({ page }) => {
   await expect(page.locator("#schedule-shifts").getByText("Вехи и цели идут по базовому плану")).toBeVisible();
 });
 
-test("after a save moves a milestone past its baseline, the page asks why in one click", async ({ page }) => {
-  const project = await mockAdminProject(page);
-  await page.route(/\/api\/wbs-items\/wbs-1$/, async (route) => {
-    Object.assign(project.wbsItems[0], route.request().postDataJSON());
-    await route.fulfill({
-      headers: { "X-Schedule-Shift-Operation-Id": "op-7", "X-Schedule-Shift-Reason-Needed": "1", "Access-Control-Expose-Headers": "X-Schedule-Shift-Operation-Id, X-Schedule-Shift-Reason-Needed" },
-      json: { item: project.wbsItems[0], wbsItems: project.wbsItems, wbsDependencies: [], criticalPath: null },
-    });
-  });
-  await page.route("**/api/schedule-shifts/operations/op-7", (route) =>
-    route.fulfill({
-      json: { projectId: "project-1", shifts: [{ id: "s9", checkpointId: "m1", checkpointCode: "1.5", checkpointTitle: "Готово", deltaDays: 5, newDate: "2026-11-06", baselineDate: "2026-11-01" }] },
-    }),
-  );
-  const reasons: unknown[] = [];
-  await page.route("**/api/projects/project-1/schedule-shifts/reason", (route) => {
-    reasons.push(route.request().postDataJSON());
-    return route.fulfill({ json: { updated: 1 } });
-  });
-  await page.goto("/TV-OVERVIEW/wbs");
-  const title = page.locator("#wbs-item-wbs-1 .wbs-title-input");
-  await title.fill("Тестовая задача, дольше");
-  await title.press("Tab");
-
-  const prompt = page.getByRole("dialog", { name: "Веха ушла за базовый план. Почему?" });
-  await expect(prompt.getByText("1.5 Готово")).toBeVisible();
-  await expect(prompt.getByText("+5 дн.")).toBeVisible();
-  await prompt.screenshot({ path: test.info().outputPath("prompt.png") });
-  await expect(prompt.getByRole("button", { name: "Сохранить причину" })).toBeDisabled();
-  await prompt.getByRole("radio", { name: "Поставщик" }).click();
-  await prompt.getByLabel("Комментарий (необязательно)").fill("Платы пришли позже");
-  await prompt.getByRole("button", { name: "Сохранить причину" }).click();
-  await expect(page.getByText("Причина сохранена")).toBeVisible();
-  expect(reasons).toEqual([{ shiftIds: ["s9"], category: "SUPPLIER", text: "Платы пришли позже", raidItemId: null }]);
-});
+// The question after saves is asked once an editing session ends: tests/e2e/shift-sessions.spec.ts.
 
 test("a step without a reason gets one on the Status page, and the summary counts days by reason", async ({ page }) => {
   await mockAdminProject(page);

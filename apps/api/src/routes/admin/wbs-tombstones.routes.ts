@@ -23,7 +23,7 @@ export function registerAdminWbsTombstoneRoutes(
       // Restored rows come back under new ids: their old history stays as it was, and only what the restore moves is journaled.
       const result = tombstone
         ? await runWithWbsWriteQueue(tombstone.projectId, () =>
-            trackScheduleShifts(tombstone.projectId, { trigger: 'RESTORE_DELETED', actor: shiftActor(currentUser(req)) }, restore),
+            trackScheduleShifts(tombstone.projectId, { trigger: 'RESTORE_DELETED', actor: shiftActor(currentUser(req)), answer: res }, restore),
           )
         : await restore();
       res.json(result);

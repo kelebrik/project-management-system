@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { SCHEDULE_SHIFTS_CHANGED_EVENT } from "../../app/scheduleShiftNotice";
 import { apiClient } from "../../api/client";
-import { shiftStepCause, type ShiftLadder } from "../../app/scheduleShifts";
+import { shiftStepCause, type ShiftLadder, type ShiftStep } from "../../app/scheduleShifts";
 import { useOpenFactRef } from "../../hooks/useOpenFactRef";
 import { useI18n } from "../../i18n/I18nProvider";
 import { usePageContext } from "../../pages/PageContext";
@@ -20,6 +20,15 @@ function reasonSummary(ladder: ShiftLadder): Array<[string, number]> {
  * steps from the baseline to today's date with what caused each, and the
  * days the journal cannot explain because they happened before it existed.
  */
+/** A step's moves: by their rows, or, for a finished session too large to list, by the session. */
+function stepTarget(step: ShiftStep, checkpointId: string) {
+  const shiftIds = step.shiftIds ?? [step.id];
+  return shiftIds.length > REASON_SHIFT_LIMIT && step.sessionId && !step.sessionOpen ? { sessionId: step.sessionId, checkpointIds: [checkpointId] } : { shiftIds };
+}
+
+/** How many journal rows a reason may name by their ids, as the server takes them. */
+const REASON_SHIFT_LIMIT = 50;
+
 export function ScheduleShiftsCard({ projectId, refreshKey }: { projectId: string; refreshKey?: unknown }) {
   const { t, formatters } = useI18n();
   const openRef = useOpenFactRef();
@@ -123,11 +132,12 @@ export function ScheduleShiftsCard({ projectId, refreshKey }: { projectId: strin
                       {step.reason.text ? `: ${step.reason.text}` : ""}
                     </span>
                   )}
-                  {canGiveReasons && editing !== step.id && (step.reason || step.needsReason) && (
+                  {canGiveReasons && editing !== step.id && (step.reason || step.needsReason) && step.reasonEditable !== false && (
                     <button className="link-button" onClick={() => setEditing(step.id)} type="button">
                       {step.reason ? t("ui.shifts.changeReason") : t("ui.shifts.giveReason")}
                     </button>
                   )}
+                  {canGiveReasons && step.reasonEditable === false && <small>{t("ui.shifts.sessionReasonLater")}</small>}
                 </div>
                 {editing === step.id && (
                   <ShiftReasonForm
@@ -136,7 +146,7 @@ export function ScheduleShiftsCard({ projectId, refreshKey }: { projectId: strin
                     onDone={() => setEditing(null)}
                     projectId={projectId}
                     risks={risks}
-                    shiftIds={[step.id]}
+                    target={stepTarget(step, ladder.id)}
                   />
                 )}
               </li>
