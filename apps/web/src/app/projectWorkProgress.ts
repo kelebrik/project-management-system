@@ -12,6 +12,9 @@ export type ProjectWorkProgress = {
 
 type ProgressItem = Pick<WbsItem, "id" | "parentId" | "status" | "workDays" | "planWorkDays">;
 
+/** Work no longer ahead: done, cancelled or failed counts as finished. */
+const FINISHED_STATUSES: ReadonlySet<string> = new Set(["DONE", "CANCELLED", "BLOCKED"]);
+
 function itemWorkDays(item: ProgressItem) {
   const value = item.workDays ?? item.planWorkDays ?? 0;
   return Number.isFinite(value) ? Math.max(0, value) : 0;
@@ -37,9 +40,7 @@ export function createProjectWorkProgress(items: ProgressItem[]): ProjectWorkPro
   const parentIds = new Set(
     items.map((item) => item.parentId).filter((id): id is string => Boolean(id)),
   );
-  const leafItems = items.filter(
-    (item) => !parentIds.has(item.id) && item.status !== "CANCELLED",
-  );
+  const leafItems = items.filter((item) => !parentIds.has(item.id));
 
   let completedDays = 0;
   let inProgressDays = 0;
@@ -47,7 +48,7 @@ export function createProjectWorkProgress(items: ProgressItem[]): ProjectWorkPro
 
   for (const item of leafItems) {
     const days = itemWorkDays(item);
-    if (item.status === "DONE") {
+    if (FINISHED_STATUSES.has(item.status)) {
       completedDays += days;
     } else if (item.status === "NOT_STARTED") {
       notStartedDays += days;

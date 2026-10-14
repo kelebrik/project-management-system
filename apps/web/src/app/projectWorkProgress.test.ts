@@ -67,17 +67,18 @@ test("project work progress weights leaf items by working days", () => {
   });
 });
 
-test("project work progress excludes hierarchy parents and cancelled work", () => {
+test("project work progress excludes hierarchy parents and counts cancelled and failed work as finished", () => {
   const progress = createProjectWorkProgress([
     item({ id: "phase", type: "PHASE", workDays: 20 }),
     item({ id: "done", parentId: "phase", status: "DONE", workDays: 6 }),
-    item({ id: "active", parentId: "phase", status: "BLOCKED", workDays: 3 }),
+    item({ id: "failed", parentId: "phase", status: "BLOCKED", workDays: 3 }),
     item({ id: "cancelled", status: "CANCELLED", workDays: 40 }),
+    item({ id: "active", status: "IN_PROGRESS", workDays: 1 }),
   ]);
 
-  assert.equal(progress.totalDays, 9);
-  assert.equal(progress.completedDays, 6);
-  assert.equal(progress.inProgressDays, 3);
+  assert.equal(progress.totalDays, 50);
+  assert.equal(progress.completedDays, 49);
+  assert.equal(progress.inProgressDays, 1);
   assert.equal(progress.notStartedDays, 0);
   assert.equal(
     progress.completedPercent +

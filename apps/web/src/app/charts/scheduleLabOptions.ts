@@ -1,5 +1,6 @@
 import type { AnnotationsLabelsOptions, Options, PointOptionsObject, SeriesOptionsType, XrangePointOptionsObject } from "highcharts";
 import type { WbsItem } from "../domainTypes";
+import { createProjectWorkProgress } from "../projectWorkProgress";
 import type { ShiftLadder } from "../scheduleShifts";
 import type { AppChartColors } from "./appChartTheme";
 
@@ -171,13 +172,10 @@ function statusColor(item: WbsItem, today: string, colors: AppChartColors) {
   return colors.muted;
 }
 
-/** Statuses a phase's progress counts as finished: a cancelled or failed task is no longer ahead. */
-const FINISHED_STATUSES: ReadonlySet<string> = new Set(["DONE", "CANCELLED", "BLOCKED"]);
-
 /**
- * How far a phase is: the working days of its finished tasks out of all its
- * tasks, counted on the lowest rows; a phase with no rows under it counts by
- * itself.
+ * How far a phase is: the working days of its finished tasks (done, cancelled
+ * or failed) out of all its tasks, counted on the lowest rows; a phase with no
+ * rows under it counts by itself. The share is not rounded: only its label is.
  */
 export function phaseProgress(phase: WbsItem, items: WbsItem[]) {
   const children = new Map<string, WbsItem[]>();
@@ -188,17 +186,8 @@ export function phaseProgress(phase: WbsItem, items: WbsItem[]) {
     rows.push(row);
     queue.push(...(children.get(row.id) ?? []));
   }
-  const parents = new Set(rows.map((row) => row.parentId));
-  let doneDays = 0;
-  let totalDays = 0;
-  for (const row of rows) {
-    if (parents.has(row.id)) continue;
-    const value = row.workDays ?? row.planWorkDays ?? 0;
-    const days = Number.isFinite(value) ? Math.max(0, value) : 0;
-    totalDays += days;
-    if (FINISHED_STATUSES.has(row.status)) doneDays += days;
-  }
-  return { doneDays, totalDays, share: totalDays > 0 ? doneDays / totalDays : 0 };
+  const { completedDays, totalDays } = createProjectWorkProgress(rows);
+  return { doneDays: completedDays, totalDays, share: totalDays > 0 ? completedDays / totalDays : 0 };
 }
 
 /** Phases as bars with their progress filled in, their milestones and goals as diamonds and stars on them. */
