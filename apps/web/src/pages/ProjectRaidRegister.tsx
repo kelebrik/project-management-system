@@ -63,9 +63,8 @@ export function ProjectRaidRegister() {
     setRaidDecisionOnly(false);
     setRaidHighOnly(false);
     setRaidOverdueOnly(false);
-    if (!closedRaidItems.some((item: { id: string }) => item.id === requestedFocusRaidId)) {
-      setExpandedRaidId(requestedFocusRaidId);
-    }
+    // A closed entry opens read-only, an open one in its editor.
+    setExpandedRaidId(requestedFocusRaidId);
   }, [
     requestedFocusRaidId,
     closedRaidItems,
@@ -626,21 +625,39 @@ export function ProjectRaidRegister() {
                             <span>{uiText("ui.automation.dueDate")}</span>
                             <span>{uiText("ui.automation.owner")}</span>
                           </div>
-                          {closedRaidItems.map((item) => (
+                          {closedRaidItems.map((item) => {
+                            const expanded = expandedRaidId === item.id;
+                            const toggle = () => setExpandedRaidId(expanded ? null : item.id);
+                            return (
                             <div
                               className={`raid-item raid-closed-item${requestedFocusRaidId === item.id ? " focused" : ""}`}
                               id={`raid-item-${item.id}`}
                               key={item.id}
                             >
-                              <div className="raid-row raid-closed-row">
+                              <div
+                                className="raid-row raid-closed-row"
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={expanded}
+                                onClick={toggle}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    toggle();
+                                  }
+                                }}
+                              >
                                 <span className="raid-title">{item.title}</span>
                                 <span>{raidTypeLabel(item.type)}</span>
                                 <span>{raidStatusLabel(item.status)}</span>
                                 <span>{date(item.dueDate)}</span>
                                 <span>{item.owner}</span>
+                                <span className="issue-chevron">{expanded ? "-" : "+"}</span>
                               </div>
+                              {expanded && <ClosedRaidDetails item={item} onClose={() => setExpandedRaidId(null)} />}
                             </div>
-                          ))}
+                            );
+                          })}
                           {closedRaidItems.length === 0 && (
                             <div className="empty-state">
                               {uiText("ui.projects.raidNoClosedEntriesYet")}
@@ -650,4 +667,68 @@ export function ProjectRaidRegister() {
                       </details>
                     </section>
                     </div>;
+}
+
+/** What a closed risk or problem held, to read: nothing in it can be changed. */
+function ClosedRaidDetails({ item, onClose }: { item: RaidItem; onClose: () => void }) {
+  const { t: uiText } = useInterfaceTranslation();
+  const { date, raidStatusLabel, raidTypeLabel } = usePageContext();
+  const history = [...(item.statusUpdates ?? [])].sort((left, right) =>
+    new Date(right.statusAt).getTime() - new Date(left.statusAt).getTime()
+    || new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime());
+  return (
+    <div className="raid-details raid-closed-details" role="region" aria-label={item.title}>
+      <div className="raid-edit-drawer-header">
+        <div>
+          <strong>{item.title}</strong>
+          <span>{item.owner || uiText("ui.projects.raidNoOwnerAssigned")}</span>
+        </div>
+        <button type="button" aria-label={uiText("ui.projects.raidCloseViewAction")} title={uiText("ui.admin.close")} onClick={onClose}>
+          <X size={17} />
+        </button>
+      </div>
+      <div className="raid-detail-meta">
+        <span>{raidStatusLabel(item.status)}</span>
+        <span>{raidTypeLabel(item.type)}</span>
+        <span>{uiText("ui.automation.dueDate")}: {date(item.dueDate)}</span>
+        <span>{uiText("ui.projects.raidProbabilityLabel")} {item.probability} × {uiText("ui.projects.impact")} {item.impact} = {item.riskScore}</span>
+        <span>{uiText("ui.projects.raidResidualRiskLabel")} {item.residualRisk}</span>
+        <span>{uiText("ui.projects.raidDatesLabel")} {item.scheduleImpactDays} {uiText("ui.portfolio.daysAbbrev")}</span>
+        {item.decisionRequired && <b>{uiText("ui.projects.requiresDecision")}</b>}
+      </div>
+      {item.description && <p>{item.description}</p>}
+      {item.jiraTicketUrl ? (
+        <a className="jira-detail-link" href={item.jiraTicketUrl} target="_blank" rel="noreferrer">
+          {item.jiraTicketKey || item.jiraTicketUrl}
+        </a>
+      ) : item.jiraTicketKey ? <span>Jira: {item.jiraTicketKey}</span> : null}
+      {item.mitigationPlan && (
+        <section className="raid-closed-plan">
+          <div className="subhead">{uiText("ui.projects.raidActionPlanLabel")}</div>
+          <p>{item.mitigationPlan}</p>
+        </section>
+      )}
+      {item.contingencyPlan && (
+        <section className="raid-closed-plan">
+          <div className="subhead">{uiText("ui.projects.raidContingencyPlanLabel")}</div>
+          <p>{item.contingencyPlan}</p>
+        </section>
+      )}
+      <section className="raid-status-panel">
+        <div className="subhead">{uiText("ui.admin.status")}</div>
+        {history.length > 0 ? (
+          <div className="raid-status-history">
+            {history.map((statusUpdate) => (
+              <div className="raid-status-history-row" key={statusUpdate.id}>
+                <span>{date(statusUpdate.statusAt)}</span>
+                <p>{statusUpdate.text}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="muted-text">{uiText("ui.projects.raidStatusNotAddedYet")}</p>
+        )}
+      </section>
+    </div>
+  );
 }

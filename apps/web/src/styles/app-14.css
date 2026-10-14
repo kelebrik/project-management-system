@@ -296,11 +296,11 @@
 
 .raid-closed-head,
 .raid-closed-row {
-  grid-template-columns: minmax(220px, 1fr) 112px 112px 118px 150px;
+  grid-template-columns: minmax(220px, 1fr) 112px 112px 118px 150px 24px;
 }
 
-.raid-closed-row {
-  cursor: default;
+.raid-closed-head::after {
+  content: "";
 }
 
 .cr-head,
@@ -346,9 +346,6 @@
   box-shadow: inset 3px 0 0 var(--brand);
 }
 
-.raid-closed-row:hover {
-  background: var(--surface);
-}
 
 .raid-row span,
 .cr-row span {
@@ -613,4 +610,14 @@
 .severity.high {
   background: var(--danger-soft);
   color: var(--danger-800);
+}
+
+/* Read-only: nothing to stretch the rows to, so they sit at the top. */
+.raid-closed-details {
+  align-content: start;
+}
+
+.raid-closed-plan p {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
 }

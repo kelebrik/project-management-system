@@ -79,6 +79,10 @@ export const projectsRaidMessages = {
     "en": "Close the editor",
     "ru": "Закрыть редактирование"
   },
+  "ui.projects.raidCloseViewAction": {
+    "en": "Close the entry",
+    "ru": "Закрыть просмотр записи"
+  },
   "ui.projects.raidStatusNotAddedYet": {
     "en": "No status added yet.",
     "ru": "Статус пока не добавлен."
