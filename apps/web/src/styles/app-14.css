@@ -621,3 +621,19 @@
   margin: 4px 0 0;
   white-space: pre-wrap;
 }
+
+/* The editor's fields as one block the save can hold; it adds no box of its own. */
+.raid-edit-fieldset {
+  border: 0;
+  display: contents;
+  margin: 0;
+  min-width: 0;
+  padding: 0;
+}
+
+.raid-saved-inline {
+  align-self: center;
+  color: var(--success);
+  font-size: 13px;
+  font-weight: 700;
+}

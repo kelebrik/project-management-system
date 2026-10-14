@@ -9,6 +9,8 @@ import type { RaidItem, RaidItemStatus, RaidItemType } from "../app/domainTypes"
 import type { RaidTypeFilter } from "../app/raidModels";
 import { ListToolbar } from "../components/ListToolbar";
 import { usePersistedViewState } from "../app/usePersistedViewState";
+import { raidPayload } from "../app/formPayloads";
+import { raidToForm } from "../app/formState";
 
 export function ProjectRaidRegister() {
   const { t: uiText } = useInterfaceTranslation();
@@ -53,6 +55,42 @@ export function ProjectRaidRegister() {
   const [requestedFocusRaidId] = useState(() =>
     new URLSearchParams(window.location.search).get("focusRaid"),
   );
+  // A save holds the editor until the record is read back, so nothing typed meanwhile is lost; then it says so in the panel.
+  const [savingRaidId, setSavingRaidId] = useState<string | null>(null);
+  const [savedRaidId, setSavedRaidId] = useState<string | null>(null);
+  const savedTimerRef = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(savedTimerRef.current), []);
+  const raidChanged = (item: RaidItem) =>
+    Boolean(raidDrafts[item.id]) && JSON.stringify(raidPayload(raidDrafts[item.id])) !== JSON.stringify(raidPayload(raidToForm(item)));
+  const savedItem = savedRaidId ? [...closedRaidItems, ...(project.raidItems as RaidItem[])].find((item) => item.id === savedRaidId) : undefined;
+  const editedAfterSave = savedItem ? raidChanged(savedItem) : false;
+  // A new edit after the save takes the confirmation away for good.
+  if (editedAfterSave) setSavedRaidId(null);
+  // Read outside renders: a save under way, and the reveal of a row asked for meanwhile.
+  const savingRef = useRef<string | null>(null);
+  const revealRef = useRef<() => void>(() => undefined);
+  const toggleRaid = (itemId: string) => {
+    if (savingRef.current) return;
+    setExpandedRaidId(expandedRaidId === itemId ? null : itemId);
+  };
+  const saveRaid = async (itemId: string) => {
+    if (savingRef.current) return;
+    savingRef.current = itemId;
+    window.clearTimeout(savedTimerRef.current);
+    setSavedRaidId(null);
+    setSavingRaidId(itemId);
+    try {
+      if (await saveRaidItem(itemId)) {
+        setSavedRaidId(itemId);
+        savedTimerRef.current = window.setTimeout(() => setSavedRaidId(null), 4000);
+      }
+    } finally {
+      savingRef.current = null;
+      setSavingRaidId(null);
+      // A row someone asked to open during the save opens now.
+      revealRef.current();
+    }
+  };
   const appliedFocusRaidIdRef = useRef<string | null>(null);
   const scrolledFocusRaidIdRef = useRef<string | null>(null);
 
@@ -92,6 +130,8 @@ export function ProjectRaidRegister() {
   // A row opened from an AI answer is shown whatever the saved search and filters hide.
   useEffect(() => {
     const reveal = () => {
+      // Kept until the save under way is done, so nothing typed meanwhile is lost.
+      if (savingRef.current) return;
       const itemId = takeRaidReveal();
       if (!itemId) return;
       setQuery("");
@@ -102,6 +142,7 @@ export function ProjectRaidRegister() {
       setExpandedRaidId(itemId);
       window.setTimeout(() => document.getElementById(`raid-item-${itemId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
     };
+    revealRef.current = reveal;
     reveal();
     return onRaidReveal(reveal);
   }, [setExpandedRaidId, setQuery, setRaidDecisionOnly, setRaidHighOnly, setRaidOverdueOnly, setRaidTypeFilter]);
@@ -221,17 +262,11 @@ export function ProjectRaidRegister() {
                               className="raid-row"
                               role="button"
                               tabIndex={0}
-                              onClick={() =>
-                                setExpandedRaidId(
-                                  expandedRaidId === item.id ? null : item.id,
-                                )
-                              }
+                              onClick={() => toggleRaid(item.id)}
                               onKeyDown={(event) => {
                                 if (event.key === "Enter" || event.key === " ") {
                                   event.preventDefault();
-                                  setExpandedRaidId(
-                                    expandedRaidId === item.id ? null : item.id,
-                                  );
+                                  toggleRaid(item.id);
                                 }
                               }}
                             >
@@ -274,11 +309,13 @@ export function ProjectRaidRegister() {
                                     type="button"
                                     aria-label={uiText("ui.projects.raidCloseEditorAction")}
                                     title={uiText("ui.admin.close")}
+                                    disabled={savingRaidId !== null}
                                     onClick={() => setExpandedRaidId(null)}
                                   >
                                     <X size={17} />
                                   </button>
                                 </div>
+                                <fieldset className="raid-edit-fieldset" disabled={savingRaidId !== null}>
                                 {(() => {
                                   const latestStatus = latestRaidStatusUpdate(item);
                                   const statusHistory = [...(item.statusUpdates ?? [])]
@@ -545,10 +582,14 @@ export function ProjectRaidRegister() {
                                   <div className="issue-actions">
                                     <button
                                       type="button"
-                                      onClick={() => saveRaidItem(item.id)}
+                                      disabled={savingRaidId !== null || !raidChanged(item)}
+                                      onClick={() => void saveRaid(item.id)}
                                     >
-                                      {uiText("ui.projects.raidSaveEntryAction")}
+                                      {savingRaidId === item.id ? uiText("ui.projects.raidSavingAction") : uiText("ui.projects.raidSaveEntryAction")}
                                     </button>
+                                    <span className="raid-saved-inline" role="status" aria-live="polite">
+                                      {savedRaidId === item.id && !raidChanged(item) ? `✓ ${uiText("ui.projects.raidSavedInline")}` : ""}
+                                    </span>
                                     {item.type === "RISK" && (
                                       <>
                                         <button
@@ -598,6 +639,7 @@ export function ProjectRaidRegister() {
                                     </button>
                                   </div>
                                 </div>
+                                </fieldset>
                               </div>
                             )}
                           </div>
@@ -627,7 +669,7 @@ export function ProjectRaidRegister() {
                           </div>
                           {closedRaidItems.map((item) => {
                             const expanded = expandedRaidId === item.id;
-                            const toggle = () => setExpandedRaidId(expanded ? null : item.id);
+                            const toggle = () => toggleRaid(item.id);
                             return (
                             <div
                               className={`raid-item raid-closed-item${requestedFocusRaidId === item.id ? " focused" : ""}`}

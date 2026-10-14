@@ -79,6 +79,14 @@ export const projectsRaidMessages = {
     "en": "Close the editor",
     "ru": "Закрыть редактирование"
   },
+  "ui.projects.raidSavingAction": {
+    "en": "Saving…",
+    "ru": "Сохранение…"
+  },
+  "ui.projects.raidSavedInline": {
+    "en": "Changes saved",
+    "ru": "Изменения сохранены"
+  },
   "ui.projects.raidCloseViewAction": {
     "en": "Close the entry",
     "ru": "Закрыть просмотр записи"

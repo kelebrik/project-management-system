@@ -119,7 +119,7 @@ export function useRaidController({
   const saveRaidItem = useCallback(
     async (itemId: string) => {
       const draft = raidDrafts[itemId];
-      if (!draft) return;
+      if (!draft) return false;
       setError(null);
       setNotice(null);
       try {
@@ -138,12 +138,14 @@ export function useRaidController({
         }
         await refreshProject();
         setNotice(uiText("ui.projects.raidSaved"));
+        return true;
       } catch (saveError) {
         setError(
           saveError instanceof Error
             ? saveError.message
             : uiText("ui.projects.raidSaveFailed"),
         );
+        return false;
       }
     },
     [raidDrafts, refreshProject, setError, setNotice, uiText],
