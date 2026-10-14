@@ -7,7 +7,7 @@ export const scheduleLabMessages = {
   "ui.lab.goals": { en: "Goals: baseline → forecast", ru: "Цели: базовый план → прогноз" },
   "ui.lab.goalsHint": { en: "Ring — baseline, dot — current forecast; red when the goal moved later, green when earlier", ru: "Кружок — базовый план, точка — текущий прогноз; красная перемычка — цель уехала позже, зелёная — раньше" },
   "ui.lab.phases": { en: "Phases and progress", ru: "Фазы и прогресс" },
-  "ui.lab.phasesHint": { en: "The filled part of a bar is the share of the phase's working days in finished tasks; diamonds are milestones, stars are goals, coloured by status", ru: "Залитая часть полосы — доля длительности завершённых задач фазы; ромбы — вехи, звёзды — цели, цвет — статус" },
+  "ui.lab.phasesHint": { en: "The filled part of a bar is the share of the phase's working days in finished tasks (done, cancelled or failed); diamonds are milestones, stars are goals, coloured by status", ru: "Залитая часть полосы — доля длительности завершённых задач фазы (сделанные, отменённые и проваленные); ромбы — вехи, звёзды — цели, цвет — статус" },
   "ui.lab.timeline": { en: "Milestones: two months back, four ahead", ru: "Вехи: два месяца назад и четыре вперёд" },
   "ui.lab.reasons": { en: "Why milestones moved", ru: "Почему сдвигались вехи" },
   "ui.lab.reasonsHint": { en: "Days of later moves by reason; the line is the cumulative share (Pareto)", ru: "Дни сдвигов позже по причинам; линия — накопленная доля (Парето)" },

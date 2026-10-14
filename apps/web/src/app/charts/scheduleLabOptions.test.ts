@@ -54,17 +54,22 @@ test("phases carry their progress as a partial fill and their milestones on thei
 test("phase progress is the working days of finished tasks out of all tasks", () => {
   const phase = item({ id: "p", type: "PHASE", workDays: 50 });
   const task = (id: string, parentId: string, status: string, workDays: number | null, extra: Partial<WbsItem> = {}) => item({ id, parentId, status: status as WbsItem["status"], workDays, ...extra });
-  // Unfinished tasks count the same whether started or not; cancelled ones do not count.
+  // Unfinished tasks count the same whether started or not; cancelled and failed ones count as finished.
   const mixed = [phase, task("a", "p", "DONE", 1), task("b", "p", "IN_PROGRESS", 1), task("c", "p", "NOT_STARTED", 1), task("x", "p", "CANCELLED", 9)];
-  assert.deepEqual(phaseProgress(phase, mixed), { doneDays: 1, totalDays: 3, share: 1 / 3 });
+  assert.deepEqual(phaseProgress(phase, mixed), { doneDays: 10, totalDays: 12, share: 10 / 12 });
   const started = mixed.map((row) => (row.id === "c" ? { ...row, status: "IN_PROGRESS" as WbsItem["status"] } : row));
-  assert.equal(phaseProgress(phase, started).share, 1 / 3);
+  assert.equal(phaseProgress(phase, started).share, 10 / 12);
+  const failed = [phase, task("h", "p", "BLOCKED", 3), task("i", "p", "AT_RISK", 1)];
+  assert.deepEqual(phaseProgress(phase, failed), { doneDays: 3, totalDays: 4, share: 0.75 });
+  // Done, failed and cancelled with no days: the whole phase is finished.
+  const launch = [phase, task("j", "p", "DONE", 85), task("k", "p", "BLOCKED", 25), task("l", "p", "CANCELLED", 0, { planWorkDays: 5 })];
+  assert.deepEqual(phaseProgress(phase, launch), { doneDays: 110, totalDays: 110, share: 1 });
   // A phase inside a phase: only the lowest rows count, so neither phase's own days are added.
   const nested = [phase, item({ id: "q", parentId: "p", type: "PHASE", workDays: 40 }), task("d", "q", "DONE", 2), task("e", "p", "NOT_STARTED", 2)];
   assert.deepEqual(phaseProgress(phase, nested), { doneDays: 2, totalDays: 4, share: 0.5 });
-  // No days at all, or only cancelled tasks: nothing done.
+  // No days at all: nothing to show; only cancelled tasks: finished.
   assert.equal(phaseProgress(phase, [phase, task("f", "p", "DONE", 0)]).share, 0);
-  assert.equal(phaseProgress(phase, [phase, task("g", "p", "CANCELLED", 5)]).share, 0);
+  assert.equal(phaseProgress(phase, [phase, task("g", "p", "CANCELLED", 5)]).share, 1);
   // A phase with nothing under it counts by itself.
   assert.equal(phaseProgress(item({ id: "lone", type: "PHASE", status: "DONE", workDays: 5 }), []).share, 1);
   assert.equal(phaseProgress(item({ id: "lone", type: "PHASE", status: "DONE", workDays: 5, planWorkDays: 8 }), []).totalDays, 5);
