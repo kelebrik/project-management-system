@@ -215,6 +215,42 @@ type JournalRow = {
 const isoDay = (value: Date | null) => (value ? value.toISOString().slice(0, 10) : null);
 
 /**
+ * The days a checkpoint is late now, split by the reasons of the moves that
+ * made it so. A move earlier takes back the latest moves later first, so a date
+ * sent away and brought back counts nothing; what stays is cut to the days
+ * past the baseline, oldest moves first. No baseline, or not late: nothing.
+ */
+export function lateDaysByReason(operations: { days: number; category: string | null }[], varianceDays: number | null) {
+  const reasonDays: Record<string, number> = {};
+  if (varianceDays === null || varianceDays <= 0) return reasonDays;
+  const later: { days: number; category: string | null }[] = [];
+  for (const { days, category } of operations) {
+    if (days > 0) {
+      later.push({ days, category });
+      continue;
+    }
+    let back = -days;
+    while (back > 0 && later.length > 0) {
+      const last = later[later.length - 1];
+      const taken = Math.min(back, last.days);
+      last.days -= taken;
+      back -= taken;
+      if (last.days === 0) later.pop();
+    }
+  }
+  let excess = later.reduce((sum, entry) => sum + entry.days, 0) - varianceDays;
+  for (const entry of later) {
+    const cut = Math.min(Math.max(0, excess), entry.days);
+    entry.days -= cut;
+    excess -= cut;
+    if (entry.days === 0) continue;
+    const key = entry.category ?? 'NONE';
+    reasonDays[key] = (reasonDays[key] ?? 0) + entry.days;
+  }
+  return reasonDays;
+}
+
+/**
  * For every open milestone and goal that is off its baseline or moved: the
  * baseline, the steps since that baseline was set for this checkpoint (a
  * baseline saved for other rows does not count), and the days no step
@@ -238,8 +274,7 @@ export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: J
     const steps = since.filter((row) => row.kind === 'SHIFT');
     const varianceDays = item.dueDate && item.baselineDueDate ? calendarDaysBetween(item.baselineDueDate, item.dueDate) : null;
     const explainedDays = steps.reduce((sum, row) => sum + (row.deltaDays ?? 0), 0);
-    // Days by reason: each operation once for this checkpoint, by its net move, and only when it moved it later;
-    // the rest is "no reason" or "before the journal".
+    // Days by reason: each operation once for this checkpoint, by its net move, in order.
     const byOperation = new Map<string, { days: number; category: string | null }>();
     for (const row of steps) {
       const entry = byOperation.get(row.operationId) ?? { days: 0, category: null };
@@ -247,12 +282,7 @@ export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: J
       entry.category = row.reasonCategory ?? entry.category;
       byOperation.set(row.operationId, entry);
     }
-    const reasonDays: Record<string, number> = {};
-    for (const { days, category } of byOperation.values()) {
-      if (days <= 0) continue;
-      const key = category ?? 'NONE';
-      reasonDays[key] = (reasonDays[key] ?? 0) + days;
-    }
+    const reasonDays = lateDaysByReason([...byOperation.values()], varianceDays);
     const shown = steps.slice(-LADDER_STEPS);
     const folded = steps.slice(0, steps.length - shown.length);
     return {

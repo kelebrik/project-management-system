@@ -296,7 +296,8 @@ export function shiftReasonsParetoOption(ladders: ShiftLadder[], colors: AppChar
 /** Days each milestone moved later; a click drills down into its moves, one column per step on its date. */
 export function shiftsDrilldownOption(ladders: ShiftLadder[], colors: AppChartColors, text: LabText): Options | null {
   const moved = ladders
-    // Days of later moves over the whole history, as in the Pareto chart; the journal sends only the latest steps.
+    // A column is how late the milestone is now by the journal, as in the Pareto chart; its drill-down shows
+    // the moves themselves, both ways, so they need not add up to the column.
     .map((ladder) => ({ ladder, later: Object.values(ladder.reasonDays).reduce((sum, value) => sum + Math.max(0, value), 0) }))
     .filter((entry) => entry.later > 0)
     .sort((a, b) => b.later - a.later)

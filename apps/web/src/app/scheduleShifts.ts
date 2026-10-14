@@ -29,7 +29,7 @@ export type ShiftLadder = {
   varianceDays: number | null;
   unexplainedDays: number | null;
   earlierSteps: { count: number; deltaDays: number } | null;
-  /** Days of later moves since the baseline by reason category; NONE has no reason yet. */
+  /** Days past the baseline now by reason category of the later moves left after the moves back; NONE has no reason yet. */
   reasonDays: Record<string, number>;
   steps: ShiftStep[];
 };

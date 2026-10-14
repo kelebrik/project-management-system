@@ -57,7 +57,7 @@ export const openApiScheduleShiftPaths = {
                         reasonDays: {
                           type: "object",
                           additionalProperties: { type: "integer" },
-                          description: "Days of later moves since the baseline by reason category; NONE has no reason yet",
+                          description: "Days the checkpoint is past its baseline now, by the reason category of the later moves that remain after the moves back; at most varianceDays, empty without a baseline. NONE has no reason yet",
                         },
                         steps: { type: "array", items: step },
                       },

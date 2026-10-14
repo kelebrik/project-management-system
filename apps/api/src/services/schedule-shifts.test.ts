@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildShiftLadders, calendarDaysBetween, diffCheckpoints, LADDER_STEPS, needsReason } from './schedule-shifts.js';
+import { buildShiftLadders, calendarDaysBetween, diffCheckpoints, LADDER_STEPS, lateDaysByReason, needsReason } from './schedule-shifts.js';
 
 const day = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const point = (id: string, due: string | null, baseline: string | null, type = 'MILESTONE') => ({
@@ -133,5 +133,39 @@ test('days by reason count one operation once for a checkpoint, by its net move'
       row('m', 'SHIFT', 'late', 4, '2026-09-03T10:00:00Z'),
     ],
   );
-  assert.deepEqual(ladder.reasonDays, { CUSTOMER: 5, NONE: 4 });
+  // The move back takes back the latest move later first.
+  assert.deepEqual(ladder.reasonDays, { CUSTOMER: 3, NONE: 4 });
+});
+
+test('a date sent far away and brought back counts nothing, and no baseline counts nothing', () => {
+  const swing = [
+    row('m', 'SHIFT', 'away', 2912, '2026-10-09T07:10:30Z'),
+    row('m', 'SHIFT', 'further', 2912, '2026-10-09T07:10:33Z'),
+    row('m', 'SHIFT', 'back', -5824, '2026-10-09T07:11:08Z'),
+  ];
+  // Late by 5 days from before the journal: the swing explains none of them.
+  const [withBaseline] = buildShiftLadders([checkpoint('m', '2026-11-06', '2026-11-01')], swing);
+  assert.deepEqual(withBaseline.reasonDays, {});
+  const [withoutBaseline] = buildShiftLadders([checkpoint('m', '2027-03-24', null)], [...swing, row('m', 'SHIFT', 'late', 30, '2026-10-10T10:00:00Z')]);
+  assert.deepEqual(withoutBaseline.reasonDays, {});
+});
+
+test('days by reason never pass how late the checkpoint is now', () => {
+  const op = (days: number, category: string | null = null) => ({ days, category });
+  assert.deepEqual(lateDaysByReason([op(10, 'CUSTOMER'), op(5), op(-7)], 8), { CUSTOMER: 8 });
+  // A move back before any move later takes nothing back from the later ones.
+  assert.deepEqual(lateDaysByReason([op(-5), op(10, 'CUSTOMER')], 10), { CUSTOMER: 10 });
+  // More late days than the checkpoint is late: the oldest are cut.
+  assert.deepEqual(lateDaysByReason([op(10, 'CUSTOMER'), op(5, 'SUPPLIER')], 8), { CUSTOMER: 3, SUPPLIER: 5 });
+  for (const variance of [null, 0, -3]) assert.deepEqual(lateDaysByReason([op(10, 'CUSTOMER')], variance), {});
+});
+
+test('moves back take back later moves folded out of the ladder too', () => {
+  const journal = [
+    ...Array.from({ length: LADDER_STEPS + 5 }, (_, index) => row('m', 'SHIFT', `op${index}`, 10, new Date(Date.UTC(2026, 8, 1, 0, index)).toISOString())),
+    row('m', 'SHIFT', 'back', -(LADDER_STEPS + 5) * 10 + 6, '2026-09-02T00:00:00Z'),
+  ];
+  const [ladder] = buildShiftLadders([checkpoint('m', '2026-11-07', '2026-11-01')], journal);
+  assert.ok(ladder.earlierSteps);
+  assert.deepEqual(ladder.reasonDays, { NONE: 6 });
 });
