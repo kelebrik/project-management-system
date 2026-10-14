@@ -17,6 +17,14 @@ export type ProjectLiveEvent = {
   structureOnly?: boolean;
 };
 
+/** Fresh Jira data: nobody's edit and nothing to lose, so the page takes it without asking. */
+export function isQuietLiveEvent(event: Pick<ProjectLiveEvent, "section">) {
+  return event.section === "jira";
+}
+
+/** The window event a page showing Jira data listens to, with the project in its detail. */
+export const JIRA_DATA_UPDATED_EVENT = "pms-jira-data-updated";
+
 /** Who changed what, the events in arrival order, names and sections once each. */
 export function summarizeLiveEvents(events: ProjectLiveEvent[]) {
   const people = [...new Set(events.map((event) => event.actorName).filter((name): name is string => Boolean(name)))];
@@ -203,6 +211,10 @@ export function useProjectLiveUpdates(projectId: string | null, enabled: boolean
         try {
           const event = JSON.parse((message as MessageEvent<string>).data) as ProjectLiveEvent;
           if (event.projectId !== projectId || (event.clientId && event.clientId === liveClientId)) return;
+          if (isQuietLiveEvent(event)) {
+            window.dispatchEvent(new CustomEvent(JIRA_DATA_UPDATED_EVENT, { detail: { projectId } }));
+            return;
+          }
           sync.receive(event);
         } catch {
           // A malformed event is skipped.

@@ -300,8 +300,10 @@ function moveWidget(widgets: JiraSemanticWidget[], id: string, direction: -1 | 1
   return next;
 }
 
-export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange, onOpenAggregates, onStartEditing, section }: {
+export function JiraAnalyticsDashboard({ editing, dataRevision, chartsRevision = 0, onEditingChange, onOpenAggregates, onStartEditing, section }: {
   canClear: boolean; clearing: boolean; dataRevision: number; editing: boolean; onClearData: () => void;
+  /** Grows when fresh Jira data is in: the widgets are counted again, the dashboard's settings stay. */
+  chartsRevision?: number;
   onEditingChange: (editing: boolean) => void; onOpenAggregates: () => void; onStartEditing: () => void; section: JiraAnalyticsSection;
 }) {
   const { t: uiText } = useInterfaceTranslation();
@@ -400,6 +402,19 @@ export function JiraAnalyticsDashboard({ editing, dataRevision, onEditingChange,
   // Counted once the catalog and a linked slice are both known, whichever comes last.
   const catalogLoaded = catalog !== null;
   useEffect(() => { queueMicrotask(() => { void refreshSection(); }); }, [section, sliceKey, sliceState.ready, catalogLoaded, layerKey]);
+  // Fresh Jira data counts the widgets again; while the dashboard is edited it waits until editing ends.
+  const chartsSeen = useRef(chartsRevision);
+  const chartsWaiting = useRef(false);
+  useEffect(() => {
+    if (chartsSeen.current === chartsRevision) return;
+    chartsSeen.current = chartsRevision;
+    chartsWaiting.current = true;
+  }, [chartsRevision]);
+  useEffect(() => {
+    if (!chartsWaiting.current || editing) return;
+    chartsWaiting.current = false;
+    queueMicrotask(() => { void refreshSection(); });
+  }, [chartsRevision, editing]);
 
   const aggregates = useMemo(() => catalog?.definitions.filter((definition) => definition.publishedVersion && definition.published) ?? [], [catalog]);
   const shownDashboard = viewDashboard(config);

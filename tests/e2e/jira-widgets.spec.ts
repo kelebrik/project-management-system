@@ -130,3 +130,46 @@ test("a widget moves to the Retro tab from its editor", async ({ page }) => {
   await page.getByRole("button", { name: "Ретро" }).click();
   await expect(page.locator(".jira-analytics-widget", { hasText: "Создано Critical/Blocker по неделям" })).toHaveCount(1);
 });
+
+test("fresh Jira data counts the widgets again by itself, and waits while the dashboard is edited", async ({ page }) => {
+  const { batches } = await setup(page);
+  // Two syncs finish, each once the test lets it.
+  const gates: Array<() => void> = [];
+  const finished = (index: number) => new Promise<void>((resolve) => (gates[index] = resolve));
+  const syncs = [finished(0), finished(1)];
+  let streams = 0;
+  await page.route("**/api/projects/project-1/events", async (route) => {
+    const index = streams++;
+    if (index > 1) return route.abort();
+    await syncs[index];
+    const change = { id: `evt-jira-${index}`, projectId: "project-1", section: "jira", actorId: null, actorName: null, clientId: null, at: "2026-10-10T10:00:00.000Z" };
+    await route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: `retry: 100\n\nevent: change\ndata: ${JSON.stringify(change)}\n\n` });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await expect.poll(() => batches.length).toBeGreaterThan(0);
+  // The period someone picked stays: fresh data counts the widgets again, it does not reload the dashboard.
+  const period = page.locator(".jira-analytics-toolbar select").first();
+  await period.selectOption("30");
+  await expect.poll(() => batches.length).toBeGreaterThan(1);
+  let before = batches.length;
+  gates[0]();
+  await expect.poll(() => batches.length).toBeGreaterThan(before);
+  await expect(period).toHaveValue("30");
+  await expect(page.locator(".project-live-banner")).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Настроить для всех" }).click();
+  const widgets = page.locator(".jira-analytics-widget");
+  const shown = await widgets.count();
+  await page.getByRole("button", { name: "Добавить виджет" }).click();
+  await expect(widgets).toHaveCount(shown + 1);
+  before = batches.length;
+  gates[1]();
+  await expect.poll(() => streams).toBeGreaterThan(1);
+  await page.waitForTimeout(1_000);
+  // The widget being added is still there, and nothing was counted under the editor.
+  await expect(widgets).toHaveCount(shown + 1);
+  expect(batches.length).toBe(before);
+  await page.getByRole("button", { name: "Отменить" }).click();
+  await expect.poll(() => batches.length).toBeGreaterThan(before);
+  await expect(page.locator(".project-live-banner")).toHaveCount(0);
+});

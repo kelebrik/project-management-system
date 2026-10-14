@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { liveRetryDelay, summarizeLiveEvents, withLiveEvent, type ProjectLiveEvent } from "./useProjectLiveUpdates";
+import { isQuietLiveEvent, liveRetryDelay, summarizeLiveEvents, withLiveEvent, type ProjectLiveEvent } from "./useProjectLiveUpdates";
 
 const event = (id: string, patch: Partial<ProjectLiveEvent> = {}): ProjectLiveEvent => ({ id, projectId: "p1", section: "structure", actorId: "u2", actorName: "Анна", clientId: "tab-other", at: "2026-10-10T10:00:00.000Z", ...patch });
 
@@ -23,4 +23,9 @@ test("the banner names each person and section once and counts the changes", () 
 
 test("a refused stream is retried after a growing pause, a minute at most", () => {
   assert.deepEqual([1, 2, 3, 4, 5, 10].map(liveRetryDelay), [5_000, 10_000, 20_000, 40_000, 60_000, 60_000]);
+});
+
+test("fresh Jira data is taken quietly; changes people make are offered", () => {
+  assert.equal(isQuietLiveEvent(event("e1", { section: "jira", actorName: null })), true);
+  for (const section of ["structure", "raid", "issues", "project"]) assert.equal(isQuietLiveEvent(event("e2", { section })), false);
 });

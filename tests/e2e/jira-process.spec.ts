@@ -41,20 +41,44 @@ test("the Jira process tab shows where work waits, the moves, the stuck issues a
   await expect.poll(() => requested).toContain("periodDays=30");
 });
 
-test("«Обновить» on the live banner reloads the Jira process", async ({ page }) => {
+test("fresh Jira data redraws the Jira process by itself, with no banner", async ({ page }) => {
   await mockAdminProject(page);
   let loads = 0;
   await page.route("**/api/projects/project-1/jira/process?*", (route) => {
     loads += 1;
     return route.fulfill({ json: processData });
   });
+  // The sync finishes once the tab has drawn: its event is held until then.
+  let release!: () => void;
+  const drawn = new Promise<void>((resolve) => (release = resolve));
   const change = { id: "evt-jira", projectId: "project-1", section: "jira", actorId: null, actorName: null, clientId: null, at: "2026-10-10T10:00:00.000Z" };
+  await page.route("**/api/projects/project-1/events", async (route) => {
+    await drawn;
+    await route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: `retry: 60000\n\nevent: change\ndata: ${JSON.stringify(change)}\n\n` });
+  });
+  await page.goto("/TV-OVERVIEW/jira-work");
+  await page.getByRole("button", { name: "Процесс" }).click();
+  await expect.poll(() => loads).toBeGreaterThan(0);
+  const before = loads;
+  release();
+  await expect.poll(() => loads).toBeGreaterThan(before);
+  await expect(page.locator(".project-live-banner")).toHaveCount(0);
+});
+
+test("«Обновить» on the live banner after someone's change reloads the Jira process", async ({ page }) => {
+  await mockAdminProject(page);
+  let loads = 0;
+  await page.route("**/api/projects/project-1/jira/process?*", (route) => {
+    loads += 1;
+    return route.fulfill({ json: processData });
+  });
+  const change = { id: "evt-raid", projectId: "project-1", section: "raid", actorId: "u2", actorName: "Анна", clientId: null, at: "2026-10-10T10:00:00.000Z" };
   await page.route("**/api/projects/project-1/events", (route) => route.fulfill({ status: 200, headers: { "Content-Type": "text/event-stream" }, body: `retry: 60000\n\nevent: change\ndata: ${JSON.stringify(change)}\n\n` }));
   await page.goto("/TV-OVERVIEW/jira-work");
   await page.getByRole("button", { name: "Процесс" }).click();
   await expect.poll(() => loads).toBeGreaterThan(0);
   const before = loads;
-  const banner = page.getByRole("status").filter({ hasText: "данные Jira" });
+  const banner = page.getByRole("status").filter({ hasText: "Анна" });
   await banner.getByRole("button", { name: "Обновить" }).click();
   await expect.poll(() => loads).toBeGreaterThan(before);
 });

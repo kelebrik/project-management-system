@@ -11,6 +11,7 @@ import { JiraExtraFieldsPanel } from "../components/jira/JiraExtraFieldsPanel";
 import { JiraFlowPanel } from "../components/jira/JiraFlowPanel";
 import { JiraProcessPanel } from "../components/jira/JiraProcessPanel";
 import { usePageContext } from "./PageContext";
+import { JIRA_DATA_UPDATED_EVENT } from "../app/useProjectLiveUpdates";
 
 export const JIRA_PRODUCTION_BASE_URL = "https://tasks.sberdevices.ru";
 
@@ -37,6 +38,15 @@ export function ProjectJiraWorkPage() {
     window.addEventListener("pms-live-refresh", reload);
     return () => window.removeEventListener("pms-live-refresh", reload);
   }, []);
+  // Fresh Jira data from a sync redraws the charts by itself; forms and an edited dashboard are left as they are.
+  const [jiraChartsRevision, setJiraChartsRevision] = useState(0);
+  useEffect(() => {
+    const redraw = (event: Event) => {
+      if ((event as CustomEvent<{ projectId?: string }>).detail?.projectId === project.id) setJiraChartsRevision((revision) => revision + 1);
+    };
+    window.addEventListener(JIRA_DATA_UPDATED_EVENT, redraw);
+    return () => window.removeEventListener(JIRA_DATA_UPDATED_EVENT, redraw);
+  }, [project.id]);
   const dashboardEditing = editingProjectId === project.id;
   const clearing = clearingProjectId === project.id;
   const canEditWidgets = currentUser?.role === "ADMIN" && !isClosedProject;
@@ -141,8 +151,8 @@ export function ProjectJiraWorkPage() {
         </>
       ) : null}
       {view === "aggregates" ? <JiraAggregatesPage /> : null}
-      {view === "process" ? <JiraProcessPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision} userId={currentUser?.id ?? null} /> : null}
-      {view === "flow" ? <JiraFlowPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision} userId={currentUser?.id ?? null} /> : null}
+      {view === "process" ? <JiraProcessPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision + jiraChartsRevision} userId={currentUser?.id ?? null} /> : null}
+      {view === "flow" ? <JiraFlowPanel isAdmin={currentUser?.role === "ADMIN"} projectId={project.id} revision={jiraDataRevision + jiraChartsRevision} userId={currentUser?.id ?? null} /> : null}
       {view === "active" || view === "retro"
         ? (
             <JiraAnalyticsDashboard
@@ -150,6 +160,7 @@ export function ProjectJiraWorkPage() {
               editing={dashboardEditing}
               clearing={clearing}
               dataRevision={jiraDataRevision}
+              chartsRevision={jiraChartsRevision}
               onClearData={() => void clearJiraData()}
               onEditingChange={(editing) => setEditingProjectId(editing ? project.id : null)}
               onOpenAggregates={() => {
