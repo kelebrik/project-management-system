@@ -1,5 +1,6 @@
 import type { AnnotationsLabelsOptions, Options, PointOptionsObject, SeriesOptionsType, XrangePointOptionsObject } from "highcharts";
 import type { WbsItem } from "../domainTypes";
+import { createProjectWorkProgress } from "../projectWorkProgress";
 import type { ShiftLadder } from "../scheduleShifts";
 import type { AppChartColors } from "./appChartTheme";
 
@@ -26,6 +27,7 @@ export type LabText = {
   daysEarlier: (value: number) => string;
   onTime: string;
   progress: string;
+  progressDays: (done: number, total: number) => string;
   phaseless: string;
   status: (status: string) => string;
   type: (type: string) => string;
@@ -170,6 +172,24 @@ function statusColor(item: WbsItem, today: string, colors: AppChartColors) {
   return colors.muted;
 }
 
+/**
+ * How far a phase is: the working days of its finished tasks out of all its
+ * tasks, not cancelled, counted on the lowest rows; a phase with no rows under
+ * it counts by itself.
+ */
+export function phaseProgress(phase: WbsItem, items: WbsItem[]) {
+  const children = new Map<string, WbsItem[]>();
+  for (const item of items) if (item.parentId) children.set(item.parentId, [...(children.get(item.parentId) ?? []), item]);
+  const rows: WbsItem[] = [];
+  for (const queue = [phase]; queue.length > 0; ) {
+    const row = queue.pop()!;
+    rows.push(row);
+    queue.push(...(children.get(row.id) ?? []));
+  }
+  const { completedDays, totalDays } = createProjectWorkProgress(rows);
+  return { doneDays: completedDays, totalDays, share: totalDays > 0 ? completedDays / totalDays : 0 };
+}
+
 /** Phases as bars with their progress filled in, their milestones and goals as diamonds and stars on them. */
 export function phasesOption({ items, today, colors, text }: LabInput): Options | null {
   const byId = new Map(items.map((item) => [item.id, item]));
@@ -197,8 +217,8 @@ export function phasesOption({ items, today, colors, text }: LabInput): Options 
       ...options.tooltip,
       formatter: function () {
         const date = (value: number) => text.date(new Date(value).toISOString());
-        const point = this as unknown as { x: number; x2?: number; name?: string; partialFill?: { amount: number }; custom?: { status: string } };
-        if (point.x2 !== undefined) return `<b>${point.name}</b><br/>${date(point.x)} — ${date(point.x2)}<br/>${text.progress}: <b>${Math.round((point.partialFill?.amount ?? 0) * 100)}%</b>`;
+        const point = this as unknown as { x: number; x2?: number; name?: string; partialFill?: { amount: number }; custom?: { status?: string; doneDays?: number; totalDays?: number } };
+        if (point.x2 !== undefined) return `<b>${point.name}</b><br/>${date(point.x)} — ${date(point.x2)}<br/>${text.progress}: <b>${Math.round((point.partialFill?.amount ?? 0) * 100)}%</b> · ${text.progressDays(point.custom?.doneDays ?? 0, point.custom?.totalDays ?? 0)}`;
         return `<b>${point.name}</b><br/>${date(point.x)}<br/>${point.custom?.status ?? ""}`;
       },
     },
@@ -212,14 +232,18 @@ export function phasesOption({ items, today, colors, text }: LabInput): Options 
         color: colors.series[0],
         partialFill: { fill: colors.brand },
         dataLabels: { enabled: true, style: { color: colors.text, fontSize: "11px", fontWeight: "600", textOutline: "none" }, formatter: function () { return `${Math.round(((this as unknown as { partialFill?: { amount: number } }).partialFill?.amount ?? 0) * 100)}%`; } },
-        data: phases.map((phase, index): XrangePointOptionsObject => ({
-          x: time((phase.startDate ?? phase.baselineStartDate)!),
-          x2: time(dueOf(phase)!) + DAY,
-          y: index,
-          name: phase.title,
-          partialFill: { amount: Math.max(0, Math.min(1, (phase.progress ?? 0) / 100)) },
-          color: `${colors.series[0]}55`,
-        })),
+        data: phases.map((phase, index): XrangePointOptionsObject => {
+          const { doneDays, totalDays, share } = phaseProgress(phase, items);
+          return {
+            x: time((phase.startDate ?? phase.baselineStartDate)!),
+            x2: time(dueOf(phase)!) + DAY,
+            y: index,
+            name: phase.title,
+            partialFill: { amount: share },
+            custom: { doneDays, totalDays },
+            color: `${colors.series[0]}55`,
+          };
+        }),
       },
       { type: "scatter", name: text.type("MILESTONE"), marker: { symbol: "diamond", radius: 7, lineWidth: 1.5, lineColor: colors.surface }, data: marks(false), zIndex: 3 },
       { type: "scatter", name: text.type("GOAL"), marker: { symbol: "star", radius: 9, lineWidth: 1.5, lineColor: colors.surface }, data: marks(true), zIndex: 3 },

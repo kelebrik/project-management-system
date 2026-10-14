@@ -4,12 +4,12 @@ import test from "node:test";
 import type { WbsItem } from "../domainTypes";
 import type { ShiftLadder, ShiftStep } from "../scheduleShifts";
 import type { AppChartColors } from "./appChartTheme";
-import { forecastDriftOption, goalsDumbbellOption, milestonesTimelineOption, phasesOption, shiftReasonsParetoOption, shiftsDrilldownOption, type LabText } from "./scheduleLabOptions";
+import { forecastDriftOption, goalsDumbbellOption, milestonesTimelineOption, phaseProgress, phasesOption, shiftReasonsParetoOption, shiftsDrilldownOption, type LabText } from "./scheduleLabOptions";
 
 const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
 const text: LabText = {
   today: "Today", baseline: "Baseline", forecast: "Forecast", noBaseline: "no baseline", daysLater: (n) => `+${n} d`, daysEarlier: (n) => `-${n} d`, onTime: "on time",
-  progress: "Progress", phaseless: "No phase", status: (s) => s, type: (s) => s, reason: (c) => c, days: "Days", share: "Share", shiftsOf: (t) => `Moves of ${t}`, drift: "Drift", earlier: (n) => `${n} earlier`,
+  progress: "Progress", progressDays: (done, total) => `${done}/${total}`, phaseless: "No phase", status: (s) => s, type: (s) => s, reason: (c) => c, days: "Days", share: "Share", shiftsOf: (t) => `Moves of ${t}`, drift: "Drift", earlier: (n) => `${n} earlier`,
   titles: { goals: "Goals", phases: "Phases", timeline: "Timeline", reasons: "Reasons", moves: "Moves", drift: "Drift" }, date: (d) => d.slice(0, 10), dayMonth: (d) => d.slice(5, 10),
 };
 const item = (patch: Partial<WbsItem>): WbsItem => ({ id: "x", parentId: null, code: "1", title: "Item", type: "TASK", status: "NOT_STARTED", startDate: null, dueDate: null, baselineStartDate: null, baselineDueDate: null, forecastStartDate: null, forecastDueDate: null, progress: 0, ...patch }) as WbsItem;
@@ -36,15 +36,38 @@ test("goals are dumbbells from baseline to forecast, red when later, written wit
 
 test("phases carry their progress as a partial fill and their milestones on their row", () => {
   const items = [
+    // The progress typed on the phase is not used: the fill comes from its tasks.
     item({ id: "p1", type: "PHASE", title: "Design", startDate: "2026-09-01", dueDate: "2026-10-31", progress: 40 }),
     item({ id: "w1", parentId: "p1", type: "WORK_PACKAGE" }),
+    item({ id: "t1", parentId: "w1", status: "DONE", workDays: 3 }),
+    item({ id: "t2", parentId: "w1", status: "NOT_STARTED", workDays: 1 }),
     item({ id: "m1", parentId: "w1", type: "MILESTONE", title: "Review", dueDate: "2026-10-01", status: "DONE" }),
     item({ id: "g1", parentId: "p1", type: "GOAL", title: "Ready", dueDate: "2026-10-31" }),
   ];
   const options = phasesOption({ items, today, colors, text })!;
-  assert.deepEqual((series(options)[0]!.partialFill as { amount: number }).amount, 0.4);
+  assert.deepEqual((series(options)[0]!.partialFill as { amount: number }).amount, 0.75);
+  assert.deepEqual(series(options)[0]!.custom, { doneDays: 3, totalDays: 4 });
   assert.deepEqual(series(options, 1).map((point) => [point.name, point.y, point.color]), [["Review", 0, "#16a34a"]]);
   assert.deepEqual(series(options, 2).map((point) => point.name), ["Ready"]);
+});
+
+test("phase progress is the working days of finished tasks out of all tasks", () => {
+  const phase = item({ id: "p", type: "PHASE", workDays: 50 });
+  const task = (id: string, parentId: string, status: string, workDays: number | null, extra: Partial<WbsItem> = {}) => item({ id, parentId, status: status as WbsItem["status"], workDays, ...extra });
+  // Unfinished tasks count the same whether started or not; cancelled ones do not count.
+  const mixed = [phase, task("a", "p", "DONE", 1), task("b", "p", "IN_PROGRESS", 1), task("c", "p", "NOT_STARTED", 1), task("x", "p", "CANCELLED", 9)];
+  assert.deepEqual(phaseProgress(phase, mixed), { doneDays: 1, totalDays: 3, share: 1 / 3 });
+  const started = mixed.map((row) => (row.id === "c" ? { ...row, status: "IN_PROGRESS" as WbsItem["status"] } : row));
+  assert.equal(phaseProgress(phase, started).share, 1 / 3);
+  // A phase inside a phase: only the lowest rows count, so neither phase's own days are added.
+  const nested = [phase, item({ id: "q", parentId: "p", type: "PHASE", workDays: 40 }), task("d", "q", "DONE", 2), task("e", "p", "NOT_STARTED", 2)];
+  assert.deepEqual(phaseProgress(phase, nested), { doneDays: 2, totalDays: 4, share: 0.5 });
+  // No days at all, or only cancelled tasks: nothing done.
+  assert.equal(phaseProgress(phase, [phase, task("f", "p", "DONE", 0)]).share, 0);
+  assert.equal(phaseProgress(phase, [phase, task("g", "p", "CANCELLED", 5)]).share, 0);
+  // A phase with nothing under it counts by itself.
+  assert.equal(phaseProgress(item({ id: "lone", type: "PHASE", status: "DONE", workDays: 5 }), []).share, 1);
+  assert.equal(phaseProgress(item({ id: "lone", type: "PHASE", status: "DONE", workDays: 5, planWorkDays: 8 }), []).totalDays, 5);
 });
 
 test("the timeline keeps milestones from two months back to four ahead, in date order", () => {

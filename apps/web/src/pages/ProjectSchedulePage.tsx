@@ -74,6 +74,7 @@ export default function ProjectSchedulePage() {
       daysEarlier: (count) => t("ui.lab.daysEarlier", { count }),
       onTime: t("ui.lab.onTime"),
       progress: t("ui.lab.progress"),
+      progressDays: (done, total) => t("ui.lab.progressDays", { done, total }),
       phaseless: t("ui.lab.phaseless"),
       status: (status) => labels.wbsStatusLabel(status),
       type: (type) => labels.wbsTypeLabel(type),
