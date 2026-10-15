@@ -1,7 +1,8 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { ProjectDecisionsPage } from "./ProjectDecisionsPage";
 import { JiraReconciliationPage } from './JiraReconciliationPage';
-import { lazy, Suspense } from "react";
+import { Suspense } from "react";
+import { lazyWithReload } from "../app/staleBuild";
 import { PageSkeleton } from "../components/Skeleton";
 import { AdminAuditPageContent } from "./AdminAuditPageContent";
 import { AdminAnalyticsPageContent } from "./AdminAnalyticsPageContent";
@@ -33,49 +34,49 @@ import { usePageContext } from "./PageContext";
 import { WikiPage } from "./WikiPage";
 import { canViewAppView, isDevelopmentSectionViewName, isOperationsSectionViewName } from "../app/routes";
 
-const LeaveSchedulePage = lazy(() =>
+const LeaveSchedulePage = lazyWithReload(() =>
   import("./LeaveSchedulePage").then((module) => ({
     default: module.LeaveSchedulePage,
   })),
 );
-const ProjectHistoryPage = lazy(() =>
+const ProjectHistoryPage = lazyWithReload(() =>
   import("./ProjectHistoryPage").then((module) => ({
     default: module.ProjectHistoryPage,
   })),
 );
-const WorkloadPage = lazy(() =>
+const WorkloadPage = lazyWithReload(() =>
   import("./WorkloadPage").then((module) => ({
     default: module.WorkloadPage,
   })),
 );
-const MyWorkPage = lazy(() =>
+const MyWorkPage = lazyWithReload(() =>
   import("./MyWorkPage").then((module) => ({
     default: module.MyWorkPage,
   })),
 );
-const AutomationRulesPage = lazy(() => import("./AutomationRulesPage"));
-const ProjectSchedulePage = lazy(() => import("./ProjectSchedulePage"));
-const MyPagePage = lazy(() =>
+const AutomationRulesPage = lazyWithReload(() => import("./AutomationRulesPage"));
+const ProjectSchedulePage = lazyWithReload(() => import("./ProjectSchedulePage"));
+const MyPagePage = lazyWithReload(() =>
   import("./MyPagePage").then((module) => ({
     default: module.MyPagePage,
   })),
 );
-const SharedPagePage = lazy(() =>
+const SharedPagePage = lazyWithReload(() =>
   import("./SharedPagePage").then((module) => ({
     default: module.SharedPagePage,
   })),
 );
-const RaciMatrixPage = lazy(() =>
+const RaciMatrixPage = lazyWithReload(() =>
   import("./RaciMatrixPage").then((module) => ({
     default: module.RaciMatrixPage,
   })),
 );
-const LessonsRegisterPage = lazy(() =>
+const LessonsRegisterPage = lazyWithReload(() =>
   import("./LessonsRegisterPage").then((module) => ({
     default: module.LessonsRegisterPage,
   })),
 );
-const DecisionQueuePage = lazy(() =>
+const DecisionQueuePage = lazyWithReload(() =>
   import("./DecisionQueuePage").then((module) => ({
     default: module.DecisionQueuePage,
   })),

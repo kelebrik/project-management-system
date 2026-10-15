@@ -1,4 +1,9 @@
 export const commonMessages = {
+  "ui.errors.pageTitle": { "en": "This page could not be shown", "ru": "Не удалось показать страницу" },
+  "ui.errors.staleBuild": { "en": "The application was updated while the page was open. Reload it to get the new version.", "ru": "Пока страница была открыта, вышла новая версия приложения. Обновите страницу, чтобы её получить." },
+  "ui.errors.other": { "en": "Something went wrong while drawing it. Reload the page or try again.", "ru": "При отрисовке что-то пошло не так. Обновите страницу или попробуйте ещё раз." },
+  "ui.errors.reload": { "en": "Reload the page", "ru": "Обновить страницу" },
+  "ui.errors.retry": { "en": "Try again", "ru": "Попробовать ещё раз" },
   "baseline.confirmAllTitle": {
     "en": "Set the baseline?",
     "ru": "Зафиксировать базовый план?"

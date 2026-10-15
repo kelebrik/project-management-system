@@ -70,6 +70,12 @@ app.use(
     },
   }),
 );
+// A file of a build no longer served is missing, not a page: a tab still asking for it gets a 404,
+// so it learns to reload instead of taking the page for a script.
+app.use('/assets', (_req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(404).type('text/plain').send('Not found');
+});
 app.get(/.*/, pageRateLimit, (_req, res) => {
   res.setHeader('Cache-Control', 'no-store');
   res.sendFile(path.join(webDist, 'index.html'));

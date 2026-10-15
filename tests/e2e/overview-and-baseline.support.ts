@@ -229,6 +229,8 @@ export async function mockAdminProject(
     route.fulfill({ json: { enabled: false, hostname: null } }),
   );
   await page.route(/\/api\/projects$/, (route) => route.fulfill({ json: [project] }));
+  // No editing session waits to be asked about, unless a test says otherwise.
+  await page.route(/\/api\/projects\/[^/]+\/schedule-shifts\/pending$/, (route) => route.fulfill({ json: { projectId: project.id, sessions: [], risks: [], ownOpen: null } }));
   await page.route("**/api/projects/project-1/overview", (route) =>
     route.fulfill({ json: project }),
   );

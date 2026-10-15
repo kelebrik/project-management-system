@@ -269,3 +269,30 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* A part that failed to draw, in place of a blank window. */
+.error-notice {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: grid;
+  gap: 8px;
+  margin: 24px auto;
+  max-width: 560px;
+  padding: 20px 24px;
+}
+
+.error-notice p,
+.error-notice small {
+  margin: 0;
+}
+
+.error-notice small {
+  color: var(--text-muted);
+  word-break: break-word;
+}
+
+.error-notice div {
+  display: flex;
+  gap: 8px;
+}

@@ -25,6 +25,7 @@ import { ProjectPicker } from "./ProjectPicker";
 import { adminNavItems, developmentNavItems, operationsNavItems, projectNavItems } from "./appNavItems";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
+import { ErrorBoundary, ErrorNotice } from "./ErrorBoundary";
 import { LanguageToggle } from "./LanguageToggle";
 import { useTheme } from "../hooks/useTheme";
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
@@ -407,12 +408,24 @@ export function AppShell({
         />
 
         <PageContextProvider value={pageContext}>
-          <PageBoundary
-            view={activeView}
-            isAdminSectionViewName={isAdminSectionViewName}
+          {/* A page that fails to draw says so; the menus stay, and another page starts afresh. */}
+          <ErrorBoundary
+            resetKey={`${activeView}:${selectedProjectId ?? ""}`}
+            fallback={(error, retry) => (
+              <ErrorNotice
+                error={error}
+                retry={retry}
+                texts={{ title: t("ui.errors.pageTitle"), stale: t("ui.errors.staleBuild"), other: t("ui.errors.other"), reload: t("ui.errors.reload"), retry: t("ui.errors.retry") }}
+              />
+            )}
           >
-            <AppPages />
-          </PageBoundary>
+            <PageBoundary
+              view={activeView}
+              isAdminSectionViewName={isAdminSectionViewName}
+            >
+              <AppPages />
+            </PageBoundary>
+          </ErrorBoundary>
           <IssueDrawer />
           <ShiftReasonPrompt />
           {pageContext.projectCreateOpen && <ProjectCreateDialog />}
