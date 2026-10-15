@@ -51,6 +51,21 @@ test("phases carry their progress as a partial fill and their milestones on thei
   assert.deepEqual(series(options, 2).map((point) => point.name), ["Ready"]);
 });
 
+test("a cancelled phase is not drawn", () => {
+  const items = [
+    item({ id: "p1", type: "PHASE", title: "Design", startDate: "2026-09-01", dueDate: "2026-10-31" }),
+    item({ id: "p2", type: "PHASE", title: "NPU", status: "CANCELLED", startDate: "2026-09-01", dueDate: "2026-12-31" }),
+    item({ id: "m1", parentId: "p1", type: "MILESTONE", title: "Review", dueDate: "2026-10-01" }),
+    item({ id: "m2", parentId: "p2", type: "MILESTONE", title: "NPU ready", dueDate: "2026-12-01" }),
+  ];
+  const options = phasesOption({ items, today, colors, text })!;
+  assert.deepEqual((options.yAxis as { categories: string[] }).categories, ["Design"]);
+  assert.deepEqual(series(options).map((point) => point.name), ["Design"]);
+  // Its milestones go with it.
+  assert.deepEqual(series(options, 1).map((point) => [point.name, point.y]), [["Review", 0]]);
+  assert.equal(phasesOption({ items: [items[1]!], today, colors, text }), null);
+});
+
 test("phase progress is the working days of finished tasks out of all tasks", () => {
   const phase = item({ id: "p", type: "PHASE", workDays: 50 });
   const task = (id: string, parentId: string, status: string, workDays: number | null, extra: Partial<WbsItem> = {}) => item({ id, parentId, status: status as WbsItem["status"], workDays, ...extra });

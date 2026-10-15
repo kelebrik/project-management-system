@@ -194,7 +194,8 @@ export function phaseProgress(phase: WbsItem, items: WbsItem[]) {
 export function phasesOption({ items, today, colors, text }: LabInput): Options | null {
   const byId = new Map(items.map((item) => [item.id, item]));
   const phases = items
-    .filter((item) => item.type === "PHASE" && (item.startDate ?? item.baselineStartDate) && dueOf(item))
+    // A cancelled phase is no longer part of the plan.
+    .filter((item) => item.type === "PHASE" && item.status !== "CANCELLED" && (item.startDate ?? item.baselineStartDate) && dueOf(item))
     .sort((a, b) => (a.startDate ?? a.baselineStartDate)!.localeCompare((b.startDate ?? b.baselineStartDate)!));
   if (phases.length === 0) return null;
   const row = new Map(phases.map((phase, index) => [phase.id, index]));
