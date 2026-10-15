@@ -31,6 +31,7 @@ test('any open goal moves with its history, an agreed move is no delay, and the 
   const first = await goal(project.id, '2', '2026-11-10');
   const last = await goal(project.id, '3', '2026-12-20');
   await goal(done.id, '1', '2026-11-10', { status: 'DONE' });
+  await prisma.wbsBaseline.create({ data: { projectId: project.id, version: 1, title: 'Базовый план v1' } });
 
   const previousProfile = process.env.DEPLOYMENT_PROFILE;
   process.env.DEPLOYMENT_PROFILE = 'cloud';

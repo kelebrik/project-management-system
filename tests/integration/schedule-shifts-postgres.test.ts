@@ -32,6 +32,7 @@ test('structure edits, calendar days and baselines are journaled against the che
   await recalculateProjectWbsSchedule(project.id);
   const settled = await prisma.wbsItem.findUniqueOrThrow({ where: { id: milestone.id } });
   await prisma.$executeRaw`UPDATE "WbsItem" SET "baselineDueDate" = "dueDate" WHERE "projectId" = ${project.id}`;
+  await prisma.wbsBaseline.create({ data: { projectId: project.id, version: 1, title: 'Базовый план v1' } });
 
   const previousProfile = process.env.DEPLOYMENT_PROFILE;
   process.env.DEPLOYMENT_PROFILE = 'cloud';
@@ -113,5 +114,79 @@ test('structure edits, calendar days and baselines are journaled against the che
     server.close();
     process.env.DEPLOYMENT_PROFILE = previousProfile;
     await prisma.project.deleteMany({ where: { id: project.id } }).catch(() => undefined);
+  }
+});
+
+test('before the plan is first fixed nothing counts: no journal, no ladders, no reasons; after it, moves count from there', { skip: !enabled }, async () => {
+  assert.match(new URL(process.env.DATABASE_URL!).pathname, /test/);
+  const suffix = randomUUID().slice(0, 8);
+  const unit = await prisma.businessUnit.create({ data: { code: `nb-${suffix}`, name: 'No baseline test' } });
+  const user = await prisma.user.create({
+    data: { email: `nb-${suffix}@example.test`, name: 'Тарасов', role: 'ADMIN', passwordHash: await hashPassword('test-shifts-only') },
+  });
+  const project = await prisma.project.create({
+    data: { code: `NB-${suffix}`, name: 'No baseline test', businessUnitId: unit.id, portfolio: 'TEST', sponsor: 'Test', projectManager: 'Test', startDate: day('2026-10-01'), targetDate: day('2026-12-01'), budgetPlanned: 0, budgetForecast: 0, summary: '' },
+  });
+  const task = await prisma.wbsItem.create({
+    data: { projectId: project.id, code: '1', title: 'Кикофф', type: 'TASK', status: 'NOT_STARTED', owner: 'Тарасов', startDate: day('2026-10-05'), dueDate: day('2026-10-09'), workDays: 5, sortOrder: 10, wbsLevel: 1 },
+  });
+  // A baseline date on the row (as an import gives) is not a fixed plan.
+  const milestone = await prisma.wbsItem.create({
+    data: { projectId: project.id, code: '2', title: 'Проект запущен', type: 'MILESTONE', status: 'NOT_STARTED', owner: '', startDate: day('2026-10-09'), dueDate: day('2026-10-09'), baselineDueDate: day('2026-10-09'), workDays: 0, sortOrder: 20, wbsLevel: 1 },
+  });
+  await prisma.wbsDependency.create({ data: { projectId: project.id, predecessorId: task.id, successorId: milestone.id, type: 'FS', lagDays: 0 } });
+  await recalculateProjectWbsSchedule(project.id);
+  await prisma.$executeRaw`UPDATE "WbsItem" SET "baselineDueDate" = "dueDate" WHERE "projectId" = ${project.id}`;
+
+  const previousProfile = process.env.DEPLOYMENT_PROFILE;
+  process.env.DEPLOYMENT_PROFILE = 'cloud';
+  const server = createApp().listen(0, '127.0.0.1');
+  await new Promise<void>((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  assert(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  let cookie = '';
+  const request = (url: string, options: RequestInit = {}) =>
+    fetch(base + url, { ...options, headers: { Cookie: cookie, 'x-business-unit-id': unit.id, 'Content-Type': 'application/json', ...options.headers } });
+  const ladders = async () => (await (await request(`/api/projects/${project.id}/schedule-shifts`)).json()).checkpoints as any[];
+  try {
+    const login = await request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email: user.email, password: 'test-shifts-only' }) });
+    assert.equal(login.status, 200);
+    cookie = login.headers.getSetCookie().map((value) => value.split(';')[0]).join('; ');
+
+    // Drafting the plan pushes the milestone far: nothing is journaled or asked.
+    const draft = await request(`/api/wbs-items/${task.id}`, { method: 'PATCH', body: JSON.stringify({ workDays: 200 }) });
+    assert.equal(draft.status, 200, await draft.clone().text());
+    assert.equal(draft.headers.get('x-schedule-shift-reason-needed'), '0');
+    assert.equal(await prisma.scheduleShift.count({ where: { projectId: project.id } }), 0);
+    assert.deepEqual(await ladders(), []);
+    // Rows written before the plan was fixed (by an older version) do not count either.
+    const oldOperation = randomUUID();
+    await prisma.scheduleShift.create({
+      data: { projectId: project.id, kind: 'SHIFT', checkpointId: milestone.id, checkpointCode: '2', checkpointTitle: 'Проект запущен', checkpointType: 'MILESTONE', previousDate: day('2026-10-09'), newDate: day('2027-08-06'), deltaDays: 301, baselineDate: day('2026-10-09'), trigger: 'MANUAL_EDIT', operationId: oldOperation, createdAt: new Date(Date.now() - 60_000) },
+    });
+    assert.deepEqual(await ladders(), []);
+    const asked = async () => (await (await request(`/api/schedule-shifts/operations/${oldOperation}`)).json()).shifts;
+    assert.deepEqual(await asked(), []);
+    const pending = await (await request(`/api/projects/${project.id}/schedule-shifts/pending`)).json();
+    assert.deepEqual(pending.sessions, []);
+
+    // The plan is fixed: from now on a move later than it counts and asks why.
+    const fixed = await request(`/api/projects/${project.id}/wbs-baseline`, { method: 'POST', body: JSON.stringify({}) });
+    assert.ok(fixed.status < 300, await fixed.clone().text());
+    assert.deepEqual(await ladders(), []);
+    assert.deepEqual(await asked(), []);
+    const late = await request(`/api/wbs-items/${task.id}`, { method: 'PATCH', body: JSON.stringify({ workDays: 205 }) });
+    assert.equal(late.status, 200, await late.clone().text());
+    assert.equal(late.headers.get('x-schedule-shift-reason-needed'), '1');
+    const after = await ladders();
+    assert.deepEqual(after.map((ladder) => [ladder.id, ladder.steps.length, ladder.unexplainedDays]), [[milestone.id, 1, 0]]);
+    assert.ok(after[0].varianceDays > 0 && after[0].varianceDays < 10);
+  } finally {
+    server.close();
+    process.env.DEPLOYMENT_PROFILE = previousProfile;
+    await prisma.project.deleteMany({ where: { id: project.id } }).catch(() => undefined);
+    await prisma.user.delete({ where: { id: user.id } }).catch(() => undefined);
+    await prisma.businessUnit.delete({ where: { id: unit.id } }).catch(() => undefined);
   }
 });

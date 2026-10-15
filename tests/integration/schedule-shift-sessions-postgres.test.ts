@@ -27,6 +27,8 @@ async function fixture() {
   const milestone = await prisma.wbsItem.create({
     data: { projectId: project.id, code: '1', title: 'Готово', type: 'MILESTONE', status: 'NOT_STARTED', owner: '', startDate: day('2026-11-01'), dueDate: day('2026-11-01'), baselineDueDate: day('2026-11-01'), workDays: 0, sortOrder: 10, wbsLevel: 1 },
   });
+  // The plan is fixed: the journal counts from then on.
+  await prisma.wbsBaseline.create({ data: { projectId: project.id, version: 1, title: 'Базовый план v1', createdAt: day('2026-01-01') } });
   // A move of the milestone as the journal would record it.
   const move = (operationId: string, from: string, to: string, actorId: string | null): ShiftRow => ({
     projectId: project.id, kind: 'SHIFT', checkpointId: milestone.id, checkpointCode: '1', checkpointTitle: 'Готово', checkpointType: 'MILESTONE',

@@ -168,8 +168,16 @@ test('a date sent far away and brought back counts nothing, and no baseline coun
   // Late by 5 days from before the journal: the swing explains none of them.
   const [withBaseline] = buildShiftLadders([checkpoint('m', '2026-11-06', '2026-11-01')], swing);
   assert.deepEqual(withBaseline.reasonDays, {});
-  const [withoutBaseline] = buildShiftLadders([checkpoint('m', '2027-03-24', null)], [...swing, row('m', 'SHIFT', 'late', 30, '2026-10-10T10:00:00Z')]);
-  assert.deepEqual(withoutBaseline.reasonDays, {});
+  // A checkpoint without a baseline has nothing to be late against: it gets no ladder at all.
+  assert.deepEqual(buildShiftLadders([checkpoint('m', '2027-03-24', null)], [...swing, row('m', 'SHIFT', 'late', 30, '2026-10-10T10:00:00Z')]), []);
+});
+
+test('the active goal stays the first open goal when it has no baseline and so no ladder', () => {
+  const ladders = buildShiftLadders(
+    [checkpoint('g1', '2026-12-01', null, { type: 'GOAL' }), checkpoint('g2', '2027-01-10', '2027-01-01', { type: 'GOAL', sortOrder: 20 })],
+    [],
+  );
+  assert.deepEqual(ladders.map((ladder) => [ladder.id, ladder.isActiveGoal]), [['g2', false]]);
 });
 
 test('days by reason never pass how late the checkpoint is now', () => {

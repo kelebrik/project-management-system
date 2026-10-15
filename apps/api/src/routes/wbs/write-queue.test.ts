@@ -98,6 +98,8 @@ function mockJournal() {
       findUnique: async () => ({ code: '1.2', title: 'Задача' }),
     },
     scheduleShift: { createMany: async (args: any) => created.push(...args.data) },
+    // The plan is fixed, so moves are journaled.
+    wbsBaseline: { findFirst: async () => ({ createdAt: new Date('2026-01-01T00:00:00Z') }) },
     // Editing sessions: one open per project, as the session lock keeps it.
     scheduleShiftSession: {
       findFirst: async () => sessions.find((session) => !session.closedAt) ?? null,

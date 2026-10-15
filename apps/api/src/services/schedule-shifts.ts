@@ -56,6 +56,15 @@ async function checkpoints(projectId: string) {
   return new Map<string, Checkpoint>(rows.map((row) => [row.id, row]));
 }
 
+/**
+ * When the project's plan was first fixed: before that its dates are a draft,
+ * so their moves are no delay and the journal counts nothing.
+ */
+async function firstBaselineAt(projectId: string, db: Pick<typeof prisma, 'wbsBaseline'> = prisma) {
+  const first = await db.wbsBaseline.findFirst({ where: { projectId }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } });
+  return first?.createdAt ?? null;
+}
+
 export type ShiftRow = {
   projectId: string;
   kind: 'SHIFT' | 'BASELINE';
@@ -224,6 +233,8 @@ export async function beginScheduleShiftTracking(projectId: string, context: Shi
       const none = { operationId, sessionId: null, projectId, actorId: context.actor?.id ?? null, shifts: 0, reasonNeeded: 0 };
       if (!before) return none;
       try {
+        // A plan not fixed yet is a draft: its moves are not journaled (the operation that fixes it is).
+        if (!(await firstBaselineAt(projectId))) return none;
         const after = await checkpoints(projectId);
         const source = context.sourceItemId
           ? await prisma.wbsItem.findUnique({ where: { id: context.sourceItemId }, select: { code: true, title: true } })
@@ -435,12 +446,14 @@ export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: J
     .filter((item) => item.status !== 'DONE' && item.status !== 'CANCELLED')
     .sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, 'ru', { numeric: true }));
   const activeGoalId = open.find((item) => item.type === 'GOAL')?.id ?? null;
+  // A checkpoint with no baseline has nothing to be late against.
+  const measured = open.filter((item) => item.baselineDueDate !== null);
   const byCheckpoint = new Map<string, JournalRow[]>();
   for (const row of journal) {
     if (!row.checkpointId) continue;
     byCheckpoint.set(row.checkpointId, [...(byCheckpoint.get(row.checkpointId) ?? []), row]);
   }
-  const ladders = open.map((item) => {
+  const ladders = measured.map((item) => {
     const steps = checkpointSteps(byCheckpoint.get(item.id) ?? []);
     const varianceDays = item.dueDate && item.baselineDueDate ? calendarDaysBetween(item.baselineDueDate, item.dueDate) : null;
     const explainedDays = steps.reduce((sum, step) => sum + (step.deltaDays ?? 0), 0);
@@ -508,8 +521,11 @@ async function projectCheckpointJournal(projectId: string) {
     where: { projectId, type: { in: ['MILESTONE', 'GOAL'] }, status: { notIn: ['DONE', 'CANCELLED'] } },
     select: { id: true, code: true, title: true, type: true, status: true, sortOrder: true, dueDate: true, baselineDueDate: true },
   });
+  // Only what moved since the plan was first fixed counts; without a fixed plan nothing does.
+  const since = await firstBaselineAt(projectId);
+  if (!since) return { items: [], journal: [] };
   const journal = await prisma.scheduleShift.findMany({
-    where: { projectId, checkpointId: { in: items.map((item) => item.id) } },
+    where: { projectId, checkpointId: { in: items.map((item) => item.id) }, createdAt: { gte: since } },
     orderBy: { createdAt: 'asc' },
   });
   return { items, journal };
@@ -592,7 +608,11 @@ export async function pendingShiftSessions(projectId: string, userId: string, op
       select: { id: true, code: true, title: true, sortOrder: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     });
-    const journal = await db.scheduleShift.findMany({ where: { projectId, checkpointId: { in: items.map((item) => item.id) } }, orderBy: { createdAt: 'asc' } });
+    // Moves before the plan was first fixed ask for no reason.
+    const since = await firstBaselineAt(projectId, db);
+    const journal = since
+      ? await db.scheduleShift.findMany({ where: { projectId, checkpointId: { in: items.map((item) => item.id) }, createdAt: { gte: since } }, orderBy: { createdAt: 'asc' } })
+      : [];
     const stepsBySession = new Map<string, PendingStep[]>();
     for (const item of items) {
       for (const step of checkpointSteps(journal.filter((row) => row.checkpointId === item.id))) {
@@ -670,7 +690,9 @@ export async function withReasonRows<T>(
 /** The later-than-baseline moves of one operation that still have no reason, for the prompt after a save. */
 export async function operationShiftsNeedingReason(operationId: string) {
   const rows = await prisma.scheduleShift.findMany({ where: { operationId, kind: 'SHIFT', reasonCategory: null }, orderBy: { checkpointCode: 'asc' } });
-  const open = rows.filter((row) => needsReason(row as Parameters<typeof needsReason>[0]));
+  // Moves made before the project's plan was first fixed ask for no reason.
+  const since = rows[0] ? await firstBaselineAt(rows[0].projectId) : null;
+  const open = since ? rows.filter((row) => row.createdAt >= since && needsReason(row as Parameters<typeof needsReason>[0])) : [];
   return {
     projectId: open[0]?.projectId ?? rows[0]?.projectId ?? null,
     shifts: open.map((row) => ({
