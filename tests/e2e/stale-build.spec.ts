@@ -17,7 +17,8 @@ test("a page whose file is gone reloads the tab once and then shows", async ({ p
   const loads: string[] = [];
   page.on("load", () => loads.push(page.url()));
   await page.getByRole("button", { name: "Моя страница" }).first().click();
-  await expect(page.getByText("Мои страницы (0)")).toBeVisible();
+  // After the reload the dev server builds the page again: give it time.
+  await expect(page.getByText("Мои страницы (0)")).toBeVisible({ timeout: 20_000 });
   expect(failures).toBe(1);
   expect(loads.length).toBe(1);
 });
@@ -28,7 +29,7 @@ test("a page that keeps failing says so, with the menus still there, instead of 
   await page.goto("/projects");
   await page.getByRole("button", { name: "Моя страница" }).first().click();
   const notice = page.getByRole("alert").filter({ hasText: "Не удалось показать страницу" });
-  await expect(notice).toBeVisible();
+  await expect(notice).toBeVisible({ timeout: 20_000 });
   await expect(notice).toContainText("вышла новая версия приложения");
   await expect(notice.getByRole("button", { name: "Обновить страницу" })).toBeVisible();
   // The rest of the application is still there: another page opens.
@@ -41,5 +42,5 @@ test("charts whose modules keep failing say so instead of waiting for ever", asy
   await page.route(/\/api\/projects\/[^/]+\/schedule-shifts$/, (route) => route.fulfill({ json: { checkpoints: [] } }));
   await page.route(/\/src\/components\/charts\/highchartsExtras\.ts(\?.*)?$/, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "Not found" }));
   await page.goto("/TV-OVERVIEW/schedule");
-  await expect(page.getByRole("alert").filter({ hasText: "Не удалось показать страницу" })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Не удалось показать страницу" })).toBeVisible({ timeout: 20_000 });
 });

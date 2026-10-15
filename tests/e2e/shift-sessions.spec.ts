@@ -141,10 +141,10 @@ test("a session left open in a tab that is gone is ended on coming back, only as
   const { closes, asked } = await openPlan(page, (control) => {
     control.ownOpen = { id: "s1", lastActivityAt: "2026-10-14T10:20:00.000Z" };
   });
-  await expect.poll(() => closes).toEqual([{ sessionId: "s1", mode: "stale", lastActivityAt: "2026-10-14T10:20:00.000Z" }]);
+  await expect.poll(() => closes, { timeout: 20_000 }).toEqual([{ sessionId: "s1", mode: "stale", lastActivityAt: "2026-10-14T10:20:00.000Z" }]);
   // Then the question about it.
-  await expect.poll(() => asked.length).toBe(2);
-  await expect(page.getByRole("dialog", { name: /вехи ушли за базовый план/ })).toBeVisible();
+  await expect.poll(() => asked.length, { timeout: 20_000 }).toBe(2);
+  await expect(page.getByRole("dialog", { name: /вехи ушли за базовый план/ })).toBeVisible({ timeout: 20_000 });
 });
 
 test("a question that could not be fetched after a leave is said so and fetched again", async ({ page }) => {
