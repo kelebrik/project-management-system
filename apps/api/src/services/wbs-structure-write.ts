@@ -179,10 +179,32 @@ async function journalStructureWrite(db: StructureDb, context: StructureWriteCon
   await db.$executeRaw`UPDATE "ProjectStructureCommit" SET "changeCount" = ${changeCount} WHERE "projectId" = ${projectId} AND "version" = ${nextVersion}`;
 }
 
+/**
+ * The project's target date is the date of its last goal (cancelled ones do
+ * not count, done ones do): whatever moved the goals moves it too. A project
+ * without dated goals keeps the date it was given. The first date it had stays
+ * as the initial one.
+ */
+export async function syncProjectTargetDate(db: StructureDb, projectId: string) {
+  const goals = await db.wbsItem.findMany({
+    where: { projectId, type: 'GOAL', status: { not: 'CANCELLED' }, dueDate: { not: null } },
+    select: { dueDate: true },
+  });
+  const lastGoalTime = Math.max(...goals.map((goal) => goal.dueDate?.getTime() ?? Number.NEGATIVE_INFINITY));
+  if (!Number.isFinite(lastGoalTime)) return;
+  const project = await db.project.findUnique({ where: { id: projectId }, select: { targetDate: true, initialTargetDate: true } });
+  if (!project || project.targetDate.getTime() === lastGoalTime) return;
+  await db.project.update({
+    where: { id: projectId },
+    data: { targetDate: new Date(lastGoalTime), initialTargetDate: project.initialTargetDate ?? project.targetDate },
+  });
+}
+
 /** Moves the version of every project the transaction locked and journals the write: exactly once each, at its end. */
 async function finishStructureWrites(db: StructureDb) {
   const locked = [...(contexts.get(db)?.values() ?? [])].sort((left, right) => left.projectId.localeCompare(right.projectId));
   for (const context of locked) {
+    await syncProjectTargetDate(db, context.projectId);
     await journalStructureWrite(db, context);
     await db.projectStructureVersion.upsert({
       where: { projectId: context.projectId },

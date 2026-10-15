@@ -267,7 +267,7 @@ export const openApiCorePaths = {
     "/api/projects/{projectId}/target-date": {
       patch: securedOperation(
         ["Projects"],
-        "Update approved project target date with change history",
+        "Move a goal (the active one unless goalId names another open goal; the project date when it has no goals) with change history; notDelay also moves the goal baseline and requires approvedBy. The project target date is its last goal's date",
         [projectIdParam],
         "Project target date updated",
       ),

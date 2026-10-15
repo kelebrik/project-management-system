@@ -1,5 +1,5 @@
 import type { AppStateBag } from "../app/appStateBag";
-import { useCallback, useEffect, useRef, type FormEvent } from "react";
+import { useCallback, useEffect, useEffectEvent, useRef, type FormEvent } from "react";
 import { PUBLIC_DEMO_USER_ID } from "@pms/shared";
 import { apiClient } from "../api/client";
 import { effectiveProjectView, viewPatchOf, writeDemoView } from "../app/projectView";
@@ -19,7 +19,8 @@ import {
   GANTT_PANEL_WIDTH_DEFAULT,
   clampNumber,
 } from "../app/ganttConfig";
-import { createProjectTargetSummary } from "../app/projectTargetModel";
+import { createProjectTargetSummary, openProjectGoals } from "../app/projectTargetModel";
+import { syncProjectListEntry } from "../app/projectListSync";
 import { isoDate } from "../app/dateUtils";
 import { buildWbsTree, collapsedWbsIdsForLevel } from "../app/wbsTree";
 import {
@@ -126,6 +127,15 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     wbsDraftsRef,
     wbsSaveSequenceRef,
   } = deps;
+
+  // A Structure change may move the open project's goals and last date; the projects list, loaded once, follows.
+  const projectWbsItems = project?.wbsItems;
+  const syncOpenProjectListEntry = useEffectEvent(() => {
+    if (project) setProjects((currentProjects) => syncProjectListEntry(currentProjects, project));
+  });
+  useEffect(() => {
+    if (projectWbsItems) syncOpenProjectListEntry();
+  }, [projectWbsItems]);
 
 async function syncJira(options: {
   baseUrl?: string;
@@ -299,9 +309,12 @@ const applyProject = useCallback(
     });
     wbsDraftsRef.current = nextWbsDrafts;
     setProject(nextProject);
+    // The form starts on the active goal, the one a move is usually for.
+    const nextTargetSummary = createProjectTargetSummary(nextProject);
     setProjectTargetDateDraft(
       isoDate(
-        createProjectTargetSummary(nextProject)?.currentTargetDate ??
+        nextTargetSummary?.activeGoal?.currentTargetDate ??
+          nextTargetSummary?.currentTargetDate ??
           new Date(nextProject.targetDate),
       ),
     );
@@ -678,22 +691,37 @@ async function saveJiraWorkSections(event: FormEvent<HTMLFormElement>) {
   }
 }
 
-async function saveProjectTargetDate() {
+/**
+ * Moves a goal (the active one unless another is chosen; the project's own
+ * date when it has no goals). An agreed move sets the goal's baseline too, so
+ * it is no delay, and is sent even to the date the goal has.
+ */
+async function saveProjectTargetDate(choice: { goalId?: string | null; notDelay?: boolean; targetDate?: string } = {}) {
   if (!project) return;
-  const targetDate = projectTargetDateDraft.trim();
+  const targetDate = (choice.targetDate ?? projectTargetDateDraft).trim();
   const reason = projectTargetChangeReason.trim();
+  const approvedBy = projectTargetApprovedBy.trim();
+  const notDelay = choice.notDelay ?? false;
   if (!targetDate) {
-    setError("Укажите текущую утвержденную цель");
+    setError("Укажите новую дату цели");
     return;
   }
-  const currentTargetDate =
-    projectTargetSummary?.currentTargetDate ?? new Date(project.targetDate);
-  if (targetDate === isoDate(currentTargetDate)) {
-    setNotice("Цель проекта не изменилась");
+  const goal = choice.goalId
+    ? project.wbsItems.find((item) => item.id === choice.goalId) ?? null
+    : openProjectGoals(project.wbsItems)[0] ?? null;
+  const currentDate = goal
+    ? goal.dueDate?.slice(0, 10) ?? null
+    : isoDate(projectTargetSummary?.currentTargetDate ?? new Date(project.targetDate));
+  if (!notDelay && targetDate === currentDate) {
+    setNotice("Дата цели не изменилась");
     return;
   }
   if (!reason) {
     setError("Укажите причину изменения цели");
+    return;
+  }
+  if (notDelay && !approvedBy) {
+    setError("Укажите, кто согласовал перенос");
     return;
   }
   setSavingProjectTargetDate(true);
@@ -705,7 +733,9 @@ async function saveProjectTargetDate() {
       {
         targetDate,
         reason,
-        approvedBy: projectTargetApprovedBy.trim() || null,
+        approvedBy: approvedBy || null,
+        goalId: choice.goalId ?? null,
+        notDelay,
       },
       "Не удалось сохранить цель проекта",
     );

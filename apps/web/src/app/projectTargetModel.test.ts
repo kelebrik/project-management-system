@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { isoDate } from "./dateUtils";
 import type { ProjectDetails, WbsItem } from "./domainTypes";
-import { createProjectTargetSummary, findActiveProjectGoal } from "./projectTargetModel";
+import { createProjectTargetSummary, findActiveProjectGoal, lastGoalDate, openProjectGoals } from "./projectTargetModel";
 
 function wbsGoal(overrides: Partial<WbsItem>): WbsItem {
   return {
@@ -98,20 +98,21 @@ test("active project goal uses the first unfinished WBS goal", () => {
     summary?.initialTargetDate ? isoDate(summary.initialTargetDate) : null,
     "2026-09-03",
   );
+  // The project's target is its last goal's date.
   assert.equal(
     summary?.currentTargetDate ? isoDate(summary.currentTargetDate) : null,
-    "2026-09-03",
+    "2026-08-10",
   );
   assert.equal(
     summary?.forecastFinishDate ? isoDate(summary.forecastFinishDate) : null,
     "2026-07-03",
   );
-  assert.equal(summary?.targetChangeDays, 0);
+  assert.equal(summary?.targetChangeDays, -24);
   assert.equal(summary?.effectiveDelayDays, 2);
   assert.equal(summary?.totalVarianceDays, -62);
 });
 
-test("project target change only appears after an explicit target date history entry", () => {
+test("the initial target is the project's own, whatever goal moves the history holds", () => {
   const factoryRelease = wbsGoal({
     id: "factory-release",
     code: "2",
@@ -124,12 +125,13 @@ test("project target change only appears after an explicit target date history e
   const project = {
     ...baseProject([factoryRelease]),
     targetDate: "2026-07-01T00:00:00.000Z",
+    initialTargetDate: "2026-06-29T00:00:00.000Z",
     targetDateChanges: [
       {
         id: "change-1",
         projectId: "project-1",
-        previousDate: "2026-06-29T00:00:00.000Z",
-        newDate: "2026-07-01T00:00:00.000Z",
+        previousDate: "2026-05-01T00:00:00.000Z",
+        newDate: "2026-05-20T00:00:00.000Z",
         reason: "Согласованный перенос",
         approvedBy: "PMO",
         createdAt: "2026-06-10T00:00:00.000Z",
@@ -190,6 +192,22 @@ test("active project goal switches to the next WBS goal after completion", () =>
   );
   assert.equal(
     summary?.currentTargetDate ? isoDate(summary.currentTargetDate) : null,
-    "2026-09-03",
+    "2026-08-10",
   );
+});
+
+test("the last goal's date leaves out cancelled goals and keeps done ones; open goals are the movable ones", () => {
+  const done = wbsGoal({ id: "done", status: "DONE", dueDate: "2026-10-01T00:00:00.000Z", sortOrder: 10 });
+  const cancelled = wbsGoal({ id: "cancelled", status: "CANCELLED", dueDate: "2027-01-01T00:00:00.000Z", sortOrder: 20 });
+  const open = wbsGoal({ id: "open", dueDate: "2026-08-01T00:00:00.000Z", sortOrder: 30 });
+  const undated = wbsGoal({ id: "undated", dueDate: null, sortOrder: 40 });
+  const items = [done, cancelled, open, undated];
+
+  assert.equal(isoDate(lastGoalDate(items)!), "2026-10-01");
+  assert.equal(lastGoalDate([cancelled]), null);
+  assert.deepEqual(openProjectGoals(items).map((item) => item.id), ["open", "undated"]);
+  const summary = createProjectTargetSummary(baseProject(items));
+  assert.equal(summary?.currentTargetDate ? isoDate(summary.currentTargetDate) : null, "2026-10-01");
+  // Without goals the project keeps the date it was given.
+  assert.equal(isoDate(createProjectTargetSummary(baseProject([]))!.currentTargetDate!), "2026-09-03");
 });

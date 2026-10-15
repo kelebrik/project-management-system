@@ -53,7 +53,61 @@
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: 170px minmax(220px, 1fr) minmax(180px, 0.8fr) auto;
+  grid-template-columns: minmax(220px, 1.2fr) 170px minmax(200px, 1fr) minmax(180px, 0.8fr) auto;
+}
+
+.passport-target-edit select {
+  min-height: 42px;
+}
+
+.passport-target-goal-none {
+  align-items: center;
+  color: var(--text-muted);
+  display: flex;
+  font-weight: 700;
+  min-height: 42px;
+}
+
+.passport-target-edit input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.passport-target-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0 0 10px;
+}
+
+.passport-target-not-delay {
+  align-items: flex-start;
+  display: flex;
+  font-size: 13px;
+  font-weight: 800;
+  gap: 8px;
+  margin: 10px 0 14px;
+}
+
+.passport-target-not-delay input {
+  flex: none;
+  margin-top: 2px;
+  width: auto;
+}
+
+.passport-target-not-delay small {
+  color: var(--text-muted);
+  display: block;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.passport-target-not-delay-mark {
+  background: var(--surface-3);
+  border-radius: 6px;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  margin-left: 6px;
+  padding: 1px 6px;
 }
 
 .passport-target-edit label {
@@ -77,8 +131,8 @@
 .passport-target-history-head,
 .passport-target-history-row {
   display: grid;
-  grid-template-columns: 120px 120px 120px 110px minmax(220px, 1fr) minmax(160px, 0.7fr);
-  min-width: 860px;
+  grid-template-columns: 110px minmax(180px, 0.9fr) 110px 110px 130px minmax(220px, 1fr) minmax(160px, 0.7fr);
+  min-width: 1070px;
 }
 
 .passport-target-history-head {

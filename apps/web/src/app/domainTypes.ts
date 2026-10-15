@@ -118,10 +118,17 @@ export type ProjectListWbsItem = Pick<
 export type ProjectTargetDateChange = {
   id: string;
   projectId: string;
-  previousDate: string;
+  /** None when the goal had no date before. */
+  previousDate: string | null;
   newDate: string;
   reason: string;
   approvedBy: string | null;
+  /** The goal moved, as it was named then; none for a project without goals and for changes before goals were named. */
+  goalId?: string | null;
+  goalCode?: string | null;
+  goalTitle?: string | null;
+  /** The move was agreed and moved the goal's baseline: no delay. */
+  notDelay?: boolean;
   createdById: string | null;
   createdAt: string;
   createdBy: {

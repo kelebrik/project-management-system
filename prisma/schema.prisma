@@ -310,10 +310,17 @@ model Project {
 model ProjectTargetDateChange {
   id           String   @id @default(cuid())
   projectId    String
-  previousDate DateTime
+  /// None when the goal had no date before.
+  previousDate DateTime?
   newDate      DateTime
   reason       String
   approvedBy   String?
+  /// The goal that moved, copied, since the goal may be deleted later; none for a project without goals.
+  goalId       String?
+  goalCode     String?
+  goalTitle    String?
+  /// The move was agreed: the goal's baseline moved too, so it is no delay.
+  notDelay     Boolean  @default(false)
   createdById  String?
   createdAt    DateTime @default(now())
   project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)

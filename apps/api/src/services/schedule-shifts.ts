@@ -28,6 +28,8 @@ export type ShiftContext = {
   sourceIssueId?: string | null;
   /** A short note the operation carries, such as the reason typed for a new target date. */
   sourceNote?: string | null;
+  /** Checkpoints whose baseline the operation sets anew, even to the date it had: their history restarts once it succeeds. */
+  rebaselineIds?: string[];
   actor?: { id: string; name?: string | null; email?: string | null } | null;
   /** The answer to the person's request: it gets the journal's headers, so the page knows the session. */
   answer?: { setHeader(name: string, value: string): unknown; headersSent: boolean } | null;
@@ -79,16 +81,18 @@ export type ShiftRow = {
 /**
  * The journal rows for one operation: a SHIFT for every checkpoint whose date
  * changed (also from or to no date, then without a number of days), and a
- * BASELINE marker for every checkpoint whose baseline changed, so its history
- * restarts there. Checkpoints that appeared or disappeared are not shifts.
+ * BASELINE marker for every checkpoint whose baseline changed or was set anew
+ * (`rebaselineIds`), so its history restarts there. Checkpoints that appeared
+ * or disappeared are not shifts.
  */
 export function diffCheckpoints(
   before: Map<string, Checkpoint>,
   after: Map<string, Checkpoint>,
   context: ShiftContext,
-  meta: { projectId: string; operationId: string; source?: { code: string; title: string } | null },
+  meta: { projectId: string; operationId: string; source?: { code: string; title: string } | null; rebaselineIds?: string[] },
 ): ShiftRow[] {
   const rows: ShiftRow[] = [];
+  const rebaselined = new Set(meta.rebaselineIds ?? []);
   for (const [id, now] of after) {
     const was = before.get(id);
     if (!was) continue;
@@ -108,7 +112,7 @@ export function diffCheckpoints(
       actorName: context.actor?.name ?? context.actor?.email ?? null,
       operationId: meta.operationId,
     };
-    if (dayKey(was.baselineDueDate) !== dayKey(now.baselineDueDate)) {
+    if (dayKey(was.baselineDueDate) !== dayKey(now.baselineDueDate) || rebaselined.has(id)) {
       rows.push({
         ...common,
         kind: 'BASELINE',
@@ -224,7 +228,9 @@ export async function beginScheduleShiftTracking(projectId: string, context: Shi
         const source = context.sourceItemId
           ? await prisma.wbsItem.findUnique({ where: { id: context.sourceItemId }, select: { code: true, title: true } })
           : null;
-        const rows = diffCheckpoints(before, after, context, { projectId, operationId, source });
+        // A baseline set anew counts only when the operation went through: a failed one rolled it back.
+        const rebaselineIds = outcome === 'succeeded' ? context.rebaselineIds : [];
+        const rows = diffCheckpoints(before, after, context, { projectId, operationId, source, rebaselineIds });
         const sessionId = await recordInSession(projectId, context.actor, outcome, rows);
         return { operationId, sessionId, projectId, actorId: context.actor?.id ?? null, shifts: rows.filter((row) => row.kind === 'SHIFT').length, reasonNeeded: rows.filter(needsReason).length };
       } catch (error) {

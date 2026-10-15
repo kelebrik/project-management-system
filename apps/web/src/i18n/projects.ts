@@ -431,6 +431,20 @@ export const projects = {
     "en": "Save target",
     "ru": "Сохранить цель"
   },
+  "charter.goal": {"en": "Goal", "ru": "Цель"},
+  "charter.noOpenGoals": {"en": "All goals are done", "ru": "Все цели завершены"},
+  "charter.projectWithoutGoals": {"en": "Project target date (no goals in the Structure)", "ru": "Целевая дата проекта (в Структуре нет целей)"},
+  "charter.notDelay": {"en": "Move agreed: not a delay", "ru": "Перенос согласован — это не отставание"},
+  "charter.notDelayHint": {
+    "en": "The goal's baseline moves to the new date too; other milestones moved with it still need a reason.",
+    "ru": "Базовая дата цели тоже переносится на новую; остальным вехам, сдвинутым вместе с ней, причина всё равно нужна."
+  },
+  "charter.approverRequired": {"en": "Who agreed (required)", "ru": "Кто согласовал (обязательно)"},
+  "charter.notDelayMark": {"en": "not a delay", "ru": "не отставание"},
+  "charter.targetFromGoal": {
+    "en": "The project's target date is the date of its last goal.",
+    "ru": "Целевая дата проекта — дата её последней цели."
+  },
   "charter.emptyHistory": {
     "en": "No target change history yet.",
     "ru": "Истории изменения цели пока нет."

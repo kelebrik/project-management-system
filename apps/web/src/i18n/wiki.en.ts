@@ -152,11 +152,12 @@ export const englishWikiGroups: WikiGroup[] = [
           {
             "heading": "Changing the target date",
             "points": [
-              "The Approve new goal section requires a new date and a reason of at least 3 characters, and allows an optional approvedBy field.",
-              "If there is an active GOAL row, previousDate is taken from its dueDate, otherwise from project.targetDate.",
-              "The backend updates project.targetDate, stores a ProjectTargetDateChange and, if there is an active goal, moves its start/due/forecast dates to the new date.",
-              "After the move the active goal gets workDays = 0 and calendarDays = 1, after which the WBS schedule recalculation is triggered.",
-              "The goal change history shows the event date, the old value, the new value, the delta, the reason and the approver."
+              "The Approve new goal section moves any open goal (the active one by default): it needs a new date and a reason of at least 3 characters; approvedBy is optional.",
+              "The \"Move agreed: not a delay\" checkbox moves the goal's baseline too (the shift journal restarts its history); approvedBy is then required.",
+              "previousDate is taken from the chosen goal's dueDate; without goals in the Structure, project.targetDate changes.",
+              "After the move the goal gets workDays = 0 and calendarDays = 1 and the schedule is recalculated; if links move the goal to another date, the move is refused.",
+              "project.targetDate always equals the date of the last goal and follows any Structure change; it can be set by hand only for a project without goals.",
+              "The goal change history shows the event date, the goal, the old value, the new value, the delta, the reason (marked \"not a delay\") and the approver."
             ]
           },
           {

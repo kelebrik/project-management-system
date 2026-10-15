@@ -25,25 +25,28 @@ export function findActiveProjectGoal(wbsItems: WbsItem[]) {
   return goals.find((item) => item.status !== "DONE") ?? goals.at(-1) ?? null;
 }
 
+/** Goals that can still be moved, in plan order. */
+export function openProjectGoals(wbsItems: WbsItem[]) {
+  return wbsItems
+    .filter((item) => item.type === "GOAL" && item.status !== "CANCELLED" && item.status !== "DONE")
+    .sort(compareWbsPlanOrder);
+}
+
+/** The project's target: the date of its last goal (cancelled ones do not count), as the server keeps it. */
+export function lastGoalDate(wbsItems: Array<Pick<WbsItem, "type" | "status" | "dueDate">>) {
+  return maxDate(
+    wbsItems
+      .filter((item) => item.type === "GOAL" && item.status !== "CANCELLED")
+      .map((item) => validDate(item.dueDate))
+      .filter((item): item is Date => item !== null),
+  );
+}
+
 export function createProjectTargetSummary(project: ProjectDetails | null) {
   if (!project) return null;
   const activeGoal = findActiveProjectGoal(project.wbsItems);
-  const hasTargetDateChange = (project.targetDateChanges?.length ?? 0) > 0;
-  const oldestTargetDateChange = hasTargetDateChange
-    ? [...project.targetDateChanges].sort((left, right) =>
-        left.createdAt.localeCompare(right.createdAt),
-      )[0]
-    : null;
-  const initialTargetDate = hasTargetDateChange
-    ? validDate(
-        oldestTargetDateChange?.previousDate ??
-          project.initialTargetDate ??
-          project.targetDate,
-      )
-    : validDate(project.initialTargetDate ?? project.targetDate);
-  const currentTargetDate = hasTargetDateChange
-    ? validDate(activeGoal?.dueDate ?? project.targetDate) ?? initialTargetDate
-    : initialTargetDate;
+  const initialTargetDate = validDate(project.initialTargetDate ?? project.targetDate);
+  const currentTargetDate = lastGoalDate(project.wbsItems) ?? validDate(project.targetDate) ?? initialTargetDate;
   const activeGoalTargetDate = validDate(activeGoal?.dueDate ?? null);
   const activeGoalBaselineDate = validDate(activeGoal?.baselineDueDate ?? null);
   const forecastFinishDate = activeGoal
@@ -71,7 +74,7 @@ export function createProjectTargetSummary(project: ProjectDetails | null) {
     currentTargetDate,
     forecastFinishDate,
     targetChangeDays:
-      hasTargetDateChange && initialTargetDate && currentTargetDate
+      initialTargetDate && currentTargetDate
         ? signedDaysBetween(initialTargetDate, currentTargetDate)
         : 0,
     effectiveDelayDays: activeGoal

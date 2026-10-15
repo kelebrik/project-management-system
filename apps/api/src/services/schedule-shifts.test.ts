@@ -39,6 +39,27 @@ test('a diff journals moved dates, first dates without days, and baseline change
   assert.equal(needsReason(rows[1]), false);
 });
 
+test('a baseline set anew is marked even when its date stays, once per checkpoint', () => {
+  const before = new Map([
+    ['a', point('a', '2026-11-01', '2026-11-01', 'GOAL')],
+    ['b', point('b', '2026-11-01', '2026-10-20', 'GOAL')],
+    ['c', point('c', '2026-11-01', '2026-11-01')],
+  ]);
+  const after = new Map([
+    ['a', point('a', '2026-11-01', '2026-11-01', 'GOAL')],
+    ['b', point('b', '2026-11-05', '2026-11-05', 'GOAL')],
+    ['c', point('c', '2026-11-01', '2026-11-01')],
+  ]);
+  const rows = diffCheckpoints(before, after, { trigger: 'TARGET_DATE' }, { ...meta, rebaselineIds: ['a', 'b'] });
+  assert.deepEqual(rows.map((row) => [row.checkpointId, row.kind]), [
+    ['a', 'BASELINE'],
+    ['b', 'BASELINE'],
+    ['b', 'SHIFT'],
+  ]);
+  assert.equal(rows.some(needsReason), false);
+  assert.deepEqual(diffCheckpoints(before, before, { trigger: 'TARGET_DATE' }, meta), []);
+});
+
 test('days are counted in UTC calendar days across daylight saving changes', () => {
   assert.equal(calendarDaysBetween(day('2026-03-28'), day('2026-03-30')), 2);
   assert.equal(calendarDaysBetween(new Date('2026-10-24T23:30:00.000Z'), day('2026-10-26')), 2);

@@ -1,5 +1,6 @@
 import { useI18n } from "../i18n/I18nProvider";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { openProjectGoals } from "../app/projectTargetModel";
 import { usePageContext } from "./PageContext";
 import { useConfirm } from "../hooks/useConfirm";
 
@@ -24,11 +25,36 @@ export function ProjectPassportPage() {
     savingProjectTargetDate,
     setProjectTargetApprovedBy,
     setProjectTargetChangeReason,
-    setProjectTargetDateDraft,
     signedDateDeltaDays,
     signedDaysLabel,
     updatePassportRow,
   } = ctx;
+
+  // The goal to move: the active one unless another open goal is chosen.
+  const openGoals = project ? openProjectGoals(project.wbsItems) : [];
+  const hasGoals = Boolean(project?.wbsItems.some((item) => item.type === "GOAL" && item.status !== "CANCELLED"));
+  const [chosenGoalId, setChosenGoalId] = useState<string | null>(null);
+  const [notDelay, setNotDelay] = useState(false);
+  const goal = openGoals.find((item) => item.id === chosenGoalId) ?? openGoals[0] ?? null;
+  // The date typed belongs to the goal it was typed for; otherwise the form shows the goal's own date
+  // (the project's, without goals), so the date sent is always the chosen goal's.
+  const [typedDate, setTypedDate] = useState<{ goalId: string | null; value: string } | null>(null);
+  const goalKey = goal?.id ?? null;
+  const targetDraft =
+    typedDate && typedDate.goalId === goalKey
+      ? typedDate.value
+      : goal
+        ? goal.dueDate?.slice(0, 10) ?? ""
+        : projectTargetDateDraft;
+  // A saved move starts the form over: the answer brings a new history.
+  const targetDateChanges = project?.targetDateChanges;
+  const [shownChanges, setShownChanges] = useState(targetDateChanges);
+  if (shownChanges !== targetDateChanges) {
+    setShownChanges(targetDateChanges);
+    setTypedDate(null);
+    setNotDelay(false);
+  }
+  const approverMissing = notDelay && !projectTargetApprovedBy.trim();
 
   const passportSnapshot = JSON.stringify(passportRows);
   useEffect(() => {
@@ -158,14 +184,34 @@ export function ProjectPassportPage() {
                         <h3>{t("charter.approve")}</h3>
                       </div>
                     </div>
+                    {hasGoals ? <p className="passport-target-note">{t("charter.targetFromGoal")}</p> : null}
                     <div className="passport-target-edit">
+                      <label>
+                        {t("charter.goal")}
+                        {hasGoals ? (
+                          <select
+                            value={goal?.id ?? ""}
+                            disabled={openGoals.length === 0}
+                            onChange={(event) => setChosenGoalId(event.target.value)}
+                          >
+                            {openGoals.length === 0 ? <option value="">{t("charter.noOpenGoals")}</option> : null}
+                            {openGoals.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {`${item.code} · ${item.title} · ${date(item.dueDate)}`}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="passport-target-goal-none">{t("charter.projectWithoutGoals")}</span>
+                        )}
+                      </label>
                       <label>
                         {t("charter.newDate")}
                         <input
                           type="date"
-                          value={projectTargetDateDraft}
+                          value={targetDraft}
                           onChange={(event) =>
-                            setProjectTargetDateDraft(event.target.value)
+                            setTypedDate({ goalId: goalKey, value: event.target.value })
                           }
                         />
                       </label>
@@ -180,26 +226,42 @@ export function ProjectPassportPage() {
                         />
                       </label>
                       <label>
-                        {t("fields.approvedBy")}
+                        {notDelay ? t("charter.approverRequired") : t("fields.approvedBy")}
                         <input
                           value={projectTargetApprovedBy}
                           onChange={(event) =>
                             setProjectTargetApprovedBy(event.target.value)
                           }
                           placeholder={t("charter.approverExample")}
+                          required={notDelay}
+                          aria-invalid={approverMissing || undefined}
                         />
                       </label>
                       <button
                         type="button"
-                        onClick={() => void saveProjectTargetDate()}
-                        disabled={savingProjectTargetDate}
+                        onClick={() => void saveProjectTargetDate({ goalId: goalKey, notDelay: Boolean(goal) && notDelay, targetDate: targetDraft })}
+                        disabled={savingProjectTargetDate || (hasGoals && !goal) || approverMissing}
                       >
                         {savingProjectTargetDate ? t("fields.saving") : t("charter.saveTarget")}
                       </button>
                     </div>
+                    {goal ? (
+                      <label className="passport-target-not-delay">
+                        <input
+                          type="checkbox"
+                          checked={notDelay}
+                          onChange={(event) => setNotDelay(event.target.checked)}
+                        />
+                        <span>
+                          {t("charter.notDelay")}
+                          <small>{t("charter.notDelayHint")}</small>
+                        </span>
+                      </label>
+                    ) : null}
                     <div className="passport-target-history">
                       <div className="passport-target-history-head">
                         <span>{t("fields.date")}</span>
+                        <span>{t("charter.goal")}</span>
                         <span>{t("fields.before")}</span>
                         <span>{t("fields.after")}</span>
                         <span>{t("fields.change")}</span>
@@ -210,7 +272,8 @@ export function ProjectPassportPage() {
                         project.targetDateChanges.map((change) => (
                           <div className="passport-target-history-row" key={change.id}>
                             <span>{date(change.createdAt)}</span>
-                            <span>{date(change.previousDate)}</span>
+                            <span>{change.goalCode ? `${change.goalCode} · ${change.goalTitle ?? ""}` : "—"}</span>
+                            <span>{change.previousDate ? date(change.previousDate) : "—"}</span>
                             <span>{date(change.newDate)}</span>
                             <span>
                               {signedDaysLabel(
@@ -220,7 +283,10 @@ export function ProjectPassportPage() {
                                 ),
                               )}
                             </span>
-                            <span>{change.reason}</span>
+                            <span>
+                              {change.reason}
+                              {change.notDelay ? <em className="passport-target-not-delay-mark">{t("charter.notDelayMark")}</em> : null}
+                            </span>
                             <span>{change.approvedBy || t("fields.notSpecified")}</span>
                           </div>
                         ))

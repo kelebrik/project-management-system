@@ -63,6 +63,14 @@ export const projectTargetDateChangeSchema = z.object({
   targetDate: z.string().trim().min(1),
   reason: z.string().trim().min(3),
   approvedBy: z.string().trim().optional().nullable(),
+  /** The goal to move; the active goal when none is named. */
+  goalId: z.string().trim().min(1).optional().nullable(),
+  /** The move was agreed: the goal's baseline moves with it, so it is no delay. Who agreed must be named. */
+  notDelay: z.boolean().optional().default(false),
+}).superRefine((value, context) => {
+  if (value.notDelay && !value.approvedBy) {
+    context.addIssue({ code: 'custom', path: ['approvedBy'], message: 'Укажите, кто согласовал перенос' });
+  }
 });
 
 const milestoneLabelOffsetSchema = z.object({
