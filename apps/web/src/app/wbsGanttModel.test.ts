@@ -133,9 +133,31 @@ test("createWbsGantt timescale follows the interface language", () => {
   const en = createWbsGantt({ visibleWbsTree: [item], criticalPath: null, wbsDependencies: [], locale: "en" });
   const ru = createWbsGantt({ visibleWbsTree: [item], criticalPath: null, wbsDependencies: [] });
 
-  assert.equal(en.months[0]?.label, "Jul 2026");
-  assert.equal(en.quarters[0]?.label, "Q3 2026");
+  // The scale opens a month before the work: June, in the second quarter.
+  assert.equal(en.months[0]?.label, "Jun 2026");
+  assert.equal(en.months[1]?.label, "Jul 2026");
+  assert.equal(en.quarters[0]?.label, "Q2 2026");
   assert.doesNotMatch(en.weeks.map((week) => week.label).join(" "), /[А-Яа-яЁё]/);
-  assert.match(ru.months[0]?.label ?? "", /июль/);
-  assert.equal(ru.quarters[0]?.label, "3 кв. 2026");
+  assert.match(ru.months[1]?.label ?? "", /июль/);
+  assert.equal(ru.quarters[0]?.label, "2 кв. 2026");
+});
+
+test("the Gantt opens a month before the Structure's earliest date, collapsed rows included", () => {
+  const day = (value: string) => `${value}T00:00:00.000Z`;
+  // The window is laid out in the browser's days.
+  const local = (value: Date | null | undefined) => (value ? `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}` : null);
+  const phase = wbsTreeItem({ id: "phase", type: "PHASE", startDate: day("2026-10-15"), dueDate: day("2026-12-20") });
+  // A row under the phase starts earlier, by its baseline.
+  const early = wbsTreeItem({ id: "early", parentId: "phase", startDate: day("2026-10-20"), dueDate: day("2026-11-02"), baselineStartDate: day("2026-08-14"), baselineDueDate: day("2026-08-30") });
+  const open = createWbsGantt({ visibleWbsTree: [phase, early], criticalPath: null, wbsDependencies: [] });
+  assert.equal(local(open.start), "2026-07-01");
+  // The phase collapsed: the window stays where it was.
+  const collapsed = createWbsGantt({ visibleWbsTree: [phase], criticalPath: null, wbsDependencies: [], boundsTree: [phase, early] });
+  assert.equal(local(collapsed.start), "2026-07-01");
+  // Across the new year: work from 10 January opens in December.
+  const january = wbsTreeItem({ startDate: day("2027-01-10"), dueDate: day("2027-01-20") });
+  assert.equal(local(createWbsGantt({ visibleWbsTree: [january], criticalPath: null, wbsDependencies: [] }).start), "2026-12-01");
+  // A cancelled row does not stretch the window.
+  const cancelled = wbsTreeItem({ id: "gone", status: "CANCELLED", startDate: day("2025-01-10"), dueDate: day("2025-01-20") });
+  assert.equal(local(createWbsGantt({ visibleWbsTree: [january], criticalPath: null, wbsDependencies: [], boundsTree: [january, cancelled] }).start), "2026-12-01");
 });

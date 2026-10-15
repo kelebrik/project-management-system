@@ -82,6 +82,8 @@ type WbsGanttOptions = {
   wbsDependencies: WbsDependency[];
   rangeDays?: 30 | 90 | 180 | null;
   locale?: Locale;
+  /** The whole Structure the window is measured on (collapsed rows too); the rows drawn by default. */
+  boundsTree?: WbsTreeItem[];
 };
 
 function validDate(value: string | null) {
@@ -111,33 +113,38 @@ export function createWbsGantt({
   wbsDependencies,
   rangeDays = null,
   locale = "ru",
+  boundsTree,
 }: WbsGanttOptions) {
   const { monthLabel, shortDate } = createFormatters(locale);
-  const datedItems = visibleWbsTree
-    .filter((item) => item.status !== "CANCELLED")
-    .map((item) => {
-      const start = validDate(item.startDate);
-      const end = validDate(item.dueDate);
-      if (!start || !end) {
-        return null;
-      }
-      return {
-        item,
-        start,
-        end,
-        baselineStart: validDate(item.baselineStartDate),
-        baselineEnd: validDate(item.baselineDueDate),
-        forecastStart: validDate(item.forecastStartDate),
-        forecastEnd: validDate(item.forecastDueDate),
-      };
-    })
-    .filter((item): item is DatedWbsItem => item !== null);
+  const dated = (rows: WbsTreeItem[]) =>
+    rows
+      .filter((item) => item.status !== "CANCELLED")
+      .map((item) => {
+        const start = validDate(item.startDate);
+        const end = validDate(item.dueDate);
+        if (!start || !end) {
+          return null;
+        }
+        return {
+          item,
+          start,
+          end,
+          baselineStart: validDate(item.baselineStartDate),
+          baselineEnd: validDate(item.baselineDueDate),
+          forecastStart: validDate(item.forecastStartDate),
+          forecastEnd: validDate(item.forecastDueDate),
+        };
+      })
+      .filter((item): item is DatedWbsItem => item !== null);
+  const datedItems = dated(visibleWbsTree);
+  // The window does not move when rows are collapsed: it is measured on the whole Structure.
+  const boundItems = boundsTree ? dated(boundsTree) : datedItems;
 
   if (datedItems.length === 0) {
     return createEmptyWbsGantt();
   }
 
-  const timelineDates = datedItems.flatMap((entry) =>
+  const timelineDates = (boundItems.length > 0 ? boundItems : datedItems).flatMap((entry) =>
     [
       entry.start,
       entry.end,
@@ -158,9 +165,11 @@ export function createWbsGantt({
   minimumWindowStart.setDate(minimumWindowStart.getDate() - 14);
   const minimumWindowEnd = new Date(todayAnchor);
   if (rangeDays) minimumWindowEnd.setDate(minimumWindowEnd.getDate() + rangeDays);
-  const rawStart = rangeDays && minimumWindowStart < earliestItemDate
+  // A month of room before the Structure's earliest date.
+  const roomBefore = addMonths(earliestItemDate, -1);
+  const rawStart = rangeDays && minimumWindowStart < roomBefore
     ? minimumWindowStart
-    : earliestItemDate;
+    : roomBefore;
   const rawEnd = rangeDays && minimumWindowEnd > latestItemDate
     ? minimumWindowEnd
     : latestItemDate;

@@ -336,6 +336,15 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
       return item ? { ...node, ...item } : node;
     });
   }, [structurePreviewDisplay, visibleWbsTree]);
+  // The whole Structure, with the same preview dates, for the Gantt's window.
+  const ganttBoundsTree = useMemo(() => {
+    if (!structurePreviewDisplay.active) return wbsTree;
+    const previewById = new Map(structurePreviewDisplay.items.map((item) => [item.id, item]));
+    return wbsTree.map((node: (typeof wbsTree)[number]) => {
+      const item = previewById.get(node.id);
+      return item ? { ...node, ...item } : node;
+    });
+  }, [structurePreviewDisplay, wbsTree]);
   const wbsGantt = useMemo(
     () =>
       createWbsGantt({
@@ -344,8 +353,9 @@ export function useAppDerivedData(deps: AppDerivedDataDeps) {
         wbsDependencies: project?.wbsDependencies ?? [],
         rangeDays: ganttRangeDays,
         locale,
+        boundsTree: ganttBoundsTree,
       }),
-    [ganttRangeDays, ganttWbsTree, locale, project?.wbsDependencies, structurePreviewDisplay.criticalPath],
+    [ganttBoundsTree, ganttRangeDays, ganttWbsTree, locale, project?.wbsDependencies, structurePreviewDisplay.criticalPath],
   );
   const wbsColumnsByKey = useMemo(
     () =>

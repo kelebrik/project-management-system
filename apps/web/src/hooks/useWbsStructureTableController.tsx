@@ -1,6 +1,8 @@
+import { childrenByParent, isBranchMixed, toggleBranchSelection } from "../app/wbsBranchSelection";
 import { ChecklistField } from "../components/ChecklistField";
 import { WbsFloatCell } from "../components/wbs/WbsFloatCell";
 import {
+  useMemo,
   type ClipboardEvent as ReactClipboardEvent,
   type KeyboardEventHandler,
   useEffect,
@@ -185,16 +187,10 @@ export function useWbsStructureTableController({
     );
   };
 
+  const wbsChildren = useMemo(() => childrenByParent(wbsTree), [wbsTree]);
+  // A row ticked brings its whole branch; unticked, it leaves with the rows above it.
   const toggleWbsSelection = (itemId: string, checked: boolean) => {
-    setSelectedWbsIds((current) => {
-      const next = new Set(current);
-      if (checked) {
-        next.add(itemId);
-      } else {
-        next.delete(itemId);
-      }
-      return next;
-    });
+    setSelectedWbsIds((current) => toggleBranchSelection(current, itemId, checked, wbsTree, wbsChildren));
   };
 
   const handleWbsPaste = (event: ReactClipboardEvent<HTMLDivElement>) => {
@@ -474,6 +470,10 @@ export function useWbsStructureTableController({
               type="checkbox"
               className="wbs-row-select"
               checked={selectedWbsIds.has(item.id)}
+              // Mixed: rows of its branch are ticked, the row itself is not.
+              ref={(box) => {
+                if (box) box.indeterminate = isBranchMixed(selectedWbsIds, item.id, wbsChildren);
+              }}
               onChange={(event) =>
                 toggleWbsSelection(item.id, event.target.checked)
               }
