@@ -25,6 +25,27 @@ test("the Structure shows each row's float, red when it holds the finish", async
   await expect(first).toHaveClass(/wbs-float-critical/);
   await expect(page.locator("#wbs-item-wbs-2 .wbs-float")).toHaveText("6");
   await expect(page.locator("#wbs-item-wbs-2 .wbs-float")).toHaveClass(/wbs-float-free/);
+  // It reads like the other cells: their size, the middle of the row, the same start as the working days.
+  for (const float of [first, page.locator("#wbs-item-wbs-2 .wbs-float")]) {
+    await expect(float).toHaveCSS("font-size", "13px");
+    await expect(float).toHaveCSS("font-weight", "400");
+  }
+  const geometry = await page.evaluate(() => {
+    const row = document.querySelector("#wbs-item-wbs-2")!;
+    const number = row.querySelector(".wbs-float")!.getBoundingClientRect();
+    const cell = row.querySelector('[data-column="float"]')!.getBoundingClientRect();
+    const days = row.querySelector('[data-column="workDays"] input')!;
+    const daysBox = days.getBoundingClientRect();
+    const daysPadding = parseFloat(getComputedStyle(days).paddingLeft);
+    const numberPadding = parseFloat(getComputedStyle(row.querySelector(".wbs-float")!).paddingLeft);
+    return {
+      middle: Math.abs(number.top + number.height / 2 - (cell.top + cell.height / 2)),
+      start: number.left + numberPadding - cell.left,
+      daysStart: daysPadding + (daysBox.left - (row.querySelector('[data-column="workDays"]')!.getBoundingClientRect().left)),
+    };
+  });
+  expect(geometry.middle).toBeLessThanOrEqual(2);
+  expect(Math.abs(geometry.start - geometry.daysStart)).toBeLessThanOrEqual(1);
 });
 
 test("the float opens what holds the row's dates, with the link that sets them", async ({ page }) => {

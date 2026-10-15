@@ -1,10 +1,11 @@
-.wbs-float { display: inline-block; font-variant-numeric: tabular-nums; font-weight: 600; min-width: 28px; padding: 1px 6px; border-radius: 8px; text-align: right; }
+/* The number reads like the other cells of the row: same size and start, in the middle of the row; only its colour tells the slack. */
+.wbs-float { border-radius: 6px; display: inline-block; font-size: 13px; font-variant-numeric: tabular-nums; font-weight: 400; line-height: 18px; margin-left: -6px; padding: 1px 6px; text-align: left; }
 .wbs-float-critical { background: var(--danger-soft, #fdecea); color: var(--danger, #c0392b); }
 .wbs-float-near { background: var(--warning-soft, #fff4e5); color: var(--warning-strong, #9a5b00); }
-.wbs-float-free { color: var(--text-secondary); font-weight: 400; }
-.wbs-float-none { color: var(--text-muted); font-weight: 400; }
-.wbs-float-cell { position: relative; }
-button.wbs-float { border: 0; cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; }
+.wbs-float-free { background: none; color: var(--text-heading); }
+.wbs-float-none { background: none; color: var(--text-muted); }
+.wbs-float-cell { align-items: center; display: flex; height: 100%; min-height: 42px; padding: 0 8px; position: relative; }
+button.wbs-float { border: 0; cursor: pointer; font-family: inherit; font-variant-numeric: tabular-nums; min-height: 0; }
 .date-drivers-popover { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); display: grid; font-size: 13px; font-weight: 400; gap: 8px; padding: 10px 12px; position: fixed; text-align: left; white-space: normal; width: 380px; z-index: 96; }
 .date-drivers-head { align-items: center; display: flex; justify-content: space-between; }
 .date-drivers-close { background: none; border: 0; cursor: pointer; padding: 2px; }
