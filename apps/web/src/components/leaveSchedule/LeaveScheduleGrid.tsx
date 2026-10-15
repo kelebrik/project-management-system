@@ -1,3 +1,4 @@
+import { dateFormatter } from "../../app/dateFormat";
 import { ArrowDown, ArrowUp, UserCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
@@ -109,7 +110,7 @@ export function LeaveScheduleGrid({
   const dragPreview = drag.preview;
   const tag = intlLocale(locale);
   const formats = useMemo(
-    () => ({ day: new Intl.DateTimeFormat(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) }),
+    () => ({ day: dateFormatter(tag, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }) }),
     [tag],
   );
 

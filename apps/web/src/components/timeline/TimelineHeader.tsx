@@ -1,3 +1,4 @@
+import { dateFormatter } from "../../app/dateFormat";
 import { useMemo, type ReactNode } from "react";
 import { dayToDate, type LeaveScale, type buildLeaveTimeline } from "../../app/leaveScheduleModel";
 import { useI18n } from "../../i18n/I18nProvider";
@@ -23,8 +24,8 @@ export function TimelineHeader({
   const tag = intlLocale(locale);
   const formats = useMemo(
     () => ({
-      month: new Intl.DateTimeFormat(tag, { month: "long", year: "numeric", timeZone: "UTC" }),
-      shortMonth: new Intl.DateTimeFormat(tag, { month: "short", year: "numeric", timeZone: "UTC" }),
+      month: dateFormatter(tag, { month: "long", year: "numeric", timeZone: "UTC" }),
+      shortMonth: dateFormatter(tag, { month: "short", year: "numeric", timeZone: "UTC" }),
       weekday: new Intl.DateTimeFormat(tag, { weekday: "narrow", timeZone: "UTC" }),
     }),
     [tag],

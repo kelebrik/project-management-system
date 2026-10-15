@@ -1,3 +1,4 @@
+import { dateFormatter } from "../app/dateFormat";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
@@ -76,7 +77,7 @@ function parseGoalDate(value: string | null | undefined) {
 }
 
 function monthTickLabel(value: Date, uiLocale: Locale) {
-  return new Intl.DateTimeFormat(intlLocale(uiLocale), {
+  return dateFormatter(intlLocale(uiLocale), {
     month: "short",
     year: "2-digit",
   }).format(value);

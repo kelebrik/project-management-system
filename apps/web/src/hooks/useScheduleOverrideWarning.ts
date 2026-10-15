@@ -1,3 +1,4 @@
+import { dateFormatter } from "../app/dateFormat";
 import { useCallback } from "react";
 import type { WbsItem, WbsSnapshotResponse } from "../app/domainTypes";
 import type { WbsFormState } from "../app/formState";
@@ -16,7 +17,7 @@ export function useScheduleOverrideWarning(pushToast: (tone: ToastTone, message:
   return useCallback(
     (sentDrafts: Record<string, WbsFormState>, before: WbsItem[], result: WbsSnapshotResponse) => {
       if (!result.wbsItems) return false;
-      const format = new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+      const format = dateFormatter(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
       const notices = scheduleOverrideNotices({
         sent: Object.fromEntries(
           Object.entries(sentDrafts).map(([id, draft]) => [

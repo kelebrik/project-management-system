@@ -1,3 +1,4 @@
+import { dateFormatter } from "../app/dateFormat";
 import { createTranslator } from "./translate";
 import { createPluralTranslator } from "./plurals";
 import { intlLocale } from "./locale";
@@ -10,7 +11,7 @@ export function createFormatters(locale: Locale) {
   const format = (value: string | Date | null | undefined, options: Intl.DateTimeFormatOptions = { day: "2-digit", month: "2-digit", year: "numeric" }) => {
     if (!value) return t("common.notSet");
     const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? "—" : new Intl.DateTimeFormat(tag, options).format(parsed);
+    return Number.isNaN(parsed.getTime()) ? "—" : dateFormatter(tag, options).format(parsed);
   };
   const dateOptions = { day: "2-digit", month: "2-digit", year: "numeric" } as const;
   return {

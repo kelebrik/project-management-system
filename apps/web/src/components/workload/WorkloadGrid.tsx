@@ -1,3 +1,4 @@
+import { dateFormatter } from "../../app/dateFormat";
 import { AlertTriangle, ArrowDown, ArrowUp } from "lucide-react";
 import { useMemo, useState, type CSSProperties } from "react";
 import {
@@ -101,7 +102,7 @@ export function WorkloadGrid({
   const newWork = useNewWorkSelection({ dayWidth, rangeFrom: range.from, totalDays, onRequest: onNewWork });
   const dragPreview = drag.preview;
   const dayFormat = useMemo(
-    () => new Intl.DateTimeFormat(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
+    () => dateFormatter(intlLocale(locale), { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" }),
     [locale],
   );
   const shortFormat = useMemo(

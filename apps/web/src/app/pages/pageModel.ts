@@ -1,3 +1,4 @@
+import { dateFormatter } from "../dateFormat";
 import {
   PAGE_FORMATS,
   PAGE_OTHER_KEY,
@@ -118,7 +119,7 @@ export function groupLabel(key: string | null, field: PageFieldDef | null, bucke
   if (field?.kind === "date") {
     const date = new Date(`${key}T00:00:00Z`);
     const tag = locale === "ru" ? "ru-RU" : "en-GB";
-    if (bucket === "month") return new Intl.DateTimeFormat(tag, { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
+    if (bucket === "month") return dateFormatter(tag, { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
     if (bucket === "quarter") return locale === "ru" ? `${QUARTERS[Math.floor(date.getUTCMonth() / 3)]} кв. ${date.getUTCFullYear()}` : `Q${Math.floor(date.getUTCMonth() / 3) + 1} ${date.getUTCFullYear()}`;
     return new Intl.DateTimeFormat(tag, { day: "2-digit", month: "2-digit", ...(bucket === "day" ? { year: "2-digit" } : {}), timeZone: "UTC" }).format(date);
   }

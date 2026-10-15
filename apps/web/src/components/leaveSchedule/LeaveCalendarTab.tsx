@@ -1,3 +1,4 @@
+import { dateFormatter } from "../../app/dateFormat";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiClient } from "../../api/client";
@@ -68,7 +69,7 @@ export function LeaveCalendarTab({
     () => ({
       month: new Intl.DateTimeFormat(tag, { month: "long", timeZone: "UTC" }),
       weekday: new Intl.DateTimeFormat(tag, { weekday: "short", timeZone: "UTC" }),
-      day: new Intl.DateTimeFormat(tag, { day: "numeric", month: "long", year: "numeric", weekday: "long", timeZone: "UTC" }),
+      day: dateFormatter(tag, { day: "numeric", month: "long", year: "numeric", weekday: "long", timeZone: "UTC" }),
     }),
     [tag],
   );

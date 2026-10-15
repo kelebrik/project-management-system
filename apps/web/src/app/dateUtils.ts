@@ -1,3 +1,4 @@
+import { dateFormatter } from "./dateFormat";
 export const WEEKDAY_LABELS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
 
 export const MONTH_LABELS = [
@@ -130,7 +131,7 @@ export function addCalendarMonths(value: Date, months: number) {
 }
 
 export function monthLabel(value: Date) {
-  return new Intl.DateTimeFormat("ru-RU", {
+  return dateFormatter("ru-RU", {
     month: "short",
     year: "numeric",
   }).format(value);

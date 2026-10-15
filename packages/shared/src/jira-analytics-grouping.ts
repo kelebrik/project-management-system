@@ -33,18 +33,27 @@ export function isoWeek(date: Date, timeZone: JiraAnalyticsTimeZone) {
   const week = Math.ceil((((localDate.getTime() - yearStart.getTime()) / 86_400_000) + 1) / 7);
   const monday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
   monday.setUTCDate(monday.getUTCDate() - weekday + 1);
-  const label = new Intl.DateTimeFormat("ru-RU", {
+  const label = withoutYearMark(new Intl.DateTimeFormat("ru-RU", {
     timeZone: "UTC",
     day: "2-digit",
     month: "short",
     year: "numeric",
-  }).format(monday);
+  }), monday);
   return { key: `${weekYear}-W${String(week).padStart(2, "0")}`, label };
+}
+
+/** A date as Intl writes it, without the "г." Russian adds after a year written next to a month. */
+function withoutYearMark(formatter: Intl.DateTimeFormat, date: Date) {
+  return formatter
+    .formatToParts(date)
+    .map((part, index, parts) => (part.type === "literal" && parts[index - 1]?.type === "year" ? part.value.replace(/^\s*г\./u, "") : part.value))
+    .join("")
+    .trim();
 }
 
 export function isoMonth(date: Date, timeZone: JiraAnalyticsTimeZone) {
   const parts = zonedDateParts(date, timeZone);
-  const label = new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", month: "long", year: "numeric" }).format(new Date(Date.UTC(parts.year, parts.month - 1, 1)));
+  const label = withoutYearMark(new Intl.DateTimeFormat("ru-RU", { timeZone: "UTC", month: "long", year: "numeric" }), new Date(Date.UTC(parts.year, parts.month - 1, 1)));
   return { key: `${parts.year}-${String(parts.month).padStart(2, "0")}`, label };
 }
 

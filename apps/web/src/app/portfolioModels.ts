@@ -1,3 +1,4 @@
+import { dateFormatter } from "./dateFormat";
 import type { ProjectListItem, RaidItem, WbsItem } from "./domainTypes";
 import { intlLocale } from "../i18n/locale";
 import type { Locale } from "../i18n/types";
@@ -140,7 +141,7 @@ function validDay(value: string | null | undefined) {
 }
 
 function monthTickLabel(value: Date, locale: Locale) {
-  return new Intl.DateTimeFormat(intlLocale(locale), {
+  return dateFormatter(intlLocale(locale), {
     month: "short",
     year: "2-digit",
   }).format(value);

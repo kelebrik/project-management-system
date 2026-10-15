@@ -97,7 +97,7 @@ test("a columns chart shows every week of the period and drills into a week's is
   analytics.getSemanticDashboard().widgets.push({ ...base, id: "weekly", title: "Создано Critical/Blocker по неделям", dateField: "issueCreatedAt", metric: "count", groupBy: "week", visualization: "columns", width: "full", filters: [{ id: "p", field: "priority", operator: "oneOf", value: "Critical,Blocker" }] });
   await page.route(/\/api\/projects\/project-1\/jira\/semantic-aggregates\/query-batch$/, async (route) => {
     const body = route.request().postDataJSON() as { queries: Array<{ widgetId: string; aggregateId: string }> };
-    const weeks = [["2026-W38", "14 сент. 2026 г.", 0], ["2026-W39", "21 сент. 2026 г.", 3], ["2026-W40", "28 сент. 2026 г.", 1]] as const;
+    const weeks = [["2026-W38", "14 сент. 2026", 0], ["2026-W39", "21 сент. 2026", 3], ["2026-W40", "28 сент. 2026", 1]] as const;
     await route.fulfill({ json: { results: body.queries.map((item) => ({ widgetId: item.widgetId, aggregate: { id: item.aggregateId, name: "Тикеты", version: 1 }, result: result({ value: 4, groups: weeks.map(([key, label, value]) => ({ key, label, value, recordCount: value })) }) })) } });
   });
   const singles: Array<{ groupKey?: string }> = [];
@@ -108,7 +108,7 @@ test("a columns chart shows every week of the period and drills into a week's is
   await page.goto("/TV-OVERVIEW/jira-work");
   const chart = page.getByRole("group", { name: "Создано Critical/Blocker по неделям" });
   await expect(chart.locator(".highcharts-column-series .highcharts-point")).toHaveCount(3);
-  await expect(chart.getByRole("button", { name: "14 сент. 2026 г.: 0" })).toBeDisabled();
+  await expect(chart.getByRole("button", { name: "14 сент. 2026: 0" })).toBeDisabled();
   // A click on the column itself opens that week.
   await chart.locator(".highcharts-column-series .highcharts-point").nth(1).click();
   await expect.poll(() => singles.at(-1)?.groupKey).toBe("2026-W39");
