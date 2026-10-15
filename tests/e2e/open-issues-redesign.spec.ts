@@ -114,8 +114,12 @@ test("questions prototype exposes editable fields and expanded actions", async (
   expect(cellBox).not.toBeNull();
   expect(controlBox).not.toBeNull();
   expect(controlBox!.width).toBeGreaterThanOrEqual(cellBox!.width - 2);
-  // Readiness stays quiet next to priority: a soft tint of its colour, not a solid fill.
-  expect(await readinessControl.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(220, 235, 225)");
+  // Readiness and priority take the soft colours of the risk and problem matrix (green: --success-soft).
+  expect(await readinessControl.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(220, 252, 231)");
+  const matrixTone = { critical: "rgb(254, 226, 226)", high: "rgb(254, 226, 226)", medium: "rgb(254, 243, 199)", low: "rgb(220, 252, 231)" } as Record<string, string>;
+  const priorityCell = row.locator(".open-issues-prototype-priority-cell");
+  const priorityLevel = (await priorityCell.getAttribute("class"))!.split(" ").find((name) => name in matrixTone)!;
+  expect(await priorityCell.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(matrixTone[priorityLevel]);
 
   await row.getByRole("button", { name: "Expand", exact: true }).click();
   await expect(row.getByRole("button", { name: "Collapse", exact: true })).toHaveText("");

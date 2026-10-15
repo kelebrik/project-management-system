@@ -47,3 +47,49 @@
 .current-work-owners-menu input {
   width: auto;
 }
+
+/* A status cell in the colour of the row's bar on the Gantt (app-11.css, ganttToneColor), so the
+   Structure, the current work and the Gantt read alike. The text stays dark: white on these
+   mid-bright colours is too faint. The select inside keeps the colour, focused too. */
+.wbs-status-tone.tone-g { background: #35b86f; }
+.wbs-status-tone.tone-r { background: #ef5350; }
+.wbs-status-tone.tone-p { background: #f472b6; }
+.wbs-status-tone.tone-o { background: var(--warning-alt); }
+.wbs-status-tone.tone-b { background: var(--brand-500); }
+.wbs-status-tone.tone-x { background: #a8b4c5; }
+
+/* Read-only and preliminary values too: their own colours are for a plain cell. */
+.wbs-status-tone,
+.wbs-status-tone .wbs-readonly-value,
+.current-work-row .wbs-status-tone select,
+.wbs-table-row .wbs-cell.wbs-status-tone select,
+.wbs-table-row .wbs-cell.wbs-status-tone.preliminary select {
+  color: #111827;
+  font-weight: 700;
+}
+
+.wbs-table-row .wbs-status-tone select,
+.wbs-table-row .wbs-status-tone select:focus,
+.current-work-row .wbs-status-tone select,
+.current-work-row .wbs-status-tone select:focus {
+  background-color: transparent;
+}
+
+.wbs-status-tone select option {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* A change not saved yet still shows, as a frame over the status colour. */
+.wbs-cell.dirty.wbs-status-tone {
+  box-shadow: inset 0 0 0 2px var(--warning-alt);
+}
+
+/* The chosen option of a segmented control: Текучка's filters, the Gantt's scale and others. */
+.segmented-control button.active {
+  background: var(--brand-soft);
+  border-color: var(--brand-border-strong);
+  color: var(--brand);
+  position: relative;
+  z-index: 1;
+}

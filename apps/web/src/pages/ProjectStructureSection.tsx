@@ -26,6 +26,7 @@ import {
   focusedWbsBranchState,
   resolveDraftPredecessorCode,
   wbsDraftDisplayLevel,
+  wbsStatusToneClass,
 } from "../app/wbsTree";
 import type { WbsTableCssProperties } from "../app/uiStyleTypes";
 import type { ProjectCalendarCode, WbsTableColumnKey } from "../app/wbsTable";
@@ -866,7 +867,7 @@ export function ProjectStructureSection() {
                                         : column.key === "structure"
                                         ? "wbs-cell-structure"
                                         : "wbs-cell"
-                                    }`}
+                                    }${column.key === "status" ? ` wbs-status-tone ${wbsStatusToneClass(item, shownDraft)}` : ""}`}
                                   >
                                     {renderWbsCell(column.key, item, shownDraft)}
                                   </div>

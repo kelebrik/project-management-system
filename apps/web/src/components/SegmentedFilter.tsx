@@ -24,6 +24,7 @@ export function SegmentedFilter<TValue extends string>({
         <button
           type="button"
           className={value === option.value ? "active" : ""}
+          aria-pressed={value === option.value}
           key={option.value}
           onClick={() => onChange(option.value)}
         >

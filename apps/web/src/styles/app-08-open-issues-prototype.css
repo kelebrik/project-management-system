@@ -285,12 +285,12 @@
   width: 100%;
 }
 
-/* Priority carries the emphasis, readiness stays quiet: the two columns sit side
-   by side, and having both shout made neither readable at a glance. */
-.open-issues-prototype-priority-cell.critical { background: #a8352a; color: #fff; }
-.open-issues-prototype-priority-cell.high { background: #c4611f; color: #fff; }
-.open-issues-prototype-priority-cell.medium { background: #e2b935; color: #17212b; }
-.open-issues-prototype-priority-cell.low { background: var(--surface-2); color: var(--text-muted); }
+/* Priority and readiness in the colours of the risk and problem matrix (.risk-matrix-cell):
+   red, amber and green, soft, with strong text. */
+.open-issues-prototype-priority-cell.critical,
+.open-issues-prototype-priority-cell.high { background: var(--danger-soft); color: var(--text-strong); }
+.open-issues-prototype-priority-cell.medium { background: var(--warning-soft); color: var(--text-strong); }
+.open-issues-prototype-priority-cell.low { background: var(--success-soft); color: var(--text-strong); }
 .open-issues-prototype-priority option { background: var(--surface); color: var(--text); }
 
 .open-issues-prototype-priority-value,
@@ -326,24 +326,22 @@
   vertical-align: stretch !important;
 }
 
-/* Muted counterparts of the priority palette: the hue still reads as red, amber
-   or green, but the colour no longer competes with the priority cell. */
 .open-issues-prototype-readiness-cell.red,
 .open-issues-prototype-readiness-cell.red .open-issues-prototype-readiness {
-  background: #f4d7d3;
-  color: #8c2f25;
+  background: var(--danger-soft);
+  color: var(--text-strong);
 }
 
 .open-issues-prototype-readiness-cell.amber,
 .open-issues-prototype-readiness-cell.amber .open-issues-prototype-readiness {
-  background: #f6efcf;
-  color: #665614;
+  background: var(--warning-soft);
+  color: var(--text-strong);
 }
 
 .open-issues-prototype-readiness-cell.green,
 .open-issues-prototype-readiness-cell.green .open-issues-prototype-readiness {
-  background: #dcebe1;
-  color: #2c6446;
+  background: var(--success-soft);
+  color: var(--text-strong);
 }
 
 .open-issues-prototype-readiness option {

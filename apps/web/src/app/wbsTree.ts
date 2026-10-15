@@ -53,6 +53,21 @@ export function summaryToneClass(item: WbsTreeItem) {
   return wbsToneClass(item);
 }
 
+/**
+ * The tone of a row's status cell: the colour its bar has on the Gantt, for the
+ * status and due date the row shows. A milestone or goal is a mark there, not
+ * a bar, so its cell takes the colour work with that status would have.
+ */
+export function wbsStatusToneClass(
+  item: Pick<WbsItem, "dueDate" | "status"> & { children?: WbsTreeItem[] },
+  shown: { status: WbsItem["status"]; dueDate: string | null },
+) {
+  const row = { ...item, status: shown.status, dueDate: shown.dueDate || null, type: "TASK" as const };
+  return item.children && item.children.length > 0
+    ? summaryToneClass({ ...(row as unknown as WbsTreeItem), children: item.children })
+    : wbsToneClass(row);
+}
+
 export function buildWbsTree(items: WbsItem[]) {
   const byId = new Map<string, WbsTreeItem>();
   const roots: WbsTreeItem[] = [];

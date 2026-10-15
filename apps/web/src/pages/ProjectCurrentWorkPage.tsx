@@ -17,6 +17,7 @@ import {
 } from "../app/currentWorkTable";
 import { useI18n } from "../i18n/I18nProvider";
 import type { WbsItemStatus } from "../app/domainTypes";
+import { wbsStatusToneClass } from "../app/wbsTree";
 
 import { appPathForView } from "../app/routes";
 import { WbsUrlField } from "../components/WbsUrlField";
@@ -144,7 +145,7 @@ export function ProjectCurrentWorkPage() {
           <h2>{uiText("ui.projects.currentWorkPageTitle")}</h2>
           <p>{uiText("ui.projects.currentWorkPageSubtitle")}</p>
         <div className="current-work-filters">
-          <div className="segmented-control">{([["all", uiText("work.filter.all")], ["active", uiText("work.filter.active")], ["blocked", uiText("work.filter.blocked")], ["overdue", uiText("work.filter.overdue")], ["dueSoon", uiText("work.filter.dueSoon")]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
+          <div className="segmented-control">{([["all", uiText("work.filter.all")], ["active", uiText("work.filter.active")], ["blocked", uiText("work.filter.blocked")], ["overdue", uiText("work.filter.overdue")], ["dueSoon", uiText("work.filter.dueSoon")]] as const).map(([value, label]) => <button type="button" key={value} className={workFilter === value ? "active" : ""} aria-pressed={workFilter === value} onClick={() => setWorkFilter(value)}>{label}</button>)}</div>
           {workFilter === "dueSoon" && (
             <select aria-label={uiText("work.filter.dueSoonDays")} value={dueSoonDays} onChange={(event) => setDueSoonDays(Number(event.target.value))}>
               {[7, 14].map((days) => <option key={days} value={days}>{uiText("work.filter.days", { count: days })}</option>)}
@@ -217,7 +218,7 @@ export function ProjectCurrentWorkPage() {
               </span>
               <span
                 role="cell"
-                className={isReadOnly ? undefined : "current-work-editable-cell"}
+                className={`wbs-status-tone ${wbsStatusToneClass(row, row)}${isReadOnly ? "" : " current-work-editable-cell"}`}
               >
                 {isReadOnly ? (
                   wbsStatusLabel(row.status)
