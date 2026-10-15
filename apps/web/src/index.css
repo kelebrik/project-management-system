@@ -296,3 +296,82 @@ body {
   display: flex;
   gap: 8px;
 }
+
+/* A comment as a checklist: items with tick boxes, plain lines between; it grows with its text. */
+.checklist-field {
+  cursor: text;
+  display: grid;
+  gap: 2px;
+  min-height: 24px;
+  min-width: 0;
+  padding: 2px 4px;
+  text-align: left;
+  white-space: normal;
+  width: 100%;
+}
+
+.checklist-field.read-only {
+  cursor: default;
+}
+
+.checklist-field:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.checklist-item {
+  align-items: flex-start;
+  display: flex;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.checklist-item span,
+.checklist-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.checklist-item.done span {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.checklist-box {
+  background: none;
+  border: 0;
+  color: var(--brand);
+  cursor: pointer;
+  flex: none;
+  font-size: 15px;
+  line-height: 1.2;
+  padding: 0;
+}
+
+.checklist-box:disabled {
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.checklist-placeholder {
+  color: var(--text-muted);
+}
+
+.checklist-editor {
+  font: inherit;
+  line-height: 1.35;
+  min-height: 24px;
+  overflow: hidden;
+  padding: 2px 4px;
+  resize: none;
+  white-space: pre-wrap;
+  width: 100%;
+}
+
+/* Table cells give their own spans padding and a border; a checklist's text needs neither. */
+.checklist-field .checklist-item > span,
+.checklist-field .checklist-placeholder {
+  border: 0;
+  padding: 0;
+}

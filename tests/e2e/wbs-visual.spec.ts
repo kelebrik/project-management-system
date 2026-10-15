@@ -450,38 +450,19 @@ test("project navigation and current work reflect the structure", async ({ page 
       resizedTitleWidth - (savedCurrentWorkWidths?.title ?? resizedTitleWidth),
     ),
   ).toBeLessThanOrEqual(1);
-  await expect(page.getByLabel("Комментарий 1.1")).toHaveValue("Проверить результат");
-  const commentInput = page.getByLabel("Комментарий 1.1");
-  for (const editor of [
-    page.getByLabel("Статус 1.1"),
-    page.getByLabel("Срок 1.1"),
-    page.getByLabel("Исполнитель 1.1"),
-    commentInput,
-  ]) {
+  // The comment reads as a checklist; a click edits it in place, in the cell's own style.
+  const commentField = page.getByRole("group", { name: "Комментарий 1.1" });
+  await expect(commentField).toHaveText("Проверить результат");
+  for (const editor of [page.getByLabel("Статус 1.1"), page.getByLabel("Срок 1.1"), page.getByLabel("Исполнитель 1.1")]) {
     await expect(editor).toHaveCSS("border-top-width", "0px");
     await expect(editor).toHaveCSS("border-radius", "0px");
     await expect(editor).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   }
-  await expect(commentInput).toHaveAttribute("rows", "3");
-  await expect(commentInput).toHaveAttribute("wrap", "soft");
-  await expect(commentInput).toHaveCSS("min-height", "62px");
-  await expect(commentInput).toHaveCSS("padding-top", "4px");
-  await expect(commentInput).toHaveCSS("padding-bottom", "4px");
-  await expect(commentInput).toHaveCSS("overflow-y", "auto");
-  await expect(commentInput).toHaveCSS("resize", "none");
-  await expect(commentInput).toHaveCSS("overflow-wrap", "anywhere");
-  const commentCellGaps = await commentInput.evaluate((element) => {
-    const field = element.getBoundingClientRect();
-    const cell = element.parentElement?.getBoundingClientRect();
-    return cell
-      ? { top: field.top - cell.top, bottom: cell.bottom - field.bottom }
-      : null;
-  });
-  expect(commentCellGaps).not.toBeNull();
-  expect(Math.abs(commentCellGaps?.top ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
-  expect(Math.abs(commentCellGaps?.bottom ?? Number.POSITIVE_INFINITY)).toBeLessThanOrEqual(1);
-  await commentInput.locator("..").click();
+  await commentField.click();
+  const commentInput = page.getByRole("textbox", { name: "Комментарий 1.1" });
   await expect(commentInput).toBeFocused();
+  await expect(commentInput).toHaveCSS("border-top-width", "0px");
+  await expect(commentInput).toHaveCSS("resize", "none");
   await commentInput.fill("Новый комментарий\nВторая строка\nТретья строка");
   await commentInput.blur();
   await expect.poll(() => savedPatch?.comment).toBe(

@@ -1,3 +1,4 @@
+import { ChecklistField } from "../components/ChecklistField";
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import {
   useEffect,
@@ -297,27 +298,14 @@ export function ProjectCurrentWorkPage() {
                     : "current-work-editable-cell current-work-comment-cell"
                 }
               >
-                {isReadOnly ? (
-                  row.comment.trim() || "—"
-                ) : (
-                  <textarea
-                    className="current-work-comment-editor"
-                    aria-label={uiText("work.comment", { code: row.code })}
-                    rows={3}
-                    wrap="soft"
-                    value={row.comment}
-                    onChange={(event) =>
-                      updateWbsDraft(row.id, { comment: event.target.value })
-                    }
-                    onBlur={(event) =>
-                      saveWbsDraftPatch(
-                        row.id,
-                        { comment: event.currentTarget.value },
-                        { silent: true },
-                      )
-                    }
-                  />
-                )}
+                <ChecklistField
+                  itemLabel={(text) => uiText("checklist.item", { text })}
+                  label={uiText("work.comment", { code: row.code })}
+                  onCommit={(comment) => saveWbsDraftPatch(row.id, { comment }, { silent: true })}
+                  placeholder={uiText("checklist.placeholder")}
+                  readOnly={isReadOnly}
+                  value={row.comment}
+                />
               </span>
               <span
                 role="cell"

@@ -1,3 +1,4 @@
+import { ChecklistField } from "../components/ChecklistField";
 import { WbsFloatCell } from "../components/wbs/WbsFloatCell";
 import {
   type ClipboardEvent as ReactClipboardEvent,
@@ -385,8 +386,15 @@ export function useWbsStructureTableController({
           value = emptyReadonlyValue(draft.owner);
           break;
         case "comment":
-          value = emptyReadonlyValue(draft.comment);
-          break;
+          return (
+            <ChecklistField
+              itemLabel={(text) => uiText("checklist.item", { text })}
+              label={uiText("structure.comment")}
+              onCommit={() => undefined}
+              readOnly
+              value={draft.comment}
+            />
+          );
         case "start":
           value = emptyReadonlyValue(draft.startDate);
           break;
@@ -852,15 +860,15 @@ export function useWbsStructureTableController({
         );
       case "comment":
         return (
-          <WbsBufferedInput
+          <ChecklistField
+            itemLabel={(text) => uiText("checklist.item", { text })}
+            label={uiText("structure.comment")}
+            onCommit={(comment) => {
+              cancelScheduledWbsSave(item.id);
+              saveWbsDraftPatch(item.id, { comment }, { silent: true });
+            }}
+            placeholder={uiText("checklist.placeholder")}
             value={draft.comment}
-            onCommit={(value) =>
-              updateWbsDraft(item.id, { comment: value })
-            }
-            onFocus={(event) => rememberEditableInitialValue(event.currentTarget)}
-            onKeyDown={wbsEditKeyHandler(item.id)}
-            onBlur={(event) => handleWbsBlur(event.currentTarget, item.id)}
-            placeholder={uiText("structure.comment")}
           />
         );
       case "predecessor1":

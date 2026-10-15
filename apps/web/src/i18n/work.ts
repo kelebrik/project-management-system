@@ -334,6 +334,14 @@ export const work = {
     "en": "Add WBS row below",
     "ru": "Добавить строку Структуры ниже"
   },
+  "checklist.item": {
+    "en": "Item done: {text}",
+    "ru": "Пункт выполнен: {text}"
+  },
+  "checklist.placeholder": {
+    "en": "Click to add a checklist",
+    "ru": "Нажмите, чтобы добавить чек-лист"
+  },
   "structure.comment": {
     "en": "Comment",
     "ru": "Комментарий"
