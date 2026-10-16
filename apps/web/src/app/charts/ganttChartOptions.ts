@@ -51,8 +51,8 @@ const SOFT_TONES = new Set(["tone-g", "tone-r", "tone-p", "tone-ar", "tone-c"]);
 
 /** The colour of each tone of the Gantt, as the bars had it. */
 export function ganttToneColor(toneClass: string, colors: AppChartColors) {
-  // Done, failed and cancelled, at risk and overdue: the risk matrix's green, red and yellow.
-  const soft = colors.soft ?? { success: "#dcfce7", warning: "#fef3c7", danger: "#fee2e2" };
+  // Done, failed and cancelled, at risk and overdue: the risk matrix's green, red and yellow, a few tones deeper.
+  const soft = { success: "#95e4b1", warning: "#f5d984", danger: "#ee8b8b" };
   const tones: Record<string, string> = {
     "tone-g": soft.success,
     "tone-r": soft.danger,

@@ -5,18 +5,18 @@
 
 .gantt-bar.done,
 .gantt-bar.tone-g {
-  background: var(--success-soft);
-  --gantt-item-color: var(--success-soft);
+  background: #95e4b1;
+  --gantt-item-color: #95e4b1;
 }
 
 .gantt-bar.tone-r {
-  background: var(--danger-soft);
-  --gantt-item-color: var(--danger-soft);
+  background: #ee8b8b;
+  --gantt-item-color: #ee8b8b;
 }
 
 .gantt-bar.tone-p {
-  background: var(--warning-soft);
-  --gantt-item-color: var(--warning-soft);
+  background: #f5d984;
+  --gantt-item-color: #f5d984;
 }
 
 .gantt-bar.tone-o {
@@ -37,13 +37,13 @@
 }
 
 .gantt-bar.tone-ar {
-  background: var(--warning-soft);
-  --gantt-item-color: var(--warning-soft);
+  background: #f5d984;
+  --gantt-item-color: #f5d984;
 }
 
 .gantt-bar.tone-c {
-  background: var(--danger-soft);
-  --gantt-item-color: var(--danger-soft);
+  background: #ee8b8b;
+  --gantt-item-color: #ee8b8b;
 }
 
 /* The matrix's soft colours keep an edge on a white row. */
@@ -131,7 +131,8 @@
 }
 
 .gantt-range-label {
-  color: var(--gantt-item-color);
+  /* The phase's colour, deepened so its name reads on a white row. */
+  color: color-mix(in srgb, var(--gantt-item-color) 45%, #111827);
   display: block;
   font-size: 12px;
   font-style: normal;

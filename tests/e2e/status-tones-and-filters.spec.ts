@@ -7,13 +7,13 @@ const iso = (offsetDays: number) => {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
 };
 const background = (locator: import("@playwright/test").Locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor);
-// The bar colours of the Gantt (ganttToneColor): failed and cancelled, at risk and overdue, done — the risk matrix's red, yellow and green.
-const BLOCKED = "rgb(254, 226, 226)";
+// The bar colours of the Gantt (ganttToneColor): failed and cancelled, at risk and overdue, done — the risk matrix's red, yellow and green, a few tones deeper.
+const BLOCKED = "rgb(238, 139, 139)";
 const IN_PROGRESS = "rgb(74, 134, 200)";
 const IN_REVIEW = "rgb(156, 195, 236)";
 const NOT_STARTED = "rgb(168, 180, 197)";
-const OVERDUE = "rgb(254, 243, 199)";
-const DONE = "rgb(220, 252, 231)";
+const OVERDUE = "rgb(245, 217, 132)";
+const DONE = "rgb(149, 228, 177)";
 const AT_RISK = OVERDUE;
 const CANCELLED = BLOCKED;
 
@@ -80,8 +80,8 @@ test("status cells in Текучка and the Structure are coloured by their sta
     host.remove();
     return result;
   });
-  // The blue keeps dark text; the matrix's soft green follows the theme, as the matrix does (--text-strong).
-  expect(colours).toEqual([DARK_TEXT, "rgb(244, 248, 255)"]);
+  // Dark text on every status colour, in the dark theme too.
+  expect(colours).toEqual([DARK_TEXT, DARK_TEXT]);
 });
 
 test("the chosen filter of Текучка is highlighted, after a click and after a reload", async ({ page }) => {

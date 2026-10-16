@@ -15,8 +15,6 @@ export type AppChartColors = {
   warning: string;
   success: string;
   series: string[];
-  /** The risk matrix's soft green, yellow and red (the --*-soft tokens), as the status bars take them. */
-  soft?: { success: string; warning: string; danger: string };
 };
 
 const LIGHT_SERIES = ["#3b82f6", "#22c55e", "#f97316", "#a855f7", "#14b8a6", "#eab308", "#ef4444", "#64748b"];
@@ -37,11 +35,6 @@ export function readAppChartColors(): AppChartColors {
     warning: read("--warning-alt", "#f5a623"),
     success: read("--success", "#16a34a"),
     series: dark ? DARK_SERIES : LIGHT_SERIES,
-    soft: {
-      success: read("--success-soft", "#dcfce7"),
-      warning: read("--warning-soft", "#fef3c7"),
-      danger: read("--danger-soft", "#fee2e2"),
-    },
   };
 }
 

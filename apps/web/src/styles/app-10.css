@@ -175,23 +175,23 @@
 }
 
 .status-legend .tone-ar {
-  background: var(--warning-soft);
+  background: #f5d984;
 }
 
 .status-legend .tone-c {
-  background: var(--danger-soft);
+  background: #ee8b8b;
 }
 
 .status-legend .tone-g {
-  background: var(--success-soft);
+  background: #95e4b1;
 }
 
 .status-legend .tone-r {
-  background: var(--danger-soft);
+  background: #ee8b8b;
 }
 
 .status-legend .tone-p {
-  background: var(--warning-soft);
+  background: #f5d984;
 }
 
 .status-legend .tone-x {
