@@ -46,14 +46,22 @@ export type GanttLayerInput = {
   colors: AppChartColors;
 };
 
+/** Tones in the risk matrix's soft colours: their bars need a firmer edge on a white row. */
+const SOFT_TONES = new Set(["tone-g", "tone-r", "tone-p", "tone-ar", "tone-c"]);
+
 /** The colour of each tone of the Gantt, as the bars had it. */
 export function ganttToneColor(toneClass: string, colors: AppChartColors) {
+  // Done, failed and cancelled, at risk and overdue: the risk matrix's green, red and yellow.
+  const soft = colors.soft ?? { success: "#dcfce7", warning: "#fef3c7", danger: "#fee2e2" };
   const tones: Record<string, string> = {
-    "tone-g": "#35b86f",
-    "tone-r": "#ef5350",
-    "tone-p": "#f472b6",
+    "tone-g": soft.success,
+    "tone-r": soft.danger,
+    "tone-p": soft.warning,
     "tone-o": colors.warning,
-    "tone-b": colors.brand,
+    "tone-b": "#4a86c8",
+    "tone-rv": "#9cc3ec",
+    "tone-ar": soft.warning,
+    "tone-c": soft.danger,
     "tone-x": "#a8b4c5",
   };
   return tones[toneClass] ?? colors.brand;
@@ -79,7 +87,7 @@ export function buildGanttOption(input: GanttLayerInput): Options {
     items.flatMap((item, y): XrangePointOptionsObject[] =>
       item.milestone || item.rangeLine || item.summary !== summary
         ? []
-        : [{ id: `bar:${item.id}`, ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "rgba(15, 23, 42, 0.12)", borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
+        : [{ id: `bar:${item.id}`, ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? (SOFT_TONES.has(item.toneClass) ? "rgba(15, 23, 42, 0.3)" : "rgba(15, 23, 42, 0.12)"), borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
     );
   const phases = items.flatMap((item, y): XrangePointOptionsObject[] =>
     item.rangeLine ? [{ id: `phase:${item.id}`, ...span(item, y + 0.27), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "transparent", borderWidth: edge(item) ? 1 : 0 } as XrangePointOptionsObject] : [],

@@ -229,10 +229,13 @@ export function ProjectGanttSection() {
                             </div>
                             <div className="status-legend gantt-status-legend" aria-label={uiText("ui.projects.statusLegendTitle")}>
                               <span><i className="tone-b" />{uiText("ui.projects.statusInProgress")}</span>
+                              <span><i className="tone-rv" />{uiText("ui.projects.statusInReview")}</span>
                               <span><i className="tone-g" />{uiText("ui.projects.statusDone")}</span>
+                              <span><i className="tone-ar" />{uiText("ui.projects.statusAtRisk")}</span>
                               <span><i className="tone-r" />{uiText("ui.projects.statusFailed")}</span>
                               <span><i className="tone-p" />{uiText("ui.projects.statusOverdue")}</span>
                               <span><i className="tone-x" />{uiText("ui.projects.statusNotStarted")}</span>
+                              <span><i className="tone-c" />{uiText("ui.projects.statusCancelled")}</span>
                               <span><i className="tone-o" />{uiText("ui.projects.itemTypeMilestone")}</span>
                               <span><i className="tone-goal" />{uiText("ui.projects.itemTypeGoal")}</span>
                               <span><i className="tone-critical" />{uiText("ui.automation.criticalPath")}</span>

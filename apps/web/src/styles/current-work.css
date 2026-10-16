@@ -49,14 +49,24 @@
 }
 
 /* A status cell in the colour of the row's bar on the Gantt (app-11.css, ganttToneColor), so the
-   Structure, the current work and the Gantt read alike. The text stays dark: white on these
-   mid-bright colours is too faint. The select inside keeps the colour, focused too. */
-.wbs-status-tone.tone-g { background: #35b86f; }
-.wbs-status-tone.tone-r { background: #ef5350; }
-.wbs-status-tone.tone-p { background: #f472b6; }
+   Structure, the current work and the Gantt read alike. Done, failed and cancelled, at risk and
+   overdue take the risk matrix's green, red and yellow (its soft tokens, so the dark theme follows);
+   their text follows the theme, the blues and grey keep dark text. The select keeps the colour. */
+.wbs-status-tone.tone-g { background: var(--success-soft); }
+.wbs-status-tone.tone-r { background: var(--danger-soft); }
+.wbs-status-tone.tone-p { background: var(--warning-soft); }
 .wbs-status-tone.tone-o { background: var(--warning-alt); }
-.wbs-status-tone.tone-b { background: var(--brand-500); }
+.wbs-status-tone.tone-b { background: #4a86c8; }
+.wbs-status-tone.tone-rv { background: #9cc3ec; }
+.wbs-status-tone.tone-ar { background: var(--warning-soft); }
+.wbs-status-tone.tone-c { background: var(--danger-soft); }
 .wbs-status-tone.tone-x { background: #a8b4c5; }
+.wbs-status-tone { --status-text: #111827; }
+.wbs-status-tone.tone-g,
+.wbs-status-tone.tone-r,
+.wbs-status-tone.tone-c,
+.wbs-status-tone.tone-p,
+.wbs-status-tone.tone-ar { --status-text: var(--text-strong); }
 
 /* Read-only and preliminary values too: their own colours are for a plain cell. */
 .wbs-status-tone,
@@ -64,7 +74,7 @@
 .current-work-row .wbs-status-tone select,
 .wbs-table-row .wbs-cell.wbs-status-tone select,
 .wbs-table-row .wbs-cell.wbs-status-tone.preliminary select {
-  color: #111827;
+  color: var(--status-text);
   font-weight: 700;
 }
 

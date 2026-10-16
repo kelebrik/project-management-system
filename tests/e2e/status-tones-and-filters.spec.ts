@@ -7,11 +7,15 @@ const iso = (offsetDays: number) => {
   return `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, "0")}-${String(day.getDate()).padStart(2, "0")}`;
 };
 const background = (locator: import("@playwright/test").Locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor);
-// The bar colours of the Gantt (ganttToneColor): blocked, work under way, overdue, done.
-const BLOCKED = "rgb(239, 83, 80)";
-const IN_PROGRESS = "rgb(22, 143, 131)";
-const OVERDUE = "rgb(244, 114, 182)";
-const DONE = "rgb(53, 184, 111)";
+// The bar colours of the Gantt (ganttToneColor): failed and cancelled, at risk and overdue, done — the risk matrix's red, yellow and green.
+const BLOCKED = "rgb(254, 226, 226)";
+const IN_PROGRESS = "rgb(74, 134, 200)";
+const IN_REVIEW = "rgb(156, 195, 236)";
+const NOT_STARTED = "rgb(168, 180, 197)";
+const OVERDUE = "rgb(254, 243, 199)";
+const DONE = "rgb(220, 252, 231)";
+const AT_RISK = OVERDUE;
+const CANCELLED = BLOCKED;
 
 async function mockWork(page: import("@playwright/test").Page) {
   await mockAdminProject(page, (fixture) => {
@@ -23,6 +27,10 @@ async function mockWork(page: import("@playwright/test").Page) {
       work("w2", "2", "Идёт сейчас", "IN_PROGRESS", iso(5), 20),
       work("w3", "3", "Просроченная", "IN_PROGRESS", iso(-3), 30),
       work("w4", "4", "Готовая", "DONE", iso(-3), 40),
+      work("w5", "5", "На проверке", "IN_REVIEW", iso(5), 50),
+      work("w6", "6", "Под риском", "AT_RISK", iso(5), 60),
+      work("w7", "7", "Не начатая", "NOT_STARTED", iso(5), 70),
+      work("w8", "8", "Отменённая", "CANCELLED", iso(-3), 80),
     ] as typeof fixture.wbsItems;
   });
 }
@@ -48,10 +56,18 @@ test("status cells in Текучка and the Structure are coloured as the rows'
   expect(await background(cell("w2"))).toBe(IN_PROGRESS);
   expect(await background(cell("w3"))).toBe(OVERDUE);
   expect(await background(cell("w4"))).toBe(DONE);
+  // Review apart from work under way, at risk apart from failed, cancelled apart from not started; cancelled is never overdue.
+  expect(await background(cell("w5"))).toBe(IN_REVIEW);
+  expect(await background(cell("w6"))).toBe(AT_RISK);
+  expect(await background(cell("w7"))).toBe(NOT_STARTED);
+  expect(await background(cell("w8"))).toBe(CANCELLED);
+  for (const label of ["В работе", "На проверке", "Сделано", "Под риском", "Провалено", "Просрочено", "Не начато", "Отменено"]) {
+    await expect(page.locator(".status-legend").getByText(label, { exact: true })).toBeVisible();
+  }
   const DARK_TEXT = "rgb(17, 24, 39)";
   expect(await cell("w2").locator("select").evaluate((element) => getComputedStyle(element).color)).toBe(DARK_TEXT);
 
-  // The text stays dark in a preliminary cell and in a read-only one, in the dark theme too.
+  // Text in a preliminary cell and in a read-only one, in the dark theme.
   const colours = await page.evaluate(() => {
     document.documentElement.dataset.theme = "dark";
     const host = document.createElement("div");
@@ -63,7 +79,8 @@ test("status cells in Текучка and the Structure are coloured as the rows'
     host.remove();
     return result;
   });
-  expect(colours).toEqual([DARK_TEXT, DARK_TEXT]);
+  // The blue keeps dark text; the matrix's soft green follows the theme, as the matrix does (--text-strong).
+  expect(colours).toEqual([DARK_TEXT, "rgb(244, 248, 255)"]);
 });
 
 test("the chosen filter of Текучка is highlighted, after a click and after a reload", async ({ page }) => {

@@ -9,47 +9,41 @@ export function flattenWbsDescendants(item: WbsTreeItem): WbsTreeItem[] {
   ]);
 }
 
+/**
+ * The tone of a row's bar, as the Gantt and the status cells colour it: done,
+ * at risk, failed, cancelled, overdue, in progress, in review, not started.
+ * Cancelled work is never overdue.
+ */
 export function wbsToneClass(
   item: Pick<WbsItem, "dueDate" | "status" | "type">,
 ) {
   if (item.type === "MILESTONE" || item.type === "GOAL") return "tone-o";
   if (item.status === "DONE") return "tone-g";
-  if (item.status === "AT_RISK" || item.status === "BLOCKED") return "tone-r";
+  if (item.status === "AT_RISK") return "tone-ar";
+  if (item.status === "BLOCKED") return "tone-r";
+  if (item.status === "CANCELLED") return "tone-c";
   if (item.dueDate && new Date(item.dueDate) < startOfDay(new Date())) {
     return "tone-p";
   }
-  if (item.status === "IN_PROGRESS" || item.status === "IN_REVIEW") return "tone-b";
+  if (item.status === "IN_PROGRESS") return "tone-b";
+  if (item.status === "IN_REVIEW") return "tone-rv";
   return "tone-x";
 }
 
+/** A parent's bar: done when all below is; under way while anything is; then at risk or failed; else its own tone. */
 export function summaryToneClass(item: WbsTreeItem) {
   const descendants = flattenWbsDescendants(item);
+  const rows = [item, ...descendants];
   if (
     descendants.length > 0 &&
     descendants.every((descendant) => descendant.status === "DONE")
   ) {
     return "tone-g";
   }
-  if (
-    item.status === "IN_PROGRESS" ||
-    item.status === "IN_REVIEW" ||
-    descendants.some(
-      (descendant) =>
-        descendant.status === "IN_PROGRESS" || descendant.status === "IN_REVIEW",
-    )
-  ) {
-    return "tone-b";
-  }
-  if (
-    item.status === "AT_RISK" ||
-    item.status === "BLOCKED" ||
-    descendants.some(
-      (descendant) =>
-        descendant.status === "AT_RISK" || descendant.status === "BLOCKED",
-    )
-  ) {
-    return "tone-r";
-  }
+  if (rows.some((row) => row.status === "IN_PROGRESS")) return "tone-b";
+  if (rows.some((row) => row.status === "IN_REVIEW")) return "tone-rv";
+  if (rows.some((row) => row.status === "BLOCKED")) return "tone-r";
+  if (rows.some((row) => row.status === "AT_RISK")) return "tone-ar";
   return wbsToneClass(item);
 }
 

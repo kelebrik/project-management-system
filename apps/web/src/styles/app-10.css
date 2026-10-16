@@ -167,19 +167,31 @@
 }
 
 .status-legend .tone-b {
-  background: var(--brand-500);
+  background: #4a86c8;
+}
+
+.status-legend .tone-rv {
+  background: #9cc3ec;
+}
+
+.status-legend .tone-ar {
+  background: var(--warning-soft);
+}
+
+.status-legend .tone-c {
+  background: var(--danger-soft);
 }
 
 .status-legend .tone-g {
-  background: #35b86f;
+  background: var(--success-soft);
 }
 
 .status-legend .tone-r {
-  background: #ef5350;
+  background: var(--danger-soft);
 }
 
 .status-legend .tone-p {
-  background: #f472b6;
+  background: var(--warning-soft);
 }
 
 .status-legend .tone-x {
@@ -425,4 +437,13 @@
 .gantt-track-row.active .gantt-link-handle,
 .gantt-track-row.linking .gantt-link-handle {
   opacity: 1;
+}
+
+/* The matrix's soft colours keep an edge on a white row. */
+.status-legend .tone-g,
+.status-legend .tone-r,
+.status-legend .tone-c,
+.status-legend .tone-p,
+.status-legend .tone-ar {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }

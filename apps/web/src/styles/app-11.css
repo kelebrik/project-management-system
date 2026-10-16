@@ -5,20 +5,18 @@
 
 .gantt-bar.done,
 .gantt-bar.tone-g {
-  background: #35b86f;
-  --gantt-item-color: #35b86f;
+  background: var(--success-soft);
+  --gantt-item-color: var(--success-soft);
 }
 
-.gantt-bar.at-risk,
-.gantt-bar.blocked,
 .gantt-bar.tone-r {
-  background: #ef5350;
-  --gantt-item-color: #ef5350;
+  background: var(--danger-soft);
+  --gantt-item-color: var(--danger-soft);
 }
 
 .gantt-bar.tone-p {
-  background: #f472b6;
-  --gantt-item-color: #f472b6;
+  background: var(--warning-soft);
+  --gantt-item-color: var(--warning-soft);
 }
 
 .gantt-bar.tone-o {
@@ -27,11 +25,36 @@
 }
 
 .gantt-bar.tone-b {
-  background: var(--brand-500);
-  --gantt-item-color: var(--brand-500);
+  background: #4a86c8;
+  --gantt-item-color: #4a86c8;
 }
 
-.gantt-bar.cancelled,
+/* Each status has its own colour: review a lighter blue than work under way, at risk a lighter
+   red than failed, cancelled apart from not started. */
+.gantt-bar.tone-rv {
+  background: #9cc3ec;
+  --gantt-item-color: #9cc3ec;
+}
+
+.gantt-bar.tone-ar {
+  background: var(--warning-soft);
+  --gantt-item-color: var(--warning-soft);
+}
+
+.gantt-bar.tone-c {
+  background: var(--danger-soft);
+  --gantt-item-color: var(--danger-soft);
+}
+
+/* The matrix's soft colours keep an edge on a white row. */
+.gantt-bar.tone-g,
+.gantt-bar.tone-r,
+.gantt-bar.tone-c,
+.gantt-bar.tone-p,
+.gantt-bar.tone-ar {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
 .gantt-bar.tone-x {
   background: #a8b4c5;
   --gantt-item-color: #a8b4c5;
