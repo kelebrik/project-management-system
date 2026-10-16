@@ -1,3 +1,4 @@
+import { CLOSED_WORK_STATUSES } from '@pms/shared';
 /**
  * What the watching rules pick out of the project, as pure functions over
  * plain rows: decisions waiting for an answer, risks missing an owner or a
@@ -8,7 +9,7 @@
 
 const DAY_MS = 86_400_000;
 const CLOSED_ISSUE = new Set(['Done', 'Closed', 'Resolved']);
-const CLOSED_WORK = new Set(['DONE', 'CANCELLED']);
+const CLOSED_WORK: ReadonlySet<string> = new Set(CLOSED_WORK_STATUSES);
 const OPEN_CHANGE = new Set(['DRAFT', 'SUBMITTED', 'IN_REVIEW']);
 
 export const isoDay = (value: Date) => value.toISOString().slice(0, 10);

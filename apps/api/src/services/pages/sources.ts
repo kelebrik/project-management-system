@@ -1,4 +1,4 @@
-import type { PageDatasetRow, PageSourceKey } from '@pms/shared';
+import { CLOSED_WORK_STATUSES, type PageDatasetRow, type PageSourceKey } from '@pms/shared';
 import { prisma } from '../../db.js';
 import { loadPortfolioReport } from '../portfolio-reports.js';
 
@@ -21,7 +21,7 @@ export const PAGE_SOURCE_ROW_LIMIT = 50_000;
 const WBS_LOAD_LIMIT = 100_000;
 const DAY_MS = 86_400_000;
 const WORK_TYPES = new Set(['TASK', 'DELIVERABLE', 'WORK_PACKAGE']);
-const CLOSED_WORK = new Set(['DONE', 'CANCELLED']);
+const CLOSED_WORK: ReadonlySet<string> = new Set(CLOSED_WORK_STATUSES);
 const CLOSED_RAID = ['CLOSED', 'VALIDATED'];
 export const PAGE_RED_RISK_SCORE = 15;
 export const PAGE_AMBER_RISK_SCORE = 8;

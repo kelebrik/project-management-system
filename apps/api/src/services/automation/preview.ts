@@ -1,4 +1,4 @@
-import { automationParamsSchemas, type AutomationTemplate, type NotificationParams } from '@pms/shared';
+import { automationParamsSchemas, type AutomationTemplate, CLOSED_WORK_STATUSES, type NotificationParams } from '@pms/shared';
 import { prisma } from '../../db.js';
 import { missingCheckIns, weekStartOf } from '../my-work.js';
 import { loadExhaustedFloat, loadReconciliation } from './engine.js';
@@ -67,7 +67,7 @@ export async function previewRule(project: { id: string; code: string }, templat
     // Who owned open work in a past week is not stored: today's owners stand in for them.
     const currentWeek = weekStartOf(now, zone);
     const owners = await prisma.wbsItem.findMany({
-      where: { projectId: project.id, type: { in: ['TASK', 'WORK_PACKAGE', 'DELIVERABLE'] }, status: { notIn: ['DONE', 'CANCELLED'] }, owner: { not: '' }, children: { none: {} } },
+      where: { projectId: project.id, type: { in: ['TASK', 'WORK_PACKAGE', 'DELIVERABLE'] }, status: { notIn: [...CLOSED_WORK_STATUSES] }, owner: { not: '' }, children: { none: {} } },
       select: { owner: true, startDate: true },
     });
     const items: RulePreview['items'] = [];

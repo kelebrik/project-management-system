@@ -1,4 +1,4 @@
-import { automationParamsSchemas, normalizePersonName, type AutomationTemplate, type NotificationParams } from '@pms/shared';
+import { automationParamsSchemas, type AutomationTemplate, CLOSED_WORK_STATUSES, normalizePersonName, type NotificationParams } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../db.js';
 import { logEvent } from '../../server/logger.js';
@@ -149,7 +149,7 @@ async function missingCheckIn(ctx: RunContext) {
   const [checkIns, openWork] = await Promise.all([
     ctx.tx.workCheckIn.findMany({ where: { projectId: ctx.project.id, weekStart }, select: { personName: true } }),
     ctx.tx.wbsItem.findMany({
-      where: { projectId: ctx.project.id, type: { in: ['TASK', 'WORK_PACKAGE', 'DELIVERABLE'] }, status: { notIn: ['DONE', 'CANCELLED'] }, owner: { not: '' }, children: { none: {} }, startDate: { lte: weekEnd } },
+      where: { projectId: ctx.project.id, type: { in: ['TASK', 'WORK_PACKAGE', 'DELIVERABLE'] }, status: { notIn: [...CLOSED_WORK_STATUSES] }, owner: { not: '' }, children: { none: {} }, startDate: { lte: weekEnd } },
       select: { owner: true },
     }),
   ]);

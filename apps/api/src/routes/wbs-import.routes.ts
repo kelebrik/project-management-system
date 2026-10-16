@@ -1,4 +1,4 @@
-import { wbsImportRequestSchema, wbsImportRowSchema, WBS_IMPORT_LIMITS, type WbsImportPlanSummary, type WbsImportRow } from '@pms/shared';
+import { closesWithDate, wbsImportRequestSchema, wbsImportRowSchema, WBS_IMPORT_LIMITS, type WbsImportPlanSummary, type WbsImportRow } from '@pms/shared';
 import { Prisma, type ProjectCalendarCode } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -122,7 +122,7 @@ export async function applyWbsImport(
           progress: row.progress ?? 0,
           priority: row.priority?.trim() || null,
           comment: row.comment?.trim() || null,
-          closedAt: row.status === 'DONE' ? new Date() : null,
+          closedAt: row.status && closesWithDate(row.status) ? new Date() : null,
           ...Object.fromEntries(PREDECESSOR_FIELDS.map((field, index) => [field, row.predecessors?.[index] ?? null])),
           sortOrder: 0,
         },

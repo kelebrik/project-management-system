@@ -23,6 +23,8 @@ test('my work lists my rows, takes check-ins on them only, and the project sees 
     data: { code: `MW-${suffix}`, name: 'My work', businessUnitId: unit.id, portfolio: 'TEST', sponsor: 'Test', projectManager: 'Test', startDate: inDays(-30), targetDate: inDays(60), budgetPlanned: 0, budgetForecast: 0, summary: '' },
   });
   const mine = await prisma.wbsItem.create({ data: { projectId: project.id, code: '1', title: 'Моя задача', type: 'TASK', status: 'IN_PROGRESS', owner: `алена  зуева ${suffix}`, startDate: inDays(-3), dueDate: inDays(3), sortOrder: 10, wbsLevel: 1 } });
+  // Failed work is over, like done work: it is not my work any more.
+  await prisma.wbsItem.create({ data: { projectId: project.id, code: '3', title: 'Моя проваленная', type: 'TASK', status: 'BLOCKED', owner: `алена  зуева ${suffix}`, startDate: inDays(-9), dueDate: inDays(-3), sortOrder: 30, wbsLevel: 1 } });
   const theirs = await prisma.wbsItem.create({ data: { projectId: project.id, code: '2', title: 'Чужая', type: 'TASK', status: 'IN_PROGRESS', owner: 'Петров', startDate: inDays(-3), dueDate: inDays(3), sortOrder: 20, wbsLevel: 1 } });
   process.env.DEPLOYMENT_PROFILE = 'cloud';
   const server = createApp().listen(0, '127.0.0.1');

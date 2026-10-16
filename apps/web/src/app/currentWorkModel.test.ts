@@ -57,8 +57,9 @@ test("current work selects active and upcoming tasks and deliverables", () => {
     new Date(2026, 6, 20),
   );
 
-  // Closed three days ago: «All» still shows it; a cancelled row never.
-  assert.deepEqual(rows.map((row) => row.id), ["done", "active", "upcoming", "deliverable", "failed"]);
+  // Closed three days ago: «All» still shows it; a cancelled row never; a failed one without the day it
+  // failed counts by its due date, ahead here, so it is not shown.
+  assert.deepEqual(rows.map((row) => row.id), ["done", "active", "upcoming", "deliverable"]);
   assert.equal(rows[1].workPackage, "1 Пакет");
   assert.equal(rows[2].comment, "Важно");
 });
@@ -158,4 +159,31 @@ test("rows are filtered by owners, by no owner, and by a due date within the nex
   assert.deepEqual(createCurrentWorkRows(items, {}, today, "all", { owners: [""] }).map((row) => row.id), ["c"]);
   assert.deepEqual(createCurrentWorkRows(items, {}, today, "dueSoon", { dueSoonDays: 7 }).map((row) => row.id), ["a", "c"]);
   assert.deepEqual(createCurrentWorkRows(items, {}, today, "dueSoon", { dueSoonDays: 31 }).map((row) => row.id), ["a", "b", "c"]);
+});
+
+test("failed work is final like done work: «All» and «Failed» show it for eight days after it failed, nothing else does", () => {
+  const today = new Date(2026, 9, 16, 15, 0);
+  const failed = (id: string, closedAt: string | null, dueDate: string | null = null) =>
+    item({ id, code: id, title: id, status: "BLOCKED", closedAt, dueDate });
+  const items = [
+    failed("1", "2026-10-15T09:00:00"),
+    failed("2", "2026-10-08T23:30:00"),
+    // Failed long ago, before the day was noted: by its due date.
+    failed("3", null, "2026-03-27"),
+    failed("4", null, "2026-10-12"),
+  ];
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "all").map((row) => row.id), ["1", "4"]);
+  assert.deepEqual(createCurrentWorkRows(items, {}, today, "blocked").map((row) => row.id), ["1", "4"]);
+  for (const filter of ["active", "overdue", "dueSoon"] as const) {
+    assert.deepEqual(createCurrentWorkRows(items, {}, today, filter), [], filter);
+  }
+  // Done work is not in «Failed».
+  const done = item({ id: "5", code: "5", title: "5", status: "DONE", closedAt: "2026-10-15T09:00:00" });
+  assert.deepEqual(createCurrentWorkRows([done], {}, today, "blocked"), []);
+  // A row just made failed here counts as failed today.
+  const source = item({ id: "6", code: "6", title: "6", status: "IN_PROGRESS", dueDate: "2026-03-01" });
+  const draft = wbsToForm(source);
+  draft.status = "BLOCKED";
+  assert.deepEqual(createCurrentWorkRows([source], { "6": draft }, today, "all").map((row) => row.id), ["6"]);
+  assert.deepEqual(createCurrentWorkRows([source], { "6": draft }, today, "overdue"), []);
 });

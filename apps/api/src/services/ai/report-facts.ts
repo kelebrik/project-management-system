@@ -1,3 +1,4 @@
+import { isClosedWorkStatus } from '@pms/shared';
 /** Shared pieces for handing project facts to a model: dates, cut text, fitting a budget, a safe data block. */
 
 export const DAY_MS = 86_400_000;
@@ -9,7 +10,7 @@ export const cutText = (value: string | null | undefined, limit: number) => (val
 /** Midnight UTC of the given moment: periods and horizons run in UTC days. */
 export const utcDay = (now: Date) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
-export const isOpenWork = (status: string) => status !== 'DONE' && status !== 'CANCELLED';
+export const isOpenWork = (status: string) => !isClosedWorkStatus(status);
 
 export const isActiveRaid = (status: string) => !['CLOSED', 'VALIDATED'].includes(status);
 

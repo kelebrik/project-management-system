@@ -1,4 +1,4 @@
-import { normalizePersonName } from '@pms/shared';
+import { isClosedWorkStatus, normalizePersonName } from '@pms/shared';
 import { automationTimeZone, localMoment, localWeekStart } from './automation/time.js';
 
 export const MY_WORK_WEEKS_AHEAD = 4;
@@ -41,7 +41,7 @@ export function selectMyWork(items: Item[], personName: string, now: Date) {
   const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const horizon = new Date(today.getTime() + MY_WORK_WEEKS_AHEAD * 7 * DAY_MS);
   return items
-    .filter((item) => normalizePersonName(item.owner) === key && item.status !== 'DONE' && item.status !== 'CANCELLED')
+    .filter((item) => normalizePersonName(item.owner) === key && !isClosedWorkStatus(item.status))
     .filter((item) => {
       const overdue = item.dueDate !== null && item.dueDate < today;
       const soon = [item.startDate, item.dueDate].some((date) => date !== null && date <= horizon);

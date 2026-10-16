@@ -1,4 +1,4 @@
-import { wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
+import { closesWithDate, wbsItemBaseSchema, wbsItemSchema } from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import type { Router } from 'express';
 import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
@@ -220,7 +220,7 @@ export function registerWbsItemRoutes(router: Router) {
             mattermostUrl: parsed.data.mattermostUrl?.trim() || null,
             description: parsed.data.description || null,
             comment: parsed.data.comment?.trim() || null,
-            closedAt: parsed.data.status === 'DONE' ? new Date() : null,
+            closedAt: parsed.data.status && closesWithDate(parsed.data.status) ? new Date() : null,
             sortOrder: parsed.data.sortOrder,
           },
         });

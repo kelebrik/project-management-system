@@ -1,10 +1,12 @@
+import { CLOSED_WORK_STATUSES } from '@pms/shared';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
 
 const DAY_MS = 86_400_000;
 const CHECKPOINT_TYPES = ['MILESTONE', 'GOAL'] as const;
 const WORK_TYPES = ['TASK', 'DELIVERABLE', 'WORK_PACKAGE'] as const;
-const CLOSED_WORK = ['DONE', 'CANCELLED'] as const;
+// Done, cancelled and failed work is over (see CLOSED_WORK_STATUSES).
+const CLOSED_WORK = CLOSED_WORK_STATUSES;
 const RED_RISK_SCORE = 15;
 // Waiting for an answer: sent to an approver, not yet answered.
 const OPEN_DECISION = ['PENDING_APPROVAL'] as const;

@@ -1,3 +1,4 @@
+import { closesWithDate } from "@pms/shared";
 import { prisma } from "../db.js";
 import { lockProjectStructure, structureTransaction, type StructureDb } from "./wbs-structure-write.js";
 
@@ -179,7 +180,7 @@ export async function copyLatestWbsBaselineToProject(input: {
           calendarCode: item.calendarCode,
           effortPercent: item.effortPercent,
           progress: item.progress,
-          closedAt: item.status === "DONE" ? item.dueDate : null,
+          closedAt: closesWithDate(item.status) ? item.dueDate : null,
           sortOrder: item.sortOrder,
         },
         select: { id: true },

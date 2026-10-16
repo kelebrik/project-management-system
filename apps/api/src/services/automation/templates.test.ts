@@ -48,6 +48,8 @@ test('float: the first look remembers, later looks report only rows that newly r
     { id: 'a', code: '1', title: 'Фаза', type: 'PHASE', status: 'IN_PROGRESS', totalFloatWorkDays: 0 },
     { id: 'b', code: '1.1', title: 'Задача', type: 'TASK', status: 'IN_PROGRESS', totalFloatWorkDays: 0 },
     { id: 'c', code: '1.2', title: 'Готово', type: 'TASK', status: 'DONE', totalFloatWorkDays: -2 },
+    // Failed work is finished like done work: no float warning.
+    { id: 'f', code: '1.5', title: 'Провалено', type: 'TASK', status: 'BLOCKED', totalFloatWorkDays: -4 },
     { id: 'd', code: '1.3', title: 'Запас', type: 'TASK', status: 'NOT_STARTED', totalFloatWorkDays: 3 },
     { id: 'e', code: '1.4', title: 'Опоздание', type: 'MILESTONE', status: 'NOT_STARTED', totalFloatWorkDays: -1 },
   ]);

@@ -1,3 +1,4 @@
+import { CLOSED_WORK_STATUSES, isClosedWorkStatus } from '@pms/shared';
 import { randomUUID } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../db.js';
@@ -443,7 +444,7 @@ function stepReason(step: CheckpointStep) {
  */
 export function buildShiftLadders(checkpointRows: LadderCheckpoint[], journal: JournalRow[], openSessions: ReadonlySet<string> = new Set()) {
   const open = checkpointRows
-    .filter((item) => item.status !== 'DONE' && item.status !== 'CANCELLED')
+    .filter((item) => !isClosedWorkStatus(item.status))
     .sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code, 'ru', { numeric: true }));
   const activeGoalId = open.find((item) => item.type === 'GOAL')?.id ?? null;
   // A checkpoint with no baseline has nothing to be late against.
@@ -518,7 +519,7 @@ export const REASON_SHIFT_LIMIT = 50;
 /** The open milestones and goals of a project with their journal, for the ladders and the reasons asked. */
 async function projectCheckpointJournal(projectId: string) {
   const items = await prisma.wbsItem.findMany({
-    where: { projectId, type: { in: ['MILESTONE', 'GOAL'] }, status: { notIn: ['DONE', 'CANCELLED'] } },
+    where: { projectId, type: { in: ['MILESTONE', 'GOAL'] }, status: { notIn: [...CLOSED_WORK_STATUSES] } },
     select: { id: true, code: true, title: true, type: true, status: true, sortOrder: true, dueDate: true, baselineDueDate: true },
   });
   // Only what moved since the plan was first fixed counts; without a fixed plan nothing does.
@@ -604,7 +605,7 @@ export async function pendingShiftSessions(projectId: string, userId: string, op
     });
     if (sessions.length === 0) return { sessions: [], ownOpen };
     const items = await db.wbsItem.findMany({
-      where: { projectId, type: { in: ['MILESTONE', 'GOAL'] }, status: { notIn: ['DONE', 'CANCELLED'] } },
+      where: { projectId, type: { in: ['MILESTONE', 'GOAL'] }, status: { notIn: [...CLOSED_WORK_STATUSES] } },
       select: { id: true, code: true, title: true, sortOrder: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
     });

@@ -76,7 +76,8 @@ export function buildReportFacts(project: ReportProject, periodDays: number, now
   const checkpoints = project.wbsItems.filter((item) => item.type === 'MILESTONE' || item.type === 'GOAL');
   const lists = {
     doneInPeriod: project.wbsItems
-      .filter((item) => item.closedAt && item.closedAt >= from && item.closedAt <= now)
+      // Failed work is closed too, but only done work is reported as done.
+      .filter((item) => item.status === 'DONE' && item.closedAt && item.closedAt >= from && item.closedAt <= now)
       .map((item) => ({ code: item.code, title: cut(item.title), type: item.type, closed: day(item.closedAt) })),
     overdue: project.wbsItems
       .filter((item) => open(item.status) && item.dueDate && item.dueDate < today && item.type !== 'PHASE')

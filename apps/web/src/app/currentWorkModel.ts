@@ -1,4 +1,4 @@
-import { normalizePersonName } from "@pms/shared";
+import { CLOSED_WORK_STATUSES, closesWithDate, normalizePersonName } from "@pms/shared";
 import type { WbsItem } from "./domainTypes";
 import { wbsToForm, type WbsFormState } from "./formState";
 
@@ -9,8 +9,9 @@ const ACTIVE_STATUSES = new Set([
   "AT_RISK",
 ]);
 const CURRENT_WORK_TYPES = new Set(["TASK", "DELIVERABLE"]);
-const EXCLUDED_STATUSES = new Set(["DONE", "CANCELLED"]);
-/** «All» also shows work done in the last days: today and the seven before. */
+/** Work that is over: done, cancelled, failed (CLOSED_WORK_STATUSES). */
+const EXCLUDED_STATUSES: ReadonlySet<string> = new Set(CLOSED_WORK_STATUSES);
+/** «All» also shows work done or failed in the last days: today and the seven before; «Failed» those failed. */
 const RECENTLY_CLOSED_DAYS = 8;
 const CODE_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
@@ -108,11 +109,11 @@ function workPackageLabel(
 }
 
 /**
- * When a row shown as done was closed: just now if it is done only in the
- * draft, else the day the server noted (or, for old rows without it, its due date).
+ * When a row shown as done or failed was closed: just now if it is closed only
+ * in the draft, else the day the server noted (or, for old rows without it, its due date).
  */
 function closedDay(item: WbsItem, draft: WbsFormState, today: Date) {
-  if (item.status !== "DONE") return startOfLocalDay(today);
+  if (!closesWithDate(item.status)) return startOfLocalDay(today);
   return parseLocalDate(item.closedAt ?? null) ?? parseLocalDate(draft.dueDate || null);
 }
 
@@ -139,7 +140,9 @@ export function createCurrentWorkRows(
       const draft = draftFor(item, drafts);
       if (!CURRENT_WORK_TYPES.has(draft.type)) return false;
       if (owners && !owners.has(currentWorkOwnerKey(draft.owner))) return false;
-      if (filter === "all" && draft.status === "DONE") {
+      // Done and failed work is final: it shows only in «All» (and failed in «Failed») for eight days after closing.
+      if (closesWithDate(draft.status)) {
+        if (filter !== "all" && !(filter === "blocked" && draft.status === "BLOCKED")) return false;
         const closed = closedDay(item, draft, today);
         return Boolean(closed && closed >= closedFrom && closed < tomorrowStart);
       }
@@ -148,10 +151,9 @@ export function createCurrentWorkRows(
       const overdue = Boolean(dueDate && dueDate < todayStart);
       // Due within the next N days, whatever the status; overdue rows have their own filter.
       if (filter === "dueSoon") return Boolean(dueDate && dueDate >= todayStart && dueDate <= dueSoonThrough);
-      if (filter === "blocked") return draft.status === "BLOCKED";
+      if (filter === "blocked") return false;
       if (filter === "overdue") return overdue;
-      if (filter === "all" && (overdue || draft.status === "BLOCKED")) return true;
-      if (filter === "active" && draft.status === "BLOCKED") return false;
+      if (filter === "all" && overdue) return true;
       if (ACTIVE_STATUSES.has(draft.status)) return true;
       // Not started yet but due by the end of the next two working weeks, this week included.
       if (draft.status === "NOT_STARTED") {

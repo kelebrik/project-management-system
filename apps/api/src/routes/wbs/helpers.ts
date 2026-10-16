@@ -1,3 +1,4 @@
+import { closesWithDate } from '@pms/shared';
 import { prisma } from '../../db.js';
 import type { StructureDb } from '../../services/wbs-structure-write.js';
 import { jiraUrlMatchesConfiguredBase } from '../../jira-url-policy.js';
@@ -8,10 +9,11 @@ export function closedAtForWbsStatus(
   current?: { status: string; closedAt: Date | null },
 ) {
   if (nextStatus === undefined) return undefined;
-  if (nextStatus === 'DONE') {
-    return current?.closedAt ?? new Date();
+  // Done and failed work is closed on the day it became so; between the two it keeps that day.
+  if (closesWithDate(nextStatus)) {
+    return current && closesWithDate(current.status) ? current.closedAt ?? new Date() : new Date();
   }
-  if (current?.status === 'DONE') return null;
+  if (current && closesWithDate(current.status)) return null;
   return undefined;
 }
 

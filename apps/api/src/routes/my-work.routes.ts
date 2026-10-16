@@ -1,4 +1,4 @@
-import { normalizePersonName } from '@pms/shared';
+import { CLOSED_WORK_STATUSES, normalizePersonName } from '@pms/shared';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../db.js';
@@ -61,7 +61,7 @@ export function createMyWorkRouter() {
       where: {
         project: { status: { not: 'CLOSED' }, ...(await readableProjectWhere(req)) },
         type: { in: [...WORK_TYPES] },
-        status: { notIn: ['DONE', 'CANCELLED'] },
+        status: { notIn: [...CLOSED_WORK_STATUSES] },
         owner: { not: '' },
         children: { none: {} },
         OR: [{ startDate: { lte: horizon } }, { dueDate: { lte: horizon } }],
@@ -139,7 +139,7 @@ export function createMyWorkRouter() {
         where: {
           projectId: project.id,
           type: { in: [...WORK_TYPES] },
-          status: { notIn: ['DONE', 'CANCELLED'] },
+          status: { notIn: [...CLOSED_WORK_STATUSES] },
           owner: { not: '' },
           children: { none: {} },
           startDate: { lte: weekEnd },

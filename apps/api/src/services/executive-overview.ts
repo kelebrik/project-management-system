@@ -1,5 +1,5 @@
 import { artifactRows } from './artifact-table.js';
-import { isOverviewDecisionIssue, labels } from '@pms/shared';
+import { isClosedWorkStatus, isOverviewDecisionIssue, labels } from '@pms/shared';
 import { prisma } from '../db.js';
 
 function isoDate(value: Date | null | undefined) {
@@ -108,13 +108,14 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
           (right.dueDate?.getTime() ?? Number.MAX_SAFE_INTEGER) ||
         left.sortOrder - right.sortOrder,
     );
-  const nextMilestone = wbsMilestones.find((milestone) => milestone.status !== 'DONE');
+  // A milestone done, cancelled or failed is behind us.
+  const nextMilestone = wbsMilestones.find((milestone) => !isClosedWorkStatus(milestone.status));
   const completedWbs = project.wbsItems.filter((item) => item.status === 'DONE').length;
   const blockedWbs = project.wbsItems.filter((item) => item.status === 'BLOCKED').length;
   const atRiskWbs = project.wbsItems.filter((item) => item.status === 'AT_RISK').length;
   const missingWbsDates = project.wbsItems.filter((item) => !item.startDate || !item.dueDate).length;
   const overdueMilestones = wbsMilestones.filter(
-    (milestone) => milestone.status !== 'DONE' && milestone.dueDate && milestone.dueDate.getTime() < today.getTime(),
+    (milestone) => !isClosedWorkStatus(milestone.status) && milestone.dueDate && milestone.dueDate.getTime() < today.getTime(),
   ).length;
   const jiraSyncAge = daysSince(project.jiraIntegration?.lastSyncedAt);
   const staleJiraIssues = project.jiraSnapshots.filter(
@@ -281,7 +282,7 @@ export function generateExecutiveSummary(project: ProjectForOverviewGeneration) 
       source: 'Реестр открытых вопросов',
     })),
     ...wbsMilestones
-      .filter((milestone) => milestone.status !== 'DONE')
+      .filter((milestone) => !isClosedWorkStatus(milestone.status))
       .slice(0, 3)
       .map((milestone) => ({
         title: `Подготовить веху: ${milestone.title}`,

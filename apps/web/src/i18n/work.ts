@@ -8,8 +8,8 @@ export const work = {
     "ru": "Активные"
   },
   "work.filter.blocked": {
-    "en": "Blocked",
-    "ru": "Заблокированные"
+    "en": "Failed",
+    "ru": "Проваленные"
   },
   "work.filter.overdue": {
     "en": "Overdue",

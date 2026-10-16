@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { calculateHierarchyStatusUpdates, wbsItemSchema, type WbsItemStatus, type WbsItemType } from "@pms/shared";
+import { calculateHierarchyStatusUpdates, closesWithDate, wbsItemSchema, type WbsItemStatus, type WbsItemType } from "@pms/shared";
 import { prisma } from "../db.js";
 import { safeCalculateWbsCriticalPath } from "./wbs-critical-path.js";
 import {
@@ -66,6 +66,7 @@ export async function recalculateProjectWbsHierarchyStatuses(projectId: string, 
       parentId: true,
       type: true,
       status: true,
+      closedAt: true,
     },
     orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
@@ -73,11 +74,18 @@ export async function recalculateProjectWbsHierarchyStatuses(projectId: string, 
   const updates = calculateWbsHierarchyStatusUpdates(items);
   if (updates.length === 0) return 0;
 
-  const closedAt = new Date();
+  // Done and failed rows are closed now, or keep the day they were closed when they move between the two.
+  const now = new Date();
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const closedAtOf = (id: string, status: string) => {
+    if (!closesWithDate(status)) return null;
+    const before = byId.get(id);
+    return before && closesWithDate(before.status) && before.closedAt ? before.closedAt : now;
+  };
   await bulkUpdateWbsItems(
     db,
     projectId,
-    updates.map((update) => ({ id: update.id, status: update.status, closedAt: update.status === "DONE" ? closedAt : null })),
+    updates.map((update) => ({ id: update.id, status: update.status, closedAt: closedAtOf(update.id, update.status) })),
     ["status", "closedAt"],
   );
 

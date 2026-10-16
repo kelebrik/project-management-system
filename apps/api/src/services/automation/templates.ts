@@ -1,4 +1,4 @@
-import { AUTOMATION_LIMITS, type AutomationRowRef } from '@pms/shared';
+import { AUTOMATION_LIMITS, isClosedWorkStatus, type AutomationRowRef } from '@pms/shared';
 
 const cut = (text: string, max: number = AUTOMATION_LIMITS.text) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 export const rowRef = (row: { id: string; code: string; title: string }): AutomationRowRef => ({ id: row.id, code: row.code, title: cut(row.title) });
@@ -47,9 +47,9 @@ export function blockerEvents(checkIns: CheckInSource[]) {
 
 export type FloatRow = { id: string; code: string; title: string; type: string; status: string; totalFloatWorkDays: number };
 
-/** Unfinished rows (not phases) with no float left. */
+/** Unfinished rows (not phases; done, cancelled and failed work is finished) with no float left. */
 export function exhaustedFloat(rows: FloatRow[]) {
-  return rows.filter((row) => row.type !== 'PHASE' && row.status !== 'DONE' && row.status !== 'CANCELLED' && row.totalFloatWorkDays <= 0);
+  return rows.filter((row) => row.type !== 'PHASE' && !isClosedWorkStatus(row.status) && row.totalFloatWorkDays <= 0);
 }
 
 /**

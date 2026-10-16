@@ -472,7 +472,7 @@ export const englishWikiGroups: WikiGroup[] = [
               "CANCELLED child rows are excluded from the aggregation.",
               "The aggregation priority is: AT_RISK, then BLOCKED, then IN_PROGRESS, then IN_REVIEW, then DONE if all active children are DONE, then IN_PROGRESS if at least one is DONE, otherwise NOT_STARTED.",
               "If a parent has no active children, its status is not changed.",
-              "If the aggregated status becomes DONE, closedAt is set to the current moment; if it stops being DONE, closedAt is cleared."
+              "Failed (BLOCKED) is a final status like DONE: when the status becomes DONE or BLOCKED, closedAt is set to the current moment (moving between the two keeps it); when the row is reopened, closedAt is cleared. DONE, CANCELLED and BLOCKED count as closed: such work is neither open nor overdue; only DONE counts as completed."
             ]
           },
           {

@@ -23,7 +23,8 @@ async function mockWork(page: import("@playwright/test").Page) {
     const work = (id: string, code: string, title: string, status: string, dueDate: string, sortOrder: number) =>
       ({ ...template, id, code, title, status, dueDate, forecastDueDate: dueDate, parentId: null, type: "TASK", wbsLevel: 1, sortOrder });
     fixture.wbsItems = [
-      work("w1", "1", "Заблокированная", "BLOCKED", iso(5), 10),
+      // Failed today: it shows in Текучка for eight days, as done work does.
+      { ...work("w1", "1", "Заблокированная", "BLOCKED", iso(5), 10), closedAt: new Date().toISOString() },
       work("w2", "2", "Идёт сейчас", "IN_PROGRESS", iso(5), 20),
       work("w3", "3", "Просроченная", "IN_PROGRESS", iso(-3), 30),
       work("w4", "4", "Готовая", "DONE", iso(-3), 40),
@@ -88,7 +89,7 @@ test("the chosen filter of Текучка is highlighted, after a click and afte
   await mockWork(page);
   await page.goto("/TV-OVERVIEW/current-work");
   const all = page.getByRole("button", { name: "Все", exact: true });
-  const blocked = page.getByRole("button", { name: "Заблокированные" });
+  const blocked = page.getByRole("button", { name: "Проваленные" });
   await expect(all).toHaveAttribute("aria-pressed", "true");
   const chosen = await background(all);
   const plain = await background(blocked);
@@ -103,6 +104,6 @@ test("the chosen filter of Текучка is highlighted, after a click and afte
   expect(await blocked.evaluate((element) => getComputedStyle(element).borderColor)).not.toBe(await all.evaluate((element) => getComputedStyle(element).borderColor));
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Заблокированные" })).toHaveAttribute("aria-pressed", "true");
-  await expect.poll(() => background(page.getByRole("button", { name: "Заблокированные" }))).toBe(chosen);
+  await expect(page.getByRole("button", { name: "Проваленные" })).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(() => background(page.getByRole("button", { name: "Проваленные" }))).toBe(chosen);
 });
