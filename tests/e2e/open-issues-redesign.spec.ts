@@ -116,7 +116,7 @@ test("questions prototype exposes editable fields and expanded actions", async (
   expect(controlBox!.width).toBeGreaterThanOrEqual(cellBox!.width - 2);
   // Readiness and priority take the soft colours of the risk and problem matrix (green: --success-soft).
   expect(await readinessControl.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe("rgb(220, 252, 231)");
-  const matrixTone = { critical: "rgb(254, 226, 226)", high: "rgb(254, 226, 226)", medium: "rgb(254, 243, 199)", low: "rgb(220, 252, 231)" } as Record<string, string>;
+  const matrixTone = { critical: "rgb(238, 139, 139)", high: "rgb(254, 226, 226)", medium: "rgb(254, 243, 199)", low: "rgb(220, 252, 231)" } as Record<string, string>;
   const priorityCell = row.locator(".open-issues-prototype-priority-cell");
   const priorityLevel = (await priorityCell.getAttribute("class"))!.split(" ").find((name) => name in matrixTone)!;
   expect(await priorityCell.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(matrixTone[priorityLevel]);
@@ -232,4 +232,19 @@ test("an open issue converts to a RAID risk after confirmation", async ({ page }
   await confirmation.getByRole("button", { name: "Перевести" }).click();
   await expect.poll(() => convertCalls).toBe(1);
   await expect(page.getByText("Открытый вопрос переведен в риск")).toBeVisible();
+});
+
+test("a critical issue's priority is a deeper red than a high one's, with dark text", async ({ page }) => {
+  await mockAdminProject(page, (fixture) => {
+    fixture.issues[0]!.severity = "CRITICAL";
+    fixture.issues.push({ ...fixture.issues[0]!, id: "issue-high", title: "Высокий вопрос", severity: "HIGH" });
+  });
+  await page.goto("/issues");
+  const cells = page.locator(".open-issues-prototype-priority-cell");
+  await expect(cells.first()).toBeVisible();
+  const look = await cells.evaluateAll((elements) =>
+    elements.map((element) => [element.className.includes("critical") ? "critical" : element.className.includes("high") ? "high" : "other", getComputedStyle(element).backgroundColor, getComputedStyle(element).color]),
+  );
+  expect(look).toContainEqual(["critical", "rgb(238, 139, 139)", "rgb(17, 24, 39)"]);
+  expect(look.find(([level]) => level === "high")?.[1]).toBe("rgb(254, 226, 226)");
 });

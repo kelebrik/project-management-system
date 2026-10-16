@@ -287,8 +287,9 @@
 
 /* Priority and readiness in the colours of the risk and problem matrix (.risk-matrix-cell):
    red, amber and green, soft, with strong text. */
-.open-issues-prototype-priority-cell.critical,
 .open-issues-prototype-priority-cell.high { background: var(--danger-soft); color: var(--text-strong); }
+/* Critical a few tones deeper than high: the matrix's red as the work statuses take it. */
+.open-issues-prototype-priority-cell.critical { background: #ee8b8b; color: #111827; }
 .open-issues-prototype-priority-cell.medium { background: var(--warning-soft); color: var(--text-strong); }
 .open-issues-prototype-priority-cell.low { background: var(--success-soft); color: var(--text-strong); }
 .open-issues-prototype-priority option { background: var(--surface); color: var(--text); }
