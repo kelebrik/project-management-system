@@ -870,7 +870,7 @@ export function ProjectStructureSection() {
                                         : column.key === "structure"
                                         ? "wbs-cell-structure"
                                         : "wbs-cell"
-                                    }${column.key === "status" ? ` wbs-status-tone ${wbsStatusToneClass(item, shownDraft)}` : ""}`}
+                                    }${column.key === "status" ? ` wbs-status-tone ${wbsStatusToneClass(shownDraft.status)}` : ""}`}
                                   >
                                     {renderWbsCell(column.key, item, shownDraft)}
                                   </div>

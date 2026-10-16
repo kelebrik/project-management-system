@@ -47,19 +47,23 @@ export function summaryToneClass(item: WbsTreeItem) {
   return wbsToneClass(item);
 }
 
+const STATUS_TONES: Record<WbsItem["status"], string> = {
+  DONE: "tone-g",
+  IN_PROGRESS: "tone-b",
+  IN_REVIEW: "tone-rv",
+  AT_RISK: "tone-ar",
+  BLOCKED: "tone-r",
+  NOT_STARTED: "tone-x",
+  CANCELLED: "tone-c",
+};
+
 /**
- * The tone of a row's status cell: the colour its bar has on the Gantt, for the
- * status and due date the row shows. A milestone or goal is a mark there, not
- * a bar, so its cell takes the colour work with that status would have.
+ * The tone of a status cell: the colour of the status written in it, in the
+ * Gantt's colours for that status. Unlike a bar, it does not turn overdue and
+ * a parent's cell does not take its children's colour: the cell says one thing.
  */
-export function wbsStatusToneClass(
-  item: Pick<WbsItem, "dueDate" | "status"> & { children?: WbsTreeItem[] },
-  shown: { status: WbsItem["status"]; dueDate: string | null },
-) {
-  const row = { ...item, status: shown.status, dueDate: shown.dueDate || null, type: "TASK" as const };
-  return item.children && item.children.length > 0
-    ? summaryToneClass({ ...(row as unknown as WbsTreeItem), children: item.children })
-    : wbsToneClass(row);
+export function wbsStatusToneClass(status: WbsItem["status"]) {
+  return STATUS_TONES[status] ?? "tone-x";
 }
 
 export function buildWbsTree(items: WbsItem[]) {

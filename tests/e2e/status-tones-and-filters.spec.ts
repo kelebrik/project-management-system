@@ -35,7 +35,7 @@ async function mockWork(page: import("@playwright/test").Page) {
   });
 }
 
-test("status cells in Текучка and the Structure are coloured as the rows' bars on the Gantt", async ({ page }) => {
+test("status cells in Текучка and the Structure are coloured by their status, in the Gantt's colours", async ({ page }) => {
   await mockWork(page);
   await page.goto("/TV-OVERVIEW/current-work");
   const table = page.getByRole("table", { name: /Текучк|Текущ/ });
@@ -43,7 +43,8 @@ test("status cells in Текучка and the Structure are coloured as the rows'
   await expect(table.getByText("Идёт сейчас")).toBeVisible();
   expect(await background(statusOf("1"))).toBe(BLOCKED);
   expect(await background(statusOf("2"))).toBe(IN_PROGRESS);
-  expect(await background(statusOf("3"))).toBe(OVERDUE);
+  // A status cell says the status: overdue work under way stays «in progress» (its Gantt bar turns overdue).
+  expect(await background(statusOf("3"))).toBe(IN_PROGRESS);
   // The select keeps the colour when focused.
   await page.getByLabel("Статус 2", { exact: true }).focus();
   expect(await background(page.getByLabel("Статус 2", { exact: true }))).toBe("rgba(0, 0, 0, 0)");
@@ -54,7 +55,7 @@ test("status cells in Текучка and the Structure are coloured as the rows'
   await expect(cell("w1")).toBeVisible();
   expect(await background(cell("w1"))).toBe(BLOCKED);
   expect(await background(cell("w2"))).toBe(IN_PROGRESS);
-  expect(await background(cell("w3"))).toBe(OVERDUE);
+  expect(await background(cell("w3"))).toBe(IN_PROGRESS);
   expect(await background(cell("w4"))).toBe(DONE);
   // Review apart from work under way, at risk apart from failed, cancelled apart from not started; cancelled is never overdue.
   expect(await background(cell("w5"))).toBe(IN_REVIEW);

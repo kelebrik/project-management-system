@@ -218,7 +218,7 @@ export function ProjectCurrentWorkPage() {
               </span>
               <span
                 role="cell"
-                className={`wbs-status-tone ${wbsStatusToneClass(row, row)}${isReadOnly ? "" : " current-work-editable-cell"}`}
+                className={`wbs-status-tone ${wbsStatusToneClass(row.status)}${isReadOnly ? "" : " current-work-editable-cell"}`}
               >
                 {isReadOnly ? (
                   wbsStatusLabel(row.status)
