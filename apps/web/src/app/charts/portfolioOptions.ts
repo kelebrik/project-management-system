@@ -17,9 +17,10 @@ import type { AppChartColors } from "./appChartTheme";
 
 const DAY = 86_400_000;
 const time = (day: string) => Date.parse(`${day.slice(0, 10)}T00:00:00Z`);
-const LATE = "#ef4444";
-const EARLY = "#16a34a";
-const GOAL = "#8b5cf6";
+const LATE = "#d2776f";
+const EARLY = "#86b865";
+// The work status tokens of tokens.css: goal (leaf), late (brick), early (green).
+const GOAL = "#71855a";
 
 export type PortfolioChartText = {
   today: string;
@@ -113,7 +114,7 @@ export function portfolioGoalsOption(input: { rows: PortfolioGoalTimelineProject
   rows.forEach((row, index) => {
     const last = bands.at(-1) as (XAxisPlotBandsOptions & { band?: number }) | undefined;
     if (last && last.band === row.band) last.to = index + 0.5;
-    else bands.push({ from: index - 0.5, to: index + 0.5, color: row.band % 2 ? "rgba(100, 116, 139, 0.07)" : "transparent", band: row.band } as XAxisPlotBandsOptions);
+    else bands.push({ from: index - 0.5, to: index + 0.5, color: row.band % 2 ? "rgba(133, 125, 122, 0.07)" : "transparent", band: row.band } as XAxisPlotBandsOptions);
   });
   const options = base(colors, text.titles.goals, Math.max(240, 80 + rows.length * 34));
   const pickGoal = (index: number) => {
@@ -315,7 +316,7 @@ export function portfolioRaidBubbleOption(input: { projects: PortfolioRedRaidPro
       gridLineColor: colors.grid,
       lineColor: colors.grid,
       labels: { style: { color: colors.muted } },
-      plotBands: [{ from: -10_000, to: 0, color: "rgba(239, 68, 68, 0.06)", label: { text: text.overdue, align: "left", x: 8, y: 14, style: { color: LATE, fontSize: "11px" } } }],
+      plotBands: [{ from: -10_000, to: 0, color: "rgba(210, 119, 111, 0.06)", label: { text: text.overdue, align: "left", x: 8, y: 14, style: { color: LATE, fontSize: "11px" } } }],
       plotLines: [{ value: 0, color: LATE, width: 2, dashStyle: "ShortDash", zIndex: 3, label: { text: text.today, rotation: 0, y: 12, x: 4, style: { color: LATE, fontWeight: "bold", fontSize: "11px" } } }],
     },
     yAxis: { title: { text: text.score, style: { color: colors.muted } }, gridLineColor: colors.grid, labels: { style: { color: colors.muted } }, startOnTick: false, endOnTick: false },

@@ -88,7 +88,7 @@
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 32px rgba(35, 28, 24, 0.16);
   display: grid;
   gap: 6px;
   left: 0;
@@ -261,7 +261,7 @@
 
 .current-work-column-resizer:hover,
 .current-work-column-resizer:focus-visible {
-  background: rgba(15, 118, 110, 0.16);
+  background: rgba(70, 88, 47, 0.16);
 }
 
 .current-work-head span:last-child,
@@ -477,7 +477,7 @@
 }
 
 .calendar-month > strong {
-  background: #d1d5db;
+  background: var(--border);
   color: var(--text);
   display: block;
   font-size: 15px;
@@ -493,9 +493,9 @@
 
 .calendar-weekdays span {
   background: var(--surface-3);
-  border-bottom: 1px solid #d1d5db;
-  border-right: 1px solid #d1d5db;
-  color: #374151;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 900;
   padding: 7px 2px;
@@ -511,9 +511,9 @@
 .calendar-day {
   align-items: center;
   border: 0;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--surface-3);
   border-radius: 0;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--surface-3);
   display: flex;
   font-size: 13px;
   font-weight: 800;
@@ -528,7 +528,7 @@
 }
 
 .calendar-day.holiday {
-  background: #fff7f7;
+  background: var(--danger-bg);
   color: var(--danger-500);
 }
 
@@ -681,7 +681,7 @@
 }
 
 .wbs-table-row:hover {
-  background: #fbfcfe;
+  background: #ffffff;
 }
 
 .wbs-table-row.active {
@@ -708,7 +708,7 @@
 }
 
 .wbs-table-row.milestone {
-  background: #fffaf3;
+  background: var(--warning-bg);
 }
 
 .wbs-table-row input,
@@ -781,14 +781,14 @@
 
 .wbs-predecessor-timing-button:hover:not(:disabled) {
   background: var(--brand-soft);
-  border-color: #60a5fa;
+  border-color: #95b5d6;
   color: var(--brand);
 }
 
 .wbs-predecessor-timing-button.active {
   background: var(--brand-600);
   border-color: var(--brand);
-  color: #ffffff;
+  color: var(--on-brand);
 }
 
 .wbs-predecessor-timing-button:disabled {

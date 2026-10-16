@@ -85,7 +85,7 @@
 }
 
 .search-scope-tabs button.active {
-  background: #e0ecff;
+  background: var(--brand-soft);
   color: var(--brand);
 }
 
@@ -142,7 +142,7 @@
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 32px rgba(35, 28, 24, 0.16);
   display: grid;
   gap: 6px;
   min-width: 220px;
@@ -212,7 +212,7 @@
   background: var(--danger-soft);
   border-color: var(--danger);
   color: var(--danger-700);
-  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.1);
+  box-shadow: 0 0 0 2px rgba(181, 82, 74, 0.1);
 }
 
 .portfolio-project-filter.is-filtered summary strong {
@@ -232,7 +232,7 @@
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 6px;
-  box-shadow: 0 16px 32px rgba(15, 23, 42, 0.16);
+  box-shadow: 0 16px 32px rgba(35, 28, 24, 0.16);
   display: grid;
   gap: 8px;
   max-width: calc(100vw - 32px);
@@ -379,7 +379,7 @@
 }
 
 .portfolio-goal-today-line {
-  background: rgba(220, 38, 38, 0.55);
+  background: rgba(181, 82, 74, 0.55);
   bottom: 8px;
   position: absolute;
   top: 22px;

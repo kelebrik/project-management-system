@@ -10,7 +10,7 @@ type Category = "new" | "indeterminate" | "done";
 type Bucket = { start: string; end: string; created: number; resolved: number; open: number; byCategory: Record<Category, number>; scope: number; done: number };
 type Flow = { step: string; metric: string; buckets: Bucket[]; quality: { issues: number; incompleteHistory: number; withoutCreationDate: number; missingStoryPoints: number; unknownStatuses: string[] } };
 
-const CATEGORY_COLORS: Record<Category, string> = { new: "#94a3b8", indeterminate: "#3b82f6", done: "#22c55e" };
+const CATEGORY_COLORS: Record<Category, string> = { new: "#a9a2a0", indeterminate: "#7fa3c8", done: "#71855a" };
 
 /**
  * The flow of the project's Jira work over time: created against resolved,
@@ -60,10 +60,10 @@ export function JiraFlowPanel({ projectId, revision, userId, isAdmin }: { projec
       {flow && (
         <>
           <div className="jira-flow-grid">
-            <JiraFlowChart format={format} labels={labels} series={[{ key: "created", label: t("ui.jiraFlow.created"), color: "#f97316", values: pick("created") }, { key: "resolved", label: t("ui.jiraFlow.resolved"), color: "#22c55e", values: pick("resolved") }]} title={t("ui.jiraFlow.createdResolved")} />
-            <JiraFlowChart format={format} labels={labels} series={[{ key: "open", label: t("ui.jiraFlow.open"), color: "#3b82f6", values: pick("open") }]} title={t("ui.jiraFlow.wip")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "created", label: t("ui.jiraFlow.created"), color: "#d9733f", values: pick("created") }, { key: "resolved", label: t("ui.jiraFlow.resolved"), color: "#71855a", values: pick("resolved") }]} title={t("ui.jiraFlow.createdResolved")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "open", label: t("ui.jiraFlow.open"), color: "#7fa3c8", values: pick("open") }]} title={t("ui.jiraFlow.wip")} />
             <JiraFlowChart format={format} labels={labels} series={(["done", "indeterminate", "new"] as Category[]).map((category) => ({ key: category, label: t(`ui.jiraSlice.category.${category}`), color: CATEGORY_COLORS[category], values: buckets.map((bucket) => bucket.byCategory[category]) }))} stacked title={t("ui.jiraFlow.cfd")} />
-            <JiraFlowChart format={format} labels={labels} series={[{ key: "scope", label: t("ui.jiraFlow.scope"), color: "#64748b", values: pick("scope") }, { key: "done", label: t("ui.jiraFlow.done"), color: "#22c55e", values: pick("done") }]} title={t("ui.jiraFlow.burnup")} />
+            <JiraFlowChart format={format} labels={labels} series={[{ key: "scope", label: t("ui.jiraFlow.scope"), color: "#857d7a", values: pick("scope") }, { key: "done", label: t("ui.jiraFlow.done"), color: "#71855a", values: pick("done") }]} title={t("ui.jiraFlow.burnup")} />
           </div>
           <p className="jira-analytics-quality">
             {t("ui.jiraFlow.quality", { issues: flow.quality.issues, incomplete: flow.quality.incompleteHistory })}

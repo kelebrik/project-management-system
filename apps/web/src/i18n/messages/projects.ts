@@ -298,6 +298,18 @@ export const projectsCoreMessages = {
     "en": "Failed",
     "ru": "Провалено"
   },
+  "ui.projects.statusInReview": {
+    "en": "In review",
+    "ru": "На проверке"
+  },
+  "ui.projects.statusAtRisk": {
+    "en": "At risk",
+    "ru": "Под риском"
+  },
+  "ui.projects.statusCancelled": {
+    "en": "Cancelled",
+    "ru": "Отменено"
+  },
   "ui.projects.statusOverdue": {
     "en": "Overdue",
     "ru": "Просрочено"

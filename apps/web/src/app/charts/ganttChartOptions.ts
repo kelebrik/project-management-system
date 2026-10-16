@@ -46,30 +46,33 @@ export type GanttLayerInput = {
   colors: AppChartColors;
 };
 
-/** The colour of each tone of the Gantt, as the bars had it. */
+/** The colour of each tone of the Gantt: the status tokens, as the bars and the status cells have them. */
 export function ganttToneColor(toneClass: string, colors: AppChartColors) {
+  const { status } = colors;
   const tones: Record<string, string> = {
-    "tone-g": "#35b86f",
-    "tone-r": "#ef5350",
-    "tone-p": "#f472b6",
-    "tone-o": colors.warning,
-    "tone-b": colors.brand,
-    "tone-x": "#a8b4c5",
+    "tone-g": status.done,
+    "tone-b": status.inProgress,
+    "tone-rv": status.inReview,
+    "tone-ar": status.atRisk,
+    "tone-r": status.blocked,
+    "tone-p": status.overdue,
+    "tone-x": status.notStarted,
+    "tone-c": status.cancelled,
+    "tone-o": status.milestone,
   };
-  return tones[toneClass] ?? colors.brand;
+  return tones[toneClass] ?? status.inProgress;
 }
 
-const GOAL_COLOR = "#8b5cf6";
-const CRITICAL = "#dc2626";
-const NEAR_CRITICAL = "#fb923c";
-const TODAY = "#ef4b8c";
+const CRITICAL = "#b5524a";
+const NEAR_CRITICAL = "#ed8654";
+const TODAY = "#d2776f";
 
 export function buildGanttOption(input: GanttLayerInput): Options {
   const { colors, items } = input;
   const rows = Math.max(1, items.length);
   const edge = (item: GanttLayerItem) => (input.showCritical && item.critical ? CRITICAL : input.showCritical && item.nearCritical ? NEAR_CRITICAL : undefined);
   const firstRow = input.firstRow ?? 0;
-  const plotBands: YAxisPlotBandsOptions[] = items.flatMap((_, index) => ((firstRow + index) % 2 === 1 ? [{ from: index - 0.5, to: index + 0.5, color: "rgba(100, 116, 139, 0.035)" }] : []));
+  const plotBands: YAxisPlotBandsOptions[] = items.flatMap((_, index) => ((firstRow + index) % 2 === 1 ? [{ from: index - 0.5, to: index + 0.5, color: "rgba(133, 125, 122, 0.035)" }] : []));
   const subLines: XAxisPlotLinesOptions[] = input.subGridOffsets.map((value) => ({ value, color: colors.grid, width: 1, dashStyle: "ShortDash", zIndex: 0 }));
   const todayLine: XAxisPlotLinesOptions[] = input.todayOffset === null ? [] : [{ value: input.todayOffset, color: TODAY, width: 2, dashStyle: "Solid", zIndex: 4 }];
   // Every point has an id: drawn in place, Highcharts matches the new points to the old ones by it
@@ -79,7 +82,7 @@ export function buildGanttOption(input: GanttLayerInput): Options {
     items.flatMap((item, y): XrangePointOptionsObject[] =>
       item.milestone || item.rangeLine || item.summary !== summary
         ? []
-        : [{ id: `bar:${item.id}`, ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "rgba(15, 23, 42, 0.12)", borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
+        : [{ id: `bar:${item.id}`, ...span(item, y), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "rgba(35, 28, 24, 0.12)", borderWidth: edge(item) ? 2 : 1 } as XrangePointOptionsObject],
     );
   const phases = items.flatMap((item, y): XrangePointOptionsObject[] =>
     item.rangeLine ? [{ id: `phase:${item.id}`, ...span(item, y + 0.27), color: ganttToneColor(item.toneClass, colors), borderColor: edge(item) ?? "transparent", borderWidth: edge(item) ? 1 : 0 } as XrangePointOptionsObject] : [],
@@ -93,7 +96,7 @@ export function buildGanttOption(input: GanttLayerInput): Options {
   const baselines = input.showBaseline ? items.flatMap((item, y): XrangePointOptionsObject[] => (item.baseline ? [{ id: `baseline:${item.id}`, ...span(item.baseline, y + 0.42) }] : [])) : [];
   const forecasts = input.showForecast
     ? items.flatMap((item, y): XrangePointOptionsObject[] =>
-        item.forecast ? [{ id: `forecast:${item.id}`, ...span(item.forecast, y), color: item.forecast.slipped ? "rgba(245, 158, 11, 0.65)" : "rgba(20, 184, 166, 0.7)" }] : [],
+        item.forecast ? [{ id: `forecast:${item.id}`, ...span(item.forecast, y), color: item.forecast.slipped ? "rgba(184, 95, 48, 0.65)" : "rgba(95, 116, 73, 0.7)" }] : [],
       )
     : [];
 
@@ -104,8 +107,8 @@ export function buildGanttOption(input: GanttLayerInput): Options {
     { type: "xrange", name: "phases", className: "gantt-hc-phases", data: phases, pointWidth: 4, minPointLength: 42, borderRadius: 2, opacity: 0.8, zIndex: 3 },
     { type: "xrange", name: "summaries", className: "gantt-hc-summaries", data: bars(true), pointWidth: 16, minPointLength: 16, borderRadius: 8, zIndex: 4 },
     { type: "xrange", name: "bars", className: "gantt-hc-bars", data: bars(false), pointWidth: 16, minPointLength: 6, borderRadius: 8, zIndex: 4 },
-    { type: "scatter", name: "milestones", className: "gantt-hc-milestones", data: markers(false), color: colors.warning, marker: { symbol: "diamond", radius: 9 }, zIndex: 5 },
-    { type: "scatter", name: "goals", className: "gantt-hc-goals", data: markers(true), color: GOAL_COLOR, marker: { symbol: "star", radius: 11 }, zIndex: 5 },
+    { type: "scatter", name: "milestones", className: "gantt-hc-milestones", data: markers(false), color: colors.status.milestone, marker: { symbol: "diamond", radius: 9 }, zIndex: 5 },
+    { type: "scatter", name: "goals", className: "gantt-hc-goals", data: markers(true), color: colors.status.goal, marker: { symbol: "star", radius: 11 }, zIndex: 5 },
   ];
 
   return {

@@ -61,21 +61,35 @@ export type WorkloadData = {
 export { normalizePersonName };
 
 const PROJECT_COLORS = [
-  "#2f80ed",
-  "#27ae60",
-  "#eb5757",
-  "#9b51e0",
-  "#f2994a",
-  "#00a3a3",
-  "#d35fa4",
-  "#8d6e2f",
-  "#56ccf2",
-  "#6fcf97",
-  "#bb6bd9",
-  "#e0b000",
+  // Twelve colours of the brand's palette, told apart side by side.
+  "#4a6a8e",
+  "#86b865",
+  "#d2776f",
+  "#95888b",
+  "#ed8654",
+  "#5f7449",
+  "#b5cce3",
+  "#82634a",
+  "#e8a9a2",
+  "#c2e39a",
+  "#504649",
+  "#d5ad8b",
 ];
 
 /** Colours by the full project list sorted by code, so filtering never repaints projects. */
+/** The text that reads on a fill: dark on the light colours of the palette, white on the deep ones. */
+export function readableTextOn(fill: string | undefined) {
+  const match = /^#([0-9a-f]{6})$/i.exec(fill ?? "");
+  if (!match) return "#ffffff";
+  const channel = (offset: number) => {
+    const value = parseInt(match[1]!.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4);
+  const DARK = 0.0128; // luminance of #231c18
+  return (luminance + 0.05) / (DARK + 0.05) >= 1.05 / (luminance + 0.05) ? "#231c18" : "#ffffff";
+}
+
 export function projectColors(projects: WorkloadProject[]) {
   const sorted = [...projects].sort((left, right) => left.code.localeCompare(right.code, "ru"));
   return new Map(sorted.map((project, index) => [project.id, PROJECT_COLORS[index % PROJECT_COLORS.length]]));

@@ -49,10 +49,10 @@ body {
 
 .business-unit-manage-button {
   align-items: center;
-  background: #263330;
-  border: 1px solid #3a4946;
+  background: #2c2c2b;
+  border: 1px solid #3f3f3e;
   border-radius: 6px;
-  color: #d8e1df;
+  color: #e0dedf;
   cursor: pointer;
   display: flex;
   flex: 0 0 34px;
@@ -63,7 +63,7 @@ body {
 }
 
 .business-unit-manage-button:hover {
-  background: #31423e;
+  background: #3f3f3e;
   color: #ffffff;
 }
 
@@ -198,9 +198,9 @@ body {
 }
 
 .app-global-header .business-unit-switcher {
-  background: #263330;
-  border-color: #3a4946;
-  color: #d8e1df;
+  background: #2c2c2b;
+  border-color: #3f3f3e;
+  color: #e0dedf;
   flex-basis: 160px;
 }
 

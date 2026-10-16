@@ -104,14 +104,14 @@
 
 .attendance-legend i.authenticated,
 .attendance-bar.authenticated {
-  fill: #2f7d76;
-  background: #2f7d76;
+  fill: var(--brand-600);
+  background: var(--brand-600);
 }
 
 .attendance-legend i.anonymous,
 .attendance-bar.anonymous {
-  fill: #b47a2a;
-  background: #b47a2a;
+  fill: #b85f30;
+  background: #b85f30;
 }
 
 .attendance-chart-shell {
@@ -196,15 +196,15 @@
 }
 
 .attendance-kind.user {
-  background: #e8f4f1;
-  border-color: #acd2ca;
-  color: #286c66;
+  background: var(--success-soft);
+  border-color: var(--brand-border);
+  color: var(--success-800);
 }
 
 .attendance-kind.anonymous {
-  background: #fff3df;
-  border-color: #e7c58d;
-  color: #875b1d;
+  background: var(--warning-bg);
+  border-color: #f2b286;
+  color: var(--warning-800);
 }
 
 .attendance-retention-note {

@@ -6,26 +6,26 @@ import type { ChartColors } from "../../../app/pages/chartOption";
  * the sheet's CSS variables in my-page.css, so charts match the widgets.
  */
 const LIGHT: ChartColors = {
-  series: ["#0f766e", "#3b82f6", "#f97316", "#8b5cf6", "#eab308", "#ec4899", "#14b8a6", "#64748b"],
-  text: "#17212b",
-  muted: "#5b6866",
-  grid: "#e8edec",
+  series: ["#71855a", "#7fa3c8", "#ed8654", "#95888b", "#d5ad8b", "#d2776f", "#86b865", "#b5cce3"],
+  text: "#231c18",
+  muted: "#6b625f",
+  grid: "#e0dedf",
   surface: "#ffffff",
-  rag: { GREEN: "#15803d", AMBER: "#b45309", RED: "#dc2626" },
+  rag: { GREEN: "#5f7449", AMBER: "#b85f30", RED: "#b5524a" },
 };
 
 const THEMES: Record<PageTheme, ChartColors> = {
   light: LIGHT,
   brand: LIGHT,
   dark: {
-    series: ["#57c8ba", "#60a5fa", "#fb923c", "#a78bfa", "#facc15", "#f472b6", "#2dd4bf", "#94a3b8"],
-    text: "#e5edf9",
-    muted: "#a6b5cc",
-    grid: "#26324a",
-    surface: "#162033",
-    rag: { GREEN: "#34c46f", AMBER: "#eaa64a", RED: "#f0616a" },
+    series: ["#99ea5e", "#95b5d6", "#f2b286", "#bdb1b4", "#e0c2a3", "#e0908a", "#c2e39a", "#cbdbeb"],
+    text: "#fafafa",
+    muted: "#cbc6c4",
+    grid: "#353534",
+    surface: "#242423",
+    rag: { GREEN: "#99ea5e", AMBER: "#ed8654", RED: "#e0908a" },
   },
-  print: { ...LIGHT, series: ["#1f2937", "#6b7280", "#9ca3af", "#374151", "#4b5563", "#d1d5db", "#111827", "#e5e7eb"], muted: "#444444", grid: "#dddddd" },
+  print: { ...LIGHT, series: ["#2c2c2b", "#857d7a", "#a9a2a0", "#4e4643", "#545453", "#e0dedf", "#231c18", "#efebe6"], muted: "#4e4643", grid: "#e0dedf" },
 };
 
 export function chartColors(theme: PageTheme) {

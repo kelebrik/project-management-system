@@ -47,9 +47,10 @@ export type LabText = {
 
 export type LabInput = { items: WbsItem[]; today: string; colors: AppChartColors; text: LabText };
 
-const GOAL = "#8b5cf6";
-const LATE = "#ef4444";
-const EARLY = "#16a34a";
+// The work status tokens of tokens.css: goal (leaf), late (brick), early (green).
+const GOAL = "#71855a";
+const LATE = "#d2776f";
+const EARLY = "#86b865";
 
 /** The export menu every lab chart has: full screen, print, pictures, data. Exporting never leaves the browser. */
 function base(colors: AppChartColors, title: string, height: number): Options {
@@ -163,13 +164,18 @@ function phaseOf(item: WbsItem, byId: Map<string, WbsItem>) {
   return null;
 }
 
+/** A checkpoint's colour on the lab charts, from the work status tokens; the order of the checks is the charts' own. */
 function statusColor(item: WbsItem, today: string, colors: AppChartColors) {
-  if (item.status === "DONE") return EARLY;
+  const { status } = colors;
+  if (item.status === "DONE") return status.done;
+  if (item.status === "CANCELLED") return status.cancelled;
   const due = dueOf(item);
-  if (due && due.slice(0, 10) < today) return LATE;
-  if (item.status === "IN_PROGRESS" || item.status === "IN_REVIEW") return colors.brand;
-  if (item.status === "AT_RISK" || item.status === "BLOCKED") return colors.warning;
-  return colors.muted;
+  if (due && due.slice(0, 10) < today) return status.overdue;
+  if (item.status === "IN_PROGRESS") return status.inProgress;
+  if (item.status === "IN_REVIEW") return status.inReview;
+  if (item.status === "AT_RISK") return status.atRisk;
+  if (item.status === "BLOCKED") return status.blocked;
+  return status.notStarted;
 }
 
 /**

@@ -110,7 +110,7 @@
 .business-requirements-actions button:last-child {
   background: var(--brand-600);
   border-color: var(--brand-600);
-  color: #fff;
+  color: var(--on-brand);
 }
 
 .business-requirements-actions button:disabled {
@@ -130,9 +130,9 @@
 }
 
 .save-state { font-size: 0.82rem; }
-.save-state.saving { color: var(--accent, #2563eb); }
-.save-state.dirty { color: var(--warning, #b45309); }
-.save-state.saved { color: var(--text-muted, #718096); }
+.save-state.saving { color: var(--accent, #5e83aa); }
+.save-state.dirty { color: var(--warning, #9a4f28); }
+.save-state.saved { color: var(--text-muted, #857d7a); }
 
 .business-requirements-status .dirty,
 .business-requirements-status .saved {
@@ -142,12 +142,12 @@
 
 .business-requirements-status .dirty {
   background: var(--warning-bg);
-  color: #9a3412;
+  color: var(--warning-800);
 }
 
 .business-requirements-status .saved {
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--success-soft);
+  color: var(--success-800);
 }
 
 .business-requirements-table-shell {
@@ -407,7 +407,7 @@
 
 .resource-load-cell {
   align-content: center;
-  border-left: 1px solid rgba(15, 23, 42, 0.06);
+  border-left: 1px solid rgba(35, 28, 24, 0.06);
   display: grid;
   gap: 2px;
   min-height: 58px;
@@ -436,19 +436,19 @@
 }
 
 .resource-load-low {
-  background: #eef6ff;
+  background: #f1f5fa;
 }
 
 .resource-load-ok {
-  background: #ecfdf3;
+  background: #f3f8ea;
 }
 
 .resource-load-warn {
-  background: #fff7df;
+  background: #fbf6ef;
 }
 
 .resource-load-bad {
-  background: #feeceb;
+  background: var(--danger-bg);
 }
 
 .resource-conflict-list,
@@ -509,17 +509,17 @@
 }
 
 .resource-conflict-critical {
-  background: #fff1f2;
-  border: 1px solid #fecdd3;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-soft);
 }
 
 .resource-conflict-warning {
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  background: #fbf6ef;
+  border: 1px solid #e0c2a3;
 }
 
 .resource-recommendation {
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(35, 28, 24, 0.08);
 }
 
 .resource-schedule-grid {

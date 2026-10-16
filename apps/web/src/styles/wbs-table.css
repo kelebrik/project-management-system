@@ -11,13 +11,13 @@
 .wbs-table-preview { max-height: 260px; overflow: auto; }
 .wbs-table-preview table { border-collapse: collapse; font-size: 12px; }
 .wbs-table-preview th, .wbs-table-preview td { border: 1px solid var(--border); max-width: 220px; overflow: hidden; padding: 3px 6px; text-align: left; text-overflow: ellipsis; vertical-align: top; white-space: nowrap; }
-.wbs-table-preview th { background: var(--surface-muted, #f5f6f8); position: sticky; top: 0; }
+.wbs-table-preview th { background: var(--surface-muted, #faf8f5); position: sticky; top: 0; }
 .wbs-table-preview th span { display: block; font-weight: 600; margin-bottom: 2px; }
 .wbs-table-preview th select { font: inherit; font-weight: 400; max-width: 180px; }
 .wbs-table-preview td.skipped { color: var(--text-muted); }
 .wbs-table-problems, .wbs-table-warnings, .wbs-table-changes { margin: 0; max-height: 220px; overflow: auto; padding-left: 18px; }
-.wbs-table-problems { color: var(--danger, #c0392b); }
-.wbs-table-warnings { color: var(--warning-text, #8a5a00); }
+.wbs-table-problems { color: var(--danger, #9c443d); }
+.wbs-table-warnings { color: var(--warning-text, #654c39); }
 .wbs-table-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }
 
 /* Plan snapshots, Excel / Sheets and the draft button: together on the right of the title, one row. */

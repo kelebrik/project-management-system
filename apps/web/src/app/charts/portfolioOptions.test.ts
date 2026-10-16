@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { PortfolioGoalTimelineProjectRow, PortfolioRedRaidItem } from "../portfolioModels";
-import type { AppChartColors } from "./appChartTheme";
+import { readAppChartColors, type AppChartColors } from "./appChartTheme";
 import { PROGRESS_BOTTOM, PROGRESS_ROW, PROGRESS_TOP, drawableProgressProjects, portfolioDaysUntil, progressEndDate, structureEndDateOf, portfolioGoalsOption, portfolioProgressOption, portfolioRaidBubbleOption, type PortfolioChartText } from "./portfolioOptions";
 
-const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
+const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"], status: readAppChartColors().status };
 const text: PortfolioChartText = {
   today: "Today", baseline: "Baseline", forecast: "Forecast", noBaseline: "no baseline", daysLater: (n) => `+${n} d`, daysEarlier: (n) => `-${n} d`, onTime: "on time",
   start: "Start", target: "Target", structureEnd: "WBS end", done: (p) => `${p}% done`, noWork: "no work", overdue: "Overdue", daysUntil: "Days until due", score: "Score", impact: (d) => `+${d} d`, owner: "Owner", dueDate: "Due",
@@ -25,8 +25,8 @@ test("portfolio goals: one row per goal named with its project, bands per projec
   assert.deepEqual((options.xAxis as { categories: string[] }).categories, ["<b>TV</b> · Beta", "<b>TV</b> · Gamma", "<b>AU</b> · Alpha"]);
   assert.deepEqual((options.xAxis as { plotBands: Array<{ from: number; to: number }> }).plotBands.map((band) => [band.from, band.to]), [[-0.5, 1.5], [1.5, 2.5]]);
   const [beta, gamma, alpha] = series(options);
-  assert.equal(beta!.connectorColor, "#ef4444");
-  assert.equal(alpha!.connectorColor, "#16a34a");
+  assert.equal(beta!.connectorColor, "#d2776f");
+  assert.equal(alpha!.connectorColor, "#86b865");
   // No baseline: no bar, no slip claimed, and so it is read out.
   assert.equal(gamma!.low, gamma!.high);
   assert.match((gamma!.accessibility as { description: string }).description, /no baseline/);
@@ -54,7 +54,7 @@ test("portfolio progress: start to target with the share done filled in; a proje
     today, colors, text, onPick: () => undefined,
   })!;
   const [tv, audio] = series(options);
-  assert.deepEqual(tv!.partialFill, { amount: 0.4, fill: "#16a34a" });
+  assert.deepEqual(tv!.partialFill, { amount: 0.4, fill: "#86b865" });
   assert.equal("partialFill" in audio!, false);
   // The bar runs to the project's end, past a target the Structure has outgrown.
   assert.equal(audio!.x2, Date.parse("2027-03-24") + 86_400_000);

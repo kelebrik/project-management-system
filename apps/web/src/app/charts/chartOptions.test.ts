@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { SeriesXrangeOptions, XrangePointOptionsObject } from "highcharts";
-import type { AppChartColors } from "./appChartTheme";
+import { readAppChartColors, type AppChartColors } from "./appChartTheme";
 import { buildGanttOption, type GanttLayerItem } from "./ganttChartOptions";
 import { jiraFlowOption, jiraGroupsOption, jiraStackedOption } from "./jiraChartOptions";
 
-const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
+const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"], status: readAppChartColors().status };
 const item = (patch: Partial<GanttLayerItem>): GanttLayerItem => ({
   id: "x", offset: 10, width: 5, milestone: false, goal: false, rangeLine: false, summary: false, critical: false, nearCritical: false, toneClass: "tone-g", baseline: null, forecast: null, ...patch,
 });
@@ -28,7 +28,7 @@ test("gantt: one row per item on the model's own scale, markers at their offset"
   assert.equal(options.chart?.height, 5 * 24);
   assert.deepEqual([options.yAxis && "min" in options.yAxis ? options.yAxis.min : null, options.yAxis && "max" in options.yAxis ? options.yAxis.max : null], [-0.5, 4.5]);
   assert.deepEqual(options.xAxis && "min" in options.xAxis ? [options.xAxis.min, options.xAxis.max, options.xAxis.tickPositions] : null, [0, 100, [0, 50]]);
-  assert.deepEqual(seriesData(options, "bars").map((point) => [point.x, point.x2, point.y, point.borderColor]), [[10, 15, 0, "#dc2626"]]);
+  assert.deepEqual(seriesData(options, "bars").map((point) => [point.x, point.x2, point.y, point.borderColor]), [[10, 15, 0, "#b5524a"]]);
   assert.deepEqual(seriesData(options, "summaries").map((point) => [point.x, point.x2, point.y]), [[20, 50, 4]]);
   assert.deepEqual(seriesData(options, "phases").map((point) => [point.x, point.x2, point.y]), [[0, 60, 1.27]]);
   assert.deepEqual(seriesData(options, "milestones").map((point) => [point.x, point.y]), [[30, 2]]);
@@ -46,10 +46,10 @@ test("gantt: baseline, forecast and the critical edge only when switched on", ()
   const off = buildGanttOption({ ...layer, items, showBaseline: false, showForecast: false, showCritical: false });
   assert.equal(seriesData(off, "baseline").length, 0);
   assert.equal(seriesData(off, "forecast").length, 0);
-  assert.notEqual(seriesData(off, "bars")[0]?.borderColor, "#dc2626");
+  assert.notEqual(seriesData(off, "bars")[0]?.borderColor, "#b5524a");
   const on = buildGanttOption({ ...layer, items, showBaseline: true, showForecast: true, showCritical: true });
   assert.deepEqual(seriesData(on, "baseline").map((point) => [point.x, point.x2, point.y]), [[5, 9, 0.42]]);
-  assert.match(String(seriesData(on, "forecast")[0]?.color), /245, 158, 11/);
+  assert.match(String(seriesData(on, "forecast")[0]?.color), /184, 95, 48/);
   assert.equal(on.xAxis && "plotLines" in on.xAxis ? on.xAxis.plotLines?.at(-1)?.value : null, 40);
 });
 

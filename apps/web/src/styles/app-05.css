@@ -425,7 +425,7 @@
 }
 
 .project-access-choice + .project-access-choice {
-  border-top: 1px solid #edf2f7;
+  border-top: 1px solid var(--bg);
 }
 
 .project-access-choice:hover {
@@ -489,9 +489,9 @@
 }
 
 .project-access-levels button.active {
-  background: #e9f0ff;
-  border-color: #2f66d8;
-  color: #1f4fb2;
+  background: #f1f5fa;
+  border-color: #5e83aa;
+  color: #4a6a8e;
 }
 
 .project-access-selection-summary {

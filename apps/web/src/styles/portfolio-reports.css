@@ -10,7 +10,7 @@
 .portfolio-report-scroll table { border-collapse: collapse; font-size: 13px; min-width: 100%; }
 .portfolio-report-scroll th { background: var(--surface-3); color: var(--text-muted); font-size: 12px; font-weight: 800; position: sticky; text-align: left; top: 0; z-index: 1; }
 .portfolio-report-scroll th, .portfolio-report-scroll td { border-bottom: 1px solid var(--border); padding: 8px 10px; vertical-align: top; white-space: nowrap; }
-.portfolio-report-scroll td.late { color: var(--danger, #c0392b); font-weight: 700; }
-.portfolio-report-scroll td.rag-green { color: var(--success, #1b7f4c); font-weight: 700; }
-.portfolio-report-scroll td.rag-amber { color: var(--warning, #b7791f); font-weight: 700; }
-.portfolio-report-scroll td.rag-red { color: var(--danger, #c0392b); font-weight: 700; }
+.portfolio-report-scroll td.late { color: var(--danger, #9c443d); font-weight: 700; }
+.portfolio-report-scroll td.rag-green { color: var(--success, #46582f); font-weight: 700; }
+.portfolio-report-scroll td.rag-amber { color: var(--warning, #b85f30); font-weight: 700; }
+.portfolio-report-scroll td.rag-red { color: var(--danger, #9c443d); font-weight: 700; }

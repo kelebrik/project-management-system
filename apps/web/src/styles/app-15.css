@@ -19,7 +19,7 @@
 }
 
 .issue-meta b {
-  color: #b45309;
+  color: var(--warning);
 }
 
 .table {
@@ -85,7 +85,7 @@
 }
 
 .version {
-  background: #202a36;
+  background: #2c2c2b;
   border-radius: 6px;
   color: #fff;
   font-weight: 800;
@@ -175,7 +175,7 @@
 
 .executive-brief-grid div {
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(191, 219, 254, 0.22);
+  border: 1px solid rgba(203, 219, 235, 0.22);
   border-radius: 6px;
   display: grid;
   gap: 5px;

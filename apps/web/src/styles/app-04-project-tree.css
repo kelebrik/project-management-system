@@ -55,7 +55,7 @@
 }
 
 .project-tree-row.closed {
-  background: #fbfdff;
+  background: #ffffff;
 }
 
 .project-tree-code-input,
@@ -68,7 +68,7 @@
 }
 
 .project-tree-code-input {
-  background: #e0f2fe;
+  background: #e3ecf5;
   color: var(--info-800);
   width: calc(100% - var(--project-indent, 0px));
 }
@@ -135,7 +135,7 @@
 }
 
 .rag-dot.green {
-  background: #22c55e;
+  background: #71855a;
 }
 
 .rag-dot.amber {

@@ -6,7 +6,7 @@
 
 .page-loading-skeleton {
   animation: page-skeleton-pulse 1.2s ease-in-out infinite alternate;
-  background: #e8edf3;
+  background: var(--bg);
   border-radius: 6px;
   min-height: 260px;
 }
@@ -79,7 +79,7 @@
 }
 
 .decision-queue-table > button.overdue {
-  background: #fff7f7;
+  background: var(--danger-bg);
   box-shadow: inset 3px 0 var(--danger);
 }
 
@@ -110,7 +110,7 @@
 .pm-filter-set button.active {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
 }
 
 .pm-queue-list {
@@ -134,7 +134,7 @@
 .pm-selected-alert:hover,
 .pm-selected-alert:focus-visible {
   border-color: var(--brand-border-strong);
-  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
+  box-shadow: 0 0 0 3px rgba(181, 204, 227, 0.2);
   outline: none;
 }
 
@@ -146,7 +146,7 @@
 
 .pm-queue-card.amber {
   background: var(--warning-bg);
-  border-color: #fed7aa;
+  border-color: #f6d1ad;
 }
 
 .pm-queue-card {
