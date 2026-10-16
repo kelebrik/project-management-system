@@ -1,9 +1,18 @@
-import { PUBLIC_DEMO_USER_ID, readProjectViewState, type ProjectViewState } from "@pms/shared";
+import {
+  PUBLIC_DEMO_USER_ID,
+  globalViewFields,
+  mergeProjectView,
+  projectOnlyViewFields,
+  readProjectViewState,
+  type ProjectViewState,
+} from "@pms/shared";
 import type { ProjectUiState } from "./domainTypes";
 
 export type { ProjectViewState };
 
 const demoKey = (projectId: string) => `pms-project-view:${projectId}`;
+/** The demo's layout kept the same in every project, as a signed-in person's defaults are. */
+const DEMO_DEFAULTS_KEY = "pms-view-defaults";
 
 /** The view fields of a shared uiState, where everyone's layout used to be kept. */
 export function viewFieldsOf(uiState: ProjectUiState | null | undefined): ProjectViewState {
@@ -15,18 +24,30 @@ export function viewPatchOf(patch: ProjectUiState): ProjectViewState {
   return viewFieldsOf(patch);
 }
 
-function readDemoView(projectId: string): ProjectViewState | null {
+function readStoredView(key: string): ProjectViewState | null {
   try {
-    const stored: unknown = JSON.parse(window.localStorage.getItem(demoKey(projectId)) ?? "null");
+    const stored: unknown = JSON.parse(window.localStorage.getItem(key) ?? "null");
     return stored ? readProjectViewState(stored) : null;
   } catch {
     return null;
   }
 }
 
+/** The demo's view of a project: its record of it with the layout kept everywhere on top, as the server merges it. */
+export function readDemoView(projectId: string): ProjectViewState | null {
+  return mergeProjectView(readStoredView(demoKey(projectId)), readStoredView(DEMO_DEFAULTS_KEY));
+}
+
 export function writeDemoView(projectId: string, patch: ProjectViewState) {
   try {
-    window.localStorage.setItem(demoKey(projectId), JSON.stringify({ ...(readDemoView(projectId) ?? {}), ...patch }));
+    const own = projectOnlyViewFields(patch);
+    const everywhere = globalViewFields(patch);
+    if (Object.keys(own).length > 0) {
+      window.localStorage.setItem(demoKey(projectId), JSON.stringify({ ...(readStoredView(demoKey(projectId)) ?? {}), ...own }));
+    }
+    if (Object.keys(everywhere).length > 0) {
+      window.localStorage.setItem(DEMO_DEFAULTS_KEY, JSON.stringify({ ...(readStoredView(DEMO_DEFAULTS_KEY) ?? {}), ...everywhere }));
+    }
   } catch {
     // Storage is optional: the layout then lasts until the page is reloaded.
   }

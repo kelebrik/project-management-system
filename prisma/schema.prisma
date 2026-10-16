@@ -359,6 +359,7 @@ model User {
   pageVisits              PageVisit[]
   notifications           Notification[]
   projectViewStates       UserProjectViewState[]
+  viewDefaults            UserViewDefaults?
   dashboardPages          DashboardPage[]
 
   @@index([role, isActive])
@@ -1927,6 +1928,16 @@ model UserProjectViewState {
 
   @@unique([userId, projectId])
   @@index([projectId])
+}
+
+/// How a person lays out every project alike (GLOBAL_VIEW_STATE_KEYS in
+/// packages/shared): the Structure's columns, sorting, Gantt panel sizes and
+/// the sidebar. Changed in one project, the layout holds in all of them.
+model UserViewDefaults {
+  userId    String   @id
+  state     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 /**

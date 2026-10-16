@@ -1,4 +1,12 @@
-import { PUBLIC_DEMO_USER_ID, projectViewStateSchema, readProjectViewState, type ProjectViewState } from '@pms/shared';
+import {
+  PUBLIC_DEMO_USER_ID,
+  globalViewFields,
+  mergeProjectView,
+  projectOnlyViewFields,
+  projectViewStateSchema,
+  readProjectViewState,
+  type ProjectViewState,
+} from '@pms/shared';
 import { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { prisma } from '../db.js';
@@ -8,11 +16,17 @@ import { userCanReadProject } from '../server/business-units.js';
 // Room for the personal Jira dashboard (up to 30 widgets) next to the column settings.
 const MAX_STATE_BYTES = 100_000;
 
-/** The stored personal view of a project, or null when this person has not arranged it yet. */
+/**
+ * A person's view of a project: their record of it, with the layout they keep
+ * the same in every project on top; null when they have arranged neither.
+ */
 export async function loadProjectViewState(userId: string | undefined, projectId: string): Promise<ProjectViewState | null> {
   if (!userId || userId === PUBLIC_DEMO_USER_ID) return null;
-  const row = await prisma.userProjectViewState.findUnique({ where: { userId_projectId: { userId, projectId } }, select: { state: true } });
-  return row ? readProjectViewState(row.state) : null;
+  const [row, defaults] = await Promise.all([
+    prisma.userProjectViewState.findUnique({ where: { userId_projectId: { userId, projectId } }, select: { state: true } }),
+    prisma.userViewDefaults.findUnique({ where: { userId }, select: { state: true } }),
+  ]);
+  return mergeProjectView(row ? readProjectViewState(row.state) : null, defaults ? readProjectViewState(defaults.state) : null);
 }
 
 /**
@@ -49,17 +63,33 @@ export function createProjectViewRouter() {
       res.json({ state: patch.data });
       return;
     }
+    // The layout kept everywhere goes to the person's defaults, the rest to their record of this project:
+    // both in one transaction, the person's lock taken before the project's, as every writer here does.
     const state = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`view-defaults:${user.id}`}))`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`project-view:${user.id}:${projectId}`}))`;
-      const current = await tx.userProjectViewState.findUnique({ where: { userId_projectId: { userId: user.id, projectId } }, select: { state: true } });
-      const next = { ...readProjectViewState(current?.state), ...patch.data };
-      if (JSON.stringify(next).length > MAX_STATE_BYTES) return null;
-      await tx.userProjectViewState.upsert({
-        where: { userId_projectId: { userId: user.id, projectId } },
-        create: { userId: user.id, projectId, state: next as Prisma.InputJsonObject },
-        update: { state: next as Prisma.InputJsonObject },
-      });
-      return next;
+      const [current, defaults] = await Promise.all([
+        tx.userProjectViewState.findUnique({ where: { userId_projectId: { userId: user.id, projectId } }, select: { state: true } }),
+        tx.userViewDefaults.findUnique({ where: { userId: user.id }, select: { state: true } }),
+      ]);
+      const nextProject = { ...readProjectViewState(current?.state), ...projectOnlyViewFields(patch.data) };
+      const nextDefaults = { ...globalViewFields(readProjectViewState(defaults?.state)), ...globalViewFields(patch.data) };
+      if (JSON.stringify(nextProject).length > MAX_STATE_BYTES || JSON.stringify(nextDefaults).length > MAX_STATE_BYTES) return null;
+      if (Object.keys(projectOnlyViewFields(patch.data)).length > 0) {
+        await tx.userProjectViewState.upsert({
+          where: { userId_projectId: { userId: user.id, projectId } },
+          create: { userId: user.id, projectId, state: nextProject as Prisma.InputJsonObject },
+          update: { state: nextProject as Prisma.InputJsonObject },
+        });
+      }
+      if (Object.keys(globalViewFields(patch.data)).length > 0) {
+        await tx.userViewDefaults.upsert({
+          where: { userId: user.id },
+          create: { userId: user.id, state: nextDefaults as Prisma.InputJsonObject },
+          update: { state: nextDefaults as Prisma.InputJsonObject },
+        });
+      }
+      return mergeProjectView(nextProject, nextDefaults) ?? {};
     });
     if (!state) {
       res.status(413).json({ error: 'Настройки вида слишком большие' });

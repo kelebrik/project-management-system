@@ -57,12 +57,13 @@ test("current work selects active and upcoming tasks and deliverables", () => {
     new Date(2026, 6, 20),
   );
 
-  assert.deepEqual(rows.map((row) => row.id), ["active", "upcoming", "deliverable", "failed"]);
-  assert.equal(rows[0].workPackage, "1 Пакет");
-  assert.equal(rows[1].comment, "Важно");
+  // Closed three days ago: «All» still shows it; a cancelled row never.
+  assert.deepEqual(rows.map((row) => row.id), ["done", "active", "upcoming", "deliverable", "failed"]);
+  assert.equal(rows[1].workPackage, "1 Пакет");
+  assert.equal(rows[2].comment, "Важно");
 });
 
-test("current work uses edited type and immediately excludes edited done status", () => {
+test("current work uses edited type; a row just made done stays in «All» and leaves «Active»", () => {
   const source = item({ id: "work", code: "2.1", title: "Результат" });
   const deliverableDraft = wbsToForm(source);
   deliverableDraft.type = "DELIVERABLE";
@@ -74,7 +75,35 @@ test("current work uses edited type and immediately excludes edited done status"
   );
 
   deliverableDraft.status = "DONE";
-  assert.deepEqual(createCurrentWorkRows([source], { work: deliverableDraft }), []);
+  assert.deepEqual(createCurrentWorkRows([source], { work: deliverableDraft }).map((row) => row.id), ["work"]);
+  assert.deepEqual(createCurrentWorkRows([source], { work: deliverableDraft }, new Date(), "active"), []);
+});
+
+test("«All» shows work closed today and the seven calendar days before, and nothing closed earlier or later", () => {
+  const today = new Date(2026, 9, 16, 15, 0);
+  const done = (id: string, closedAt: string | null, dueDate: string | null = null) =>
+    item({ id, code: id, title: id, status: "DONE", closedAt, dueDate });
+  const rows = createCurrentWorkRows(
+    [
+      done("1", "2026-10-16T09:00:00"),
+      done("2", "2026-10-09T00:30:00"),
+      done("3", "2026-10-08T23:30:00"),
+      done("4", "2026-10-17T09:00:00"),
+      // Old rows without the day closed: by their due date.
+      done("5", null, "2026-10-12"),
+      done("6", null, "2026-10-20"),
+      done("7", null, null),
+    ],
+    {},
+    today,
+  );
+  assert.deepEqual(rows.map((row) => row.id), ["1", "2", "5"]);
+  for (const filter of ["active", "blocked", "overdue", "dueSoon"] as const) {
+    assert.deepEqual(createCurrentWorkRows([done("1", "2026-10-16T09:00:00")], {}, today, filter), [], filter);
+  }
+  // Whose rows still counts.
+  const owned = item({ id: "8", code: "8", title: "8", status: "DONE", closedAt: "2026-10-15T09:00:00", owner: "Иван" });
+  assert.deepEqual(createCurrentWorkRows([owned], {}, today, "all", { owners: ["анна"] }), []);
 });
 
 test("current work uses edited structure values", () => {

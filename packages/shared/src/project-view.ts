@@ -37,6 +37,46 @@ export type ProjectViewState = z.infer<typeof projectViewStateSchema>;
 export const PROJECT_VIEW_STATE_KEYS = Object.keys(projectViewStateSchema.shape) as Array<keyof ProjectViewState>;
 
 /**
+ * The view fields a person keeps the same in every project: how the Structure
+ * and its Gantt are laid out, and the sidebar. Changed in one project, they
+ * apply in all. The rest (hierarchy level, other tables' widths, the Jira
+ * dashboard) depends on the project and stays with it.
+ */
+export const GLOBAL_VIEW_STATE_KEYS = [
+  "wbsColumnOrder",
+  "wbsHiddenColumns",
+  "wbsColumnWidths",
+  "wbsSort",
+  "ganttPanelHeight",
+  "ganttPanelWidth",
+  "ganttWbsWidth",
+  "sidebarCollapsed",
+] as const satisfies ReadonlyArray<keyof ProjectViewState>;
+
+/** The part of a view that is the same in every project. */
+export function globalViewFields(state: ProjectViewState): ProjectViewState {
+  const fields: Record<string, unknown> = {};
+  for (const key of GLOBAL_VIEW_STATE_KEYS) if (key in state) fields[key] = state[key];
+  return fields as ProjectViewState;
+}
+
+/** The part of a view that belongs to one project. */
+export function projectOnlyViewFields(state: ProjectViewState): ProjectViewState {
+  const fields: Record<string, unknown> = { ...state };
+  for (const key of GLOBAL_VIEW_STATE_KEYS) delete fields[key];
+  return fields as ProjectViewState;
+}
+
+/**
+ * A person's view of a project: the project's own record, with what they keep
+ * the same everywhere on top (saved values, false, null and [] included).
+ */
+export function mergeProjectView(projectState: ProjectViewState | null, defaults: ProjectViewState | null): ProjectViewState | null {
+  if (!projectState && !defaults) return null;
+  return { ...(projectState ?? {}), ...globalViewFields(defaults ?? {}) };
+}
+
+/**
  * The valid view fields of any stored object, each checked on its own: one bad
  * value (an old width out of range) drops that field, not the whole view.
  */

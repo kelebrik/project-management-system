@@ -10,6 +10,8 @@ const ACTIVE_STATUSES = new Set([
 ]);
 const CURRENT_WORK_TYPES = new Set(["TASK", "DELIVERABLE"]);
 const EXCLUDED_STATUSES = new Set(["DONE", "CANCELLED"]);
+/** «All» also shows work done in the last days: today and the seven before. */
+const RECENTLY_CLOSED_DAYS = 8;
 const CODE_COLLATOR = new Intl.Collator("ru", {
   numeric: true,
   sensitivity: "base",
@@ -105,6 +107,15 @@ function workPackageLabel(
   return "—";
 }
 
+/**
+ * When a row shown as done was closed: just now if it is done only in the
+ * draft, else the day the server noted (or, for old rows without it, its due date).
+ */
+function closedDay(item: WbsItem, draft: WbsFormState, today: Date) {
+  if (item.status !== "DONE") return startOfLocalDay(today);
+  return parseLocalDate(item.closedAt ?? null) ?? parseLocalDate(draft.dueDate || null);
+}
+
 export function createCurrentWorkRows(
   items: WbsItem[],
   drafts: Record<string, WbsFormState> = {},
@@ -117,13 +128,22 @@ export function createCurrentWorkRows(
   const todayStart = startOfLocalDay(today);
   const dueSoonThrough = new Date(todayStart.getTime() + (options.dueSoonDays ?? 7) * DAY_MS);
   const owners = options.owners && options.owners.length > 0 ? new Set(options.owners) : null;
+  // Calendar days in local time: from the start of the day seven days ago to the end of today.
+  const closedFrom = new Date(todayStart);
+  closedFrom.setDate(closedFrom.getDate() - (RECENTLY_CLOSED_DAYS - 1));
+  const tomorrowStart = new Date(todayStart);
+  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
 
   return items
     .filter((item) => {
       const draft = draftFor(item, drafts);
       if (!CURRENT_WORK_TYPES.has(draft.type)) return false;
-      if (EXCLUDED_STATUSES.has(draft.status)) return false;
       if (owners && !owners.has(currentWorkOwnerKey(draft.owner))) return false;
+      if (filter === "all" && draft.status === "DONE") {
+        const closed = closedDay(item, draft, today);
+        return Boolean(closed && closed >= closedFrom && closed < tomorrowStart);
+      }
+      if (EXCLUDED_STATUSES.has(draft.status)) return false;
       const dueDate = parseLocalDate(draft.dueDate || null);
       const overdue = Boolean(dueDate && dueDate < todayStart);
       // Due within the next N days, whatever the status; overdue rows have their own filter.
