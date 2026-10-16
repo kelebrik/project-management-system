@@ -1,7 +1,7 @@
 
 .notice {
   background: var(--success-soft);
-  border: 1px solid var(--brand-soft-2);
+  border: 1px solid #bbf7d0;
   border-radius: 8px;
   color: var(--success-800);
   margin-bottom: 18px;
@@ -21,7 +21,7 @@
 
 .toast {
   border-radius: 8px;
-  box-shadow: 0 14px 34px rgba(35, 28, 24, 0.18);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
   display: grid;
   gap: 4px;
   padding: 12px 44px 12px 14px;
@@ -30,20 +30,20 @@
 
 .toast.success {
   background: var(--success-soft);
-  border: 1px solid var(--brand-border);
+  border: 1px solid #86efac;
   color: var(--success-800);
 }
 
 .toast.error {
   background: var(--danger-soft);
-  border: 1px solid var(--danger-border);
+  border: 1px solid #fca5a5;
   color: var(--danger-800);
 }
 
 .toast.warning {
-  background: var(--warning-bg);
-  border: 1px solid #d5ad8b;
-  color: var(--warning-800);
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
 }
 
 .toast strong {
@@ -102,7 +102,7 @@
 .metric-button:hover,
 .metric-button:focus-visible {
   border-color: var(--brand-border-strong);
-  box-shadow: 0 0 0 3px rgba(181, 204, 227, 0.22);
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.22);
   outline: none;
 }
 
@@ -282,7 +282,7 @@
 }
 
 .overview-status-history {
-  border-top: 1px solid var(--surface-tint);
+  border-top: 1px solid #dbe3ec;
   display: grid;
   gap: 6px;
   margin-top: 4px;
@@ -313,7 +313,7 @@
 }
 
 .executive-overview-list .overview-status-empty {
-  border-top: 1px solid var(--surface-tint);
+  border-top: 1px solid #dbe3ec;
   padding-top: 7px;
 }
 
@@ -399,8 +399,8 @@
 }
 
 .schedule-impact-group.acceleration .executive-overview-row {
-  background: #f3f8ea;
-  border-color: var(--brand-soft-2);
+  background: #f0fdf4;
+  border-color: #bbf7d0;
 }
 
 .executive-overview-list a {

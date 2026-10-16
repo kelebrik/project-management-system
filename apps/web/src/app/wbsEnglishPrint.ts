@@ -536,16 +536,16 @@ export function createWbsEnglishTranslationHtml({
   <meta charset="utf-8" />
   <title>${escapeHtml(projectName)} - WBS English translations</title>
   <style>
-    body { color: #2c2c2b; font-family: Arial, sans-serif; margin: 24px; }
+    body { color: #1f2937; font-family: Arial, sans-serif; margin: 24px; }
     h1 { font-size: 22px; margin: 0 0 8px; }
-    p { color: #857d7a; font-size: 13px; margin: 0 0 16px; }
+    p { color: #64748b; font-size: 13px; margin: 0 0 16px; }
     table { border-collapse: collapse; width: 100%; }
-    th, td { border: 1px solid #e0dedf; font-size: 13px; padding: 8px; text-align: left; vertical-align: top; }
-    th { background: #faf8f5; color: #4e4643; }
-    .code { color: #545453; font-weight: 700; white-space: nowrap; width: 90px; }
+    th, td { border: 1px solid #cbd5e1; font-size: 13px; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f1f5f9; color: #334155; }
+    .code { color: #475569; font-weight: 700; white-space: nowrap; width: 90px; }
     .source-title { width: 38%; }
-    .translation-target { background: #fdf4ec; min-width: 280px; }
-    .translation-source { color: #857d7a; font-size: 12px; width: 110px; }
+    .translation-target { background: #fff7ed; min-width: 280px; }
+    .translation-source { color: #64748b; font-size: 12px; width: 110px; }
   </style>
 </head>
 <body data-pms-wbs-translation-export="1" data-project-name="${escapeHtml(projectName)}" data-exported-at="${escapeHtml(exportedAtIso)}">

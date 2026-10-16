@@ -1,96 +1,78 @@
 /*
  * Design tokens — единый источник цвета, типографики, отступов, радиусов и теней.
  *
- * Палитра — из корпоративного брендбука: свежий зелёный #99EA5E, нежная мята
- * #DDECBD, листва #71855A, солнечный день #F4F0EB, нейтральный серый #E0DEDF,
- * после заката #95888B, вечерний луч #D5AD8B, оранжевый #ED8654, персик
- * #F6D1AD, текст #41281E и #0D0D0D; тёмная тема — #242423, #545453, #FAFAFA.
- * Синие и красные, которых в брендбуке нет, подобраны в той же мягкой гамме.
- * Тёмная тема ([data-theme="dark"]) переопределяет только значения токенов.
+ * В светлой теме (:root) каждая переменная резолвится в ТОТ ЖЕ hex, что был
+ * захардкожен раньше, поэтому светлый режим визуально не меняется. Тёмная тема
+ * ([data-theme="dark"]) переопределяет только значения токенов — верстка общая.
  */
 
 :root {
   color-scheme: light;
 
   /* --- Поверхности --- */
-  --bg: #f4f0eb;
+  --bg: #f4f6f7;
   --surface: #ffffff;
-  --surface-2: #faf8f5;
-  --surface-3: #efebe6;
-  --surface-3b: #f2eee9;
-  --surface-tint: #e8e4df;
+  --surface-2: #f8faf9;
+  --surface-3: #eef2f1;
+  --surface-3b: #f1f4f3;
+  --surface-tint: #e9efed;
 
   /* --- Границы --- */
-  --border: #e0dedf;
-  --border-strong: #cbc6c4;
-  --border-2: #e0dedf;
-  --border-3: #e4e0dd;
-  --border-4: #e2dedc;
-  --border-5: #e0dcd9;
-  --border-6: #ece8e4;
+  --border: #dfe5e4;
+  --border-strong: #c7d1cf;
+  --border-2: #d8e0eb;
+  --border-3: #dbe4ef;
+  --border-4: #dce3eb;
+  --border-5: #d9e2ef;
+  --border-6: #e5edf6;
 
   /* --- Текст --- */
-  --text: #231c18;
-  --text-strong: #1a1411;
-  --text-strongest: #0d0d0d;
-  --text-heading: #41281e;
-  --text-secondary: #4e4643;
-  --text-muted: #6b625f;
-  --text-faint: #8a817e;
+  --text: #17212b;
+  --text-strong: #111a22;
+  --text-strongest: #0d151c;
+  --text-heading: #293633;
+  --text-secondary: #475652;
+  --text-muted: #64716f;
+  --text-faint: #8b9694;
 
-  /* Тёмные «инвертированные» поверхности (тултипы, тёмные бейджи). */
-  --inverse-surface: #242423;
-  --inverse-surface-2: #1b1b1a;
+  /* Тёмные «инвертированные» поверхности (тултипы, тёмные бейджи).
+     Отдельные токены, чтобы НЕ инвертировались вместе с текстом в тёмной теме. */
+  --inverse-surface: #111827;
+  --inverse-surface-2: #0f172a;
   --on-inverse: #ffffff;
 
-  /* --- Бренд: листва для текста и кнопок, свежий зелёный и мята — акценты и подложки --- */
-  --brand: #536640;
-  --brand-600: #5f7449;
-  --brand-500: #71855a;
-  --brand-accent: #99ea5e;
-  --brand-soft: #eef5e0;
-  --brand-soft-2: #ddecbd;
-  --brand-border: #c2e39a;
-  --brand-border-strong: #99b57a;
+  /* --- Бренд --- */
+  --brand: #0f766e;
+  --brand-600: #0d8177;
+  --brand-500: #168f83;
+  --brand-soft: #e5f4f1;
+  --brand-soft-2: #d4ece8;
+  --brand-border: #a9d8d1;
+  --brand-border-strong: #74bdb4;
   --on-brand: #ffffff;
-  --on-danger: #ffffff;
 
   /* --- Опасность / RAG red --- */
-  --danger: #b5524a;
-  --danger-500: #d2776f;
-  --danger-700: #9c443d;
-  --danger-800: #7f3631;
-  --danger-soft: #f8e1de;
-  --danger-border: #f0c6c1;
-  --danger-bg: #fbf0ee;
+  --danger: #dc2626;
+  --danger-500: #ef4444;
+  --danger-700: #b91c1c;
+  --danger-800: #991b1b;
+  --danger-soft: #fee2e2;
+  --danger-border: #fecaca;
+  --danger-bg: #fef2f2;
 
   /* --- Успех / RAG green --- */
-  --success: #536640;
-  --success-800: #46582f;
-  --success-soft: #e9f3d9;
+  --success: #16a34a;
+  --success-800: #166534;
+  --success-soft: #dcfce7;
 
   /* --- Предупреждение / RAG amber --- */
-  --warning: #9a4f28;
-  --warning-500: #ed8654;
-  --warning-alt: #ed8654;
-  --warning-soft: #fbe7d6;
-  --warning-800: #7c3f1f;
-  --warning-bg: #fdf4ec;
-  --info-800: #4a6a8e;
-
-  /* --- Статусы работ: Гантт, Структура, Текучка, легенды, графики --- */
-  --status-done: #99ea5e;
-  --status-in-progress: #7fa3c8;
-  --status-in-review: #b5cce3;
-  --status-at-risk: #e8a9a2;
-  --status-blocked: #d2776f;
-  --status-overdue: #ed8654;
-  --status-not-started: #e0dedf;
-  --status-cancelled: #95888b;
-  --status-milestone: #d5ad8b;
-  --status-goal: #71855a;
-  /* Текст на любой статусной заливке, в обеих темах. */
-  --on-status: #231c18;
+  --warning: #d97706;
+  --warning-500: #f59e0b;
+  --warning-alt: #f5a623;
+  --warning-soft: #fef3c7;
+  --warning-800: #92400e;
+  --warning-bg: #fff7ed;
+  --info-800: #075985;
 
   /* --- Радиусы --- */
   --radius-sm: 6px;
@@ -99,9 +81,9 @@
   --radius-pill: 999px;
 
   /* --- Тени --- */
-  --shadow-sm: 0 1px 2px rgba(35, 28, 24, 0.06);
-  --shadow: 0 8px 18px rgba(35, 28, 24, 0.12);
-  --shadow-lg: 0 18px 36px rgba(35, 28, 24, 0.14);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --shadow: 0 8px 18px rgba(15, 23, 42, 0.14);
+  --shadow-lg: 0 18px 36px rgba(15, 23, 42, 0.16);
 
   /* --- Отступы --- */
   --space-1: 4px;
@@ -111,7 +93,7 @@
   --space-5: 20px;
   --space-6: 24px;
 
-  /* --- Типографика --- */
+  /* --- Типографика (шкала для пункта №9: чуть крупнее мелкого текста) --- */
   --fs-2xs: 11px;
   --fs-xs: 12px;
   --fs-sm: 13px;
@@ -126,65 +108,62 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: #1b1b1a;
-  --surface: #242423;
-  --surface-2: #2c2c2b;
-  --surface-3: #353534;
-  --surface-3b: #303030;
-  --surface-tint: #3f3f3e;
+  --bg: #0b1220;
+  --surface: #131c2b;
+  --surface-2: #172236;
+  --surface-3: #1d293d;
+  --surface-3b: #1a2437;
+  --surface-tint: #1c2942;
 
-  --border: #3f3f3e;
-  --border-strong: #545453;
-  --border-2: #3f3f3e;
-  --border-3: #4a4a49;
-  --border-4: #3f3f3e;
-  --border-5: #4a4a49;
-  --border-6: #4a4a49;
+  --border: #2a3852;
+  --border-strong: #3a4c6b;
+  --border-2: #2a3852;
+  --border-3: #33455f;
+  --border-4: #2a3852;
+  --border-5: #33455f;
+  --border-6: #33455f;
 
-  --text: #fafafa;
-  --text-strong: #ffffff;
+  --text: #e5edf9;
+  --text-strong: #f4f8ff;
   --text-strongest: #ffffff;
-  --text-heading: #f4f0eb;
-  --text-secondary: #d9d4d0;
-  --text-muted: #b3aca8;
-  --text-faint: #8a817e;
+  --text-heading: #dbe6f5;
+  --text-secondary: #b3c2d9;
+  --text-muted: #8ba0bd;
+  --text-faint: #6b7f9c;
 
-  --inverse-surface: #f4f0eb;
-  --inverse-surface-2: #fafafa;
-  --on-inverse: #1b1b1a;
+  /* инвертированные поверхности в тёмной теме становятся светлыми */
+  --inverse-surface: #e5edf9;
+  --inverse-surface-2: #f4f8ff;
+  --on-inverse: #0b1220;
 
-  --brand: #99ea5e;
-  --brand-600: #86d052;
-  --brand-500: #99ea5e;
-  --brand-accent: #99ea5e;
-  --brand-soft: #2e3a25;
-  --brand-soft-2: #3a4a2d;
-  --brand-border: #4f6340;
-  --brand-border-strong: #71855a;
-  --on-brand: #1b1b1a;
-  --on-danger: #231c18;
+  --brand: #57c8ba;
+  --brand-600: #46b8ab;
+  --brand-500: #6bd4c7;
+  --brand-soft: #163632;
+  --brand-soft-2: #1d4742;
+  --brand-border: #28655e;
+  --brand-border-strong: #38877e;
+  --on-brand: #ffffff;
 
-  --danger: #e0908a;
-  --danger-500: #d2776f;
-  --danger-700: #e8a9a2;
-  --danger-800: #f0c6c1;
-  --danger-soft: #3d2826;
-  --danger-border: #5e3a36;
-  --danger-bg: #2f2120;
+  --danger: #f0616a;
+  --danger-500: #f0616a;
+  --danger-700: #f47b82;
+  --danger-800: #f6949a;
+  --danger-soft: #3a1d22;
+  --danger-border: #5a2a30;
+  --danger-bg: #2a1518;
 
-  --success: #99ea5e;
-  --success-800: #c2e39a;
-  --success-soft: #2e3a25;
+  --success: #34c46f;
+  --success-800: #7ee0a3;
+  --success-soft: #14301f;
 
-  --warning: #f2b286;
-  --warning-500: #ed8654;
-  --warning-alt: #ed8654;
-  --warning-soft: #3d2c20;
-  --warning-800: #f6d1ad;
-  --warning-bg: #30251c;
-  --info-800: #95b5d6;
-
-  /* Статусы те же, что в светлой теме: мягкие заливки читаются на тёмном фоне. */
+  --warning: #e0912f;
+  --warning-500: #eaa64a;
+  --warning-alt: #eaa64a;
+  --warning-soft: #35280f;
+  --warning-800: #f0b968;
+  --warning-bg: #2a2012;
+  --info-800: #5fb0e0;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 8px 18px rgba(0, 0, 0, 0.45);

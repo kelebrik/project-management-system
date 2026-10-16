@@ -25,11 +25,11 @@
 }
 
 .rag.green {
-  color: var(--success-800);
+  color: #15803d;
 }
 
 .rag.amber {
-  color: var(--warning);
+  color: #b45309;
 }
 
 .rag.red {
@@ -37,7 +37,7 @@
 }
 
 .progress {
-  background: var(--surface-3);
+  background: #e5e7eb;
   border-radius: 999px;
   height: 9px;
   overflow: hidden;
@@ -89,7 +89,7 @@
 .projects-overview-card:hover,
 .projects-overview-card:focus-visible {
   border-color: var(--brand-border-strong);
-  box-shadow: 0 0 0 3px rgba(181, 204, 227, 0.2);
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
   outline: none;
 }
 
@@ -101,7 +101,7 @@
 }
 
 .projects-overview-rag.green {
-  background: #71855a;
+  background: #22c55e;
 }
 
 .projects-overview-rag.amber {
@@ -145,8 +145,8 @@
 }
 
 .projects-overview-work-progress {
-  --progress-active: #7fa3c8;
-  --progress-future: #a9a2a0;
+  --progress-active: #3b82f6;
+  --progress-future: #a8b1af;
   display: grid;
   gap: 6px;
 }
@@ -309,7 +309,7 @@
 .portfolio-project-timeline-title:hover,
 .portfolio-project-timeline-title:focus-visible {
   border-color: var(--brand-border-strong);
-  box-shadow: 0 0 0 3px rgba(181, 204, 227, 0.2);
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
   outline: none;
 }
 
@@ -336,7 +336,7 @@
 
 .portfolio-project-timeline-title strong {
   align-items: center;
-  background: #e3ecf5;
+  background: #e0f2fe;
   border-radius: 999px;
   color: var(--info-800);
   display: inline-flex;
@@ -422,7 +422,7 @@
 }
 
 .portfolio-goal-track-month-tick {
-  background: rgba(169, 162, 160, 0.48);
+  background: rgba(148, 163, 184, 0.48);
   bottom: 6px;
   pointer-events: none;
   position: absolute;
@@ -437,7 +437,7 @@
 }
 
 .portfolio-goal-track-month-tick.major::before {
-  background: rgba(133, 125, 122, 0.62);
+  background: rgba(100, 116, 139, 0.62);
   bottom: 0;
   content: "";
   left: 0;
@@ -471,11 +471,10 @@
 
 .portfolio-goal-dot {
   align-items: center;
-  /* A goal in the palette's leaf, deep enough for the white number on it. */
-  background: #5f7449;
+  background: #7c3aed;
   border: 3px solid #fff;
   border-radius: 999px;
-  box-shadow: 0 0 0 2px rgba(95, 116, 73, 0.22);
+  box-shadow: 0 0 0 2px rgba(124, 58, 237, 0.22);
   color: #fff;
   display: inline-flex;
   font-size: 11px;
@@ -516,7 +515,7 @@
 
 .portfolio-goal-dot.status-done {
   background: var(--success);
-  box-shadow: 0 0 0 2px rgba(95, 116, 73, 0.22);
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.22);
 }
 
 .portfolio-goal-dot.goal-health-done,
@@ -534,7 +533,7 @@
 .portfolio-goal-dot.status-at_risk,
 .portfolio-goal-dot.status-blocked {
   background: var(--danger);
-  box-shadow: 0 0 0 2px rgba(181, 82, 74, 0.2);
+  box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.2);
 }
 
 .portfolio-goal-items {
@@ -561,7 +560,7 @@
 .portfolio-goal-item:hover,
 .portfolio-goal-item:focus-visible {
   border-color: var(--brand-border-strong);
-  box-shadow: 0 0 0 3px rgba(181, 204, 227, 0.2);
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.2);
   outline: none;
 }
 
@@ -624,7 +623,7 @@
 
 .portfolio-goal-item-index {
   align-items: center;
-  background: #5f7449;
+  background: #7c3aed;
   border-radius: 999px;
   color: #fff;
   display: inline-flex;
@@ -647,7 +646,7 @@
 .portfolio-goal-dot.goal-health-late-warning,
 .portfolio-goal-item.goal-health-late-warning .portfolio-goal-item-index {
   background: var(--warning-500);
-  color: var(--warning-800);
+  color: #92400e;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning-500) 28%, transparent);
 }
 .portfolio-goal-dot.goal-health-late-danger,
@@ -750,7 +749,7 @@
 
 .portfolio-blocker-item {
   align-items: center;
-  background: var(--surface);
+  background: #fbfdff;
   border: 0;
   color: var(--text);
   cursor: pointer;
@@ -924,8 +923,8 @@
 }
 
 .portfolio-raid-due.soon {
-  background: var(--warning-soft);
-  color: var(--warning);
+  background: #ffedd5;
+  color: #c2410c;
 }
 
 .portfolio-raid-due.normal,

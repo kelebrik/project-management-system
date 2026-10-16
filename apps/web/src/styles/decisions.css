@@ -12,11 +12,11 @@
 .decision-meta { color: var(--text-muted); font-size: 12px; }
 .decision-comment { color: var(--text-secondary); font-style: italic; }
 .decision-status { border-radius: 10px; font-size: 11px; font-weight: 700; padding: 2px 8px; white-space: nowrap; }
-.decision-status-proposed { background: var(--surface-2, #f4f0eb); }
-.decision-status-pending_approval { background: var(--warning-soft, #fdf4ec); color: var(--warning-strong, #7c3f1f); }
-.decision-status-approved { background: var(--success-soft, #f3f8ea); color: var(--success, #5f7449); }
-.decision-status-rejected { background: var(--danger-soft, #fbf0ee); color: var(--danger, #9c443d); }
-.decision-status-superseded { background: var(--surface-2, #f4f0eb); color: var(--text-muted); text-decoration: line-through; }
+.decision-status-proposed { background: var(--surface-2, #f1f3f5); }
+.decision-status-pending_approval { background: var(--warning-soft, #fff4e5); color: var(--warning-strong, #9a5b00); }
+.decision-status-approved { background: var(--success-soft, #e8f5e9); color: var(--success, #1e8449); }
+.decision-status-rejected { background: var(--danger-soft, #fdecea); color: var(--danger, #c0392b); }
+.decision-status-superseded { background: var(--surface-2, #f1f3f5); color: var(--text-muted); text-decoration: line-through; }
 .decision-superseded { opacity: 0.75; }
 .decision-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .decision-inline { align-items: end; display: flex; flex-wrap: wrap; gap: 8px; }
@@ -30,8 +30,8 @@
 .decision-mode label { align-items: center; display: flex; flex-direction: row; gap: 6px; }
 .decision-mode input[type="radio"] { width: auto; }
 .decision-row { display: grid; gap: 10px; grid-template-columns: 1fr 160px; }
-.decisions-page .link-button { background: none; border: 0; color: var(--accent, #5e83aa); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
-.awaiting-my-answer { background: var(--warning-soft, #fdf4ec); border-radius: 8px; padding: 10px 14px; }
+.decisions-page .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.awaiting-my-answer { background: var(--warning-soft, #fff4e5); border-radius: 8px; padding: 10px 14px; }
 .awaiting-my-answer h3 { font-size: 14px; margin: 0 0 6px; }
 .awaiting-my-answer ul { display: grid; gap: 4px; list-style: none; margin: 0; padding: 0; font-size: 13px; }
-.awaiting-my-answer .link-button { background: none; border: 0; color: var(--accent, #5e83aa); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.awaiting-my-answer .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }

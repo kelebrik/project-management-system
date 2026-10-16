@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readAppChartColors, type AppChartColors } from "./appChartTheme";
+import type { AppChartColors } from "./appChartTheme";
 import { jiraProcessMatrixOption, jiraProcessTimeOption, type JiraProcessText } from "./jiraProcessOptions";
 
-const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#3b82f6", "#b", "#c"], status: readAppChartColors().status };
+const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#3b82f6", "#b", "#c"] };
 const text: JiraProcessText = { median: "Median", p85: "p85", hours: (value) => `${value} h`, moves: "Moves", from: "From", to: "To", waitBefore: "Before", bottleneck: "Bottleneck", samples: "Samples" };
 const stat = (status: string, samples: number, medianHours: number | null) => ({ status, samples, medianHours, p85Hours: medianHours === null ? null : medianHours * 2, totalHours: 10, share: 0.1, current: 0 });
 

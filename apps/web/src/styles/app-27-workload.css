@@ -23,8 +23,7 @@
   align-items: center;
   border: 0 !important;
   border-radius: 4px !important;
-  /* Dark or white, whichever reads on the project's colour (readableTextOn). */
-  color: var(--workload-bar-text, #fff) !important;
+  color: #fff !important;
   cursor: pointer;
   display: flex !important;
   font-size: 11px !important;
@@ -59,7 +58,7 @@
 
 /* A light wash over the whole lane plus a strip on top, unlike the thin line for today. */
 .workload-overlap {
-  background: rgba(181, 82, 74, 0.1);
+  background: rgba(220, 38, 38, 0.1);
   border-top: 4px solid var(--danger);
   bottom: 0;
   position: absolute;
@@ -68,7 +67,7 @@
 }
 
 .workload-leave {
-  background: repeating-linear-gradient(135deg, rgba(133, 125, 122, 0.28) 0 4px, transparent 4px 8px);
+  background: repeating-linear-gradient(135deg, rgba(120, 130, 145, 0.28) 0 4px, transparent 4px 8px);
   bottom: 0;
   position: absolute;
   top: 0;
@@ -77,7 +76,7 @@
 
 .workload-ambiguous {
   align-self: center;
-  color: var(--warning, #9a4f28);
+  color: var(--warning, #c77700);
   flex: none;
 }
 
@@ -87,7 +86,7 @@
 }
 
 .workload-legend-leave {
-  background: repeating-linear-gradient(135deg, rgba(133, 125, 122, 0.45) 0 3px, transparent 3px 6px);
+  background: repeating-linear-gradient(135deg, rgba(120, 130, 145, 0.45) 0 3px, transparent 3px 6px);
   border: 1px solid var(--border-strong);
 }
 
@@ -133,7 +132,7 @@
 .workload-ghost {
   align-items: center;
   border-radius: 4px;
-  box-shadow: 0 0 0 2px var(--text-strong), 0 6px 16px rgba(35, 28, 24, 0.25);
+  box-shadow: 0 0 0 2px var(--text-strong), 0 6px 16px rgba(15, 23, 42, 0.25);
   color: #fff;
   display: flex;
   font-size: 11px;
@@ -158,7 +157,7 @@
   align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 4px solid var(--success, #5f7449);
+  border-left: 4px solid var(--success, #16a34a);
   border-radius: 6px;
   display: flex;
   gap: 10px;
@@ -233,19 +232,19 @@
 }
 
 .workload-bar:hover .workload-lock.start {
-  border-left-color: rgba(35, 28, 24, 0.55);
+  border-left-color: rgba(15, 23, 42, 0.55);
 }
 
 .workload-bar:hover .workload-lock.end {
-  border-right-color: rgba(35, 28, 24, 0.55);
+  border-right-color: rgba(15, 23, 42, 0.55);
 }
 
 .workload-tooltip-lock {
-  color: var(--warning, #9a4f28);
+  color: var(--warning, #b45309);
 }
 
 .workload-feedback.note {
-  border-left-color: var(--warning, #9a4f28);
+  border-left-color: var(--warning, #c77700);
 }
 
 /*
@@ -305,7 +304,7 @@
   margin-left: 4px;
 }
 .workload-lane.can-add-work { cursor: crosshair; }
-.workload-new-selection { background: color-mix(in srgb, var(--accent, #5e83aa) 18%, transparent); border: 1px dashed var(--accent, #5e83aa); border-radius: 4px; bottom: 2px; pointer-events: none; position: absolute; top: 2px; }
+.workload-new-selection { background: color-mix(in srgb, var(--accent, #1a56db) 18%, transparent); border: 1px dashed var(--accent, #1a56db); border-radius: 4px; bottom: 2px; pointer-events: none; position: absolute; top: 2px; }
 .side-drawer.workload-new-work { align-content: start; display: grid; gap: 10px; max-width: 100vw; width: 460px; }
 .workload-new-work label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; }
 .workload-new-work input, .workload-new-work select { font: inherit; font-size: 13px; font-weight: 400; }
@@ -317,8 +316,8 @@
 
 /* Project shares against a person's capacity. */
 .workload-overload {
-  background: repeating-linear-gradient(135deg, rgba(184, 95, 48, 0.12) 0 6px, transparent 6px 12px);
-  border-bottom: 3px solid #b85f30;
+  background: repeating-linear-gradient(135deg, rgba(234, 88, 12, 0.12) 0 6px, transparent 6px 12px);
+  border-bottom: 3px solid #ea580c;
   bottom: 0;
   position: absolute;
   top: 0;
@@ -333,7 +332,7 @@
   margin-left: 6px;
   padding: 0 6px;
 }
-.workload-share-chip.overloaded { background: var(--warning-bg); border-color: #b85f30; color: var(--warning-800); font-weight: 600; }
+.workload-share-chip.overloaded { background: #fff7ed; border-color: #ea580c; color: #9a3412; font-weight: 600; }
 .workload-share-chip.empty { opacity: 0; }
 .workload-row:hover .workload-share-chip.empty, .workload-share-chip.empty:focus-visible { opacity: 1; }
 .side-drawer.workload-shares { align-content: start; display: grid; gap: 10px; max-width: 100vw; width: 560px; }

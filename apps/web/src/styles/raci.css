@@ -9,8 +9,8 @@
 .raci-table tbody th { background: var(--surface); font-weight: 400; left: 0; position: sticky; text-align: left; z-index: 1; }
 .raci-table thead th:first-child { background: var(--surface); left: 0; position: sticky; z-index: 2; }
 .raci-code { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-.raci-missing { color: var(--danger, #9c443d); display: block; font-size: 11px; }
-.raci-table td.raci-A { background: var(--accent-soft, #f1f5fa); font-weight: 700; }
-.raci-table td.raci-R { background: var(--success-soft, #f3f8ea); }
+.raci-missing { color: var(--danger, #c0392b); display: block; font-size: 11px; }
+.raci-table td.raci-A { background: var(--accent-soft, #e8f0fe); font-weight: 700; }
+.raci-table td.raci-R { background: var(--success-soft, #e8f5e9); }
 .raci-table select { font: inherit; }
-.raci-page .automation-error { color: var(--danger, #9c443d); font-weight: 600; margin: 0; }
+.raci-page .automation-error { color: var(--danger, #c0392b); font-weight: 600; margin: 0; }

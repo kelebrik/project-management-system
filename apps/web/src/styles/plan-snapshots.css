@@ -10,7 +10,7 @@
 .plan-comparison-table { border-collapse: collapse; width: 100%; }
 .plan-comparison-table th, .plan-comparison-table td { border-bottom: 1px solid var(--border); padding: 4px 6px; text-align: left; vertical-align: top; }
 .plan-comparison-table tr.checkpoint td:first-child { font-weight: 700; }
-.plan-comparison-table .late { color: var(--danger, #9c443d); }
-.plan-comparison-table .early { color: var(--success, #5f7449); }
-.plan-snapshots-drawer .link-button { background: none; border: 0; color: var(--accent, #5e83aa); cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; }
+.plan-comparison-table .late { color: var(--danger, #c0392b); }
+.plan-comparison-table .early { color: var(--success, #1e8449); }
+.plan-snapshots-drawer .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; font: inherit; padding: 0; text-align: left; text-decoration: underline; }
 .plan-snapshots-button { align-items: center; display: inline-flex; gap: 6px; white-space: nowrap; }

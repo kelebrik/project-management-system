@@ -70,7 +70,7 @@
   background: var(--surface);
   border: 1px solid var(--border-2);
   border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(35, 28, 24, 0.08);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
   display: block;
   height: auto;
   max-height: min(78vh, 760px);
@@ -94,7 +94,7 @@
 }
 
 .milestone-snake-month {
-  fill: #2c2c2b;
+  fill: #1e293b;
   font-size: 13px;
   font-weight: 900;
   paint-order: stroke;
@@ -138,7 +138,7 @@
 
 .milestone-snake-today-hitbox {
   cursor: grab;
-  fill: rgba(251, 240, 238, 0.01);
+  fill: rgba(254, 226, 226, 0.01);
   pointer-events: all;
 }
 
@@ -171,7 +171,7 @@
   fill: var(--text-faint);
   stroke: #fff;
   stroke-width: 4;
-  filter: drop-shadow(0 2px 3px rgba(35, 28, 24, 0.24));
+  filter: drop-shadow(0 2px 3px rgba(15, 23, 42, 0.24));
 }
 
 .milestone-snake-marker-number {
@@ -184,8 +184,8 @@
 
 .milestone-snake-item.green .milestone-snake-marker,
 .milestone-snake-item.green .milestone-snake-connector {
-  fill: var(--brand-600);
-  stroke: var(--brand-600);
+  fill: #00b050;
+  stroke: #00b050;
 }
 
 .milestone-snake-item.blue .milestone-snake-marker,
@@ -196,14 +196,14 @@
 
 .milestone-snake-item.red .milestone-snake-marker,
 .milestone-snake-item.red .milestone-snake-connector {
-  fill: var(--danger);
-  stroke: var(--danger);
+  fill: #ef1f1f;
+  stroke: #ef1f1f;
 }
 
 .milestone-snake-item.gray .milestone-snake-marker,
 .milestone-snake-item.gray .milestone-snake-connector {
-  fill: #857d7a;
-  stroke: #857d7a;
+  fill: #7c8da3;
+  stroke: #7c8da3;
 }
 
 .milestone-snake-item.green .milestone-snake-marker,
@@ -221,12 +221,12 @@
 
 .milestone-snake-item:hover .milestone-snake-label-box,
 .milestone-snake-item:focus .milestone-snake-label-box {
-  stroke: #95b5d6;
+  stroke: #60a5fa;
   stroke-width: 2;
 }
 
 .milestone-snake-label-draggable .milestone-snake-label-box {
-  filter: drop-shadow(0 7px 14px rgba(35, 28, 24, 0.12));
+  filter: drop-shadow(0 7px 14px rgba(15, 23, 42, 0.12));
 }
 
 .milestone-snake-label-grip {
@@ -237,7 +237,7 @@
 
 .milestone-snake-label-draggable:hover .milestone-snake-label-grip {
   fill: var(--brand-soft-2);
-  stroke: #95b5d6;
+  stroke: #60a5fa;
 }
 
 .milestone-snake-drag-dot {

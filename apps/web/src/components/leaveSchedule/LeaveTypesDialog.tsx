@@ -76,7 +76,7 @@ export function LeaveTypesDialog({
   onClose: () => void;
 }) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState<TypeDraft>({ name: "", nameEn: "", color: "#5f7449", isActive: true });
+  const [draft, setDraft] = useState<TypeDraft>({ name: "", nameEn: "", color: "#26a69a", isActive: true });
   const [error, setError] = useState<string | null>(null);
 
   const guard = async (action: () => Promise<void>) => {

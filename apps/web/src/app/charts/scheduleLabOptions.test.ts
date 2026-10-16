@@ -3,10 +3,10 @@ import test from "node:test";
 
 import type { WbsItem } from "../domainTypes";
 import type { ShiftLadder, ShiftStep } from "../scheduleShifts";
-import { readAppChartColors, type AppChartColors } from "./appChartTheme";
+import type { AppChartColors } from "./appChartTheme";
 import { forecastDriftOption, goalsDumbbellOption, milestonesTimelineOption, phaseProgress, phasesOption, shiftReasonsParetoOption, shiftsDrilldownOption, type LabText } from "./scheduleLabOptions";
 
-const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"], status: readAppChartColors().status };
+const colors: AppChartColors = { text: "#111", muted: "#666", grid: "#ddd", surface: "#fff", brand: "#0f766e", danger: "#dc2626", warning: "#d97706", success: "#16a34a", series: ["#a", "#b", "#c"] };
 const text: LabText = {
   today: "Today", baseline: "Baseline", forecast: "Forecast", noBaseline: "no baseline", daysLater: (n) => `+${n} d`, daysEarlier: (n) => `-${n} d`, onTime: "on time",
   progress: "Progress", progressDays: (done, total) => `${done}/${total}`, phaseless: "No phase", status: (s) => s, type: (s) => s, reason: (c) => c, days: "Days", share: "Share", shiftsOf: (t) => `Moves of ${t}`, drift: "Drift", earlier: (n) => `${n} earlier`,
@@ -25,8 +25,8 @@ test("goals are dumbbells from baseline to forecast, red when later, written wit
   const options = goalsDumbbellOption({ items, today, colors, text })!;
   assert.deepEqual((options.xAxis as { categories: string[] }).categories, ["Alpha", "Beta"]);
   const [alpha, beta] = series(options);
-  assert.equal(beta!.connectorColor, "#d2776f");
-  assert.equal(alpha!.connectorColor, "#86b865");
+  assert.equal(beta!.connectorColor, "#ef4444");
+  assert.equal(alpha!.connectorColor, "#16a34a");
   assert.equal((beta!.accessibility as { description: string }).description, "Beta. Baseline 2026-11-01, Forecast 2026-11-11, +10 d");
   assert.equal(options.exporting?.enabled, true);
   assert.equal(options.exporting?.fallbackToExportServer, false, "export never goes to Highcharts' server");
@@ -47,7 +47,7 @@ test("phases carry their progress as a partial fill and their milestones on thei
   const options = phasesOption({ items, today, colors, text })!;
   assert.deepEqual((series(options)[0]!.partialFill as { amount: number }).amount, 0.75);
   assert.deepEqual(series(options)[0]!.custom, { doneDays: 3, totalDays: 4 });
-  assert.deepEqual(series(options, 1).map((point) => [point.name, point.y, point.color]), [["Review", 0, "#99ea5e"]]);
+  assert.deepEqual(series(options, 1).map((point) => [point.name, point.y, point.color]), [["Review", 0, "#16a34a"]]);
   assert.deepEqual(series(options, 2).map((point) => point.name), ["Ready"]);
 });
 

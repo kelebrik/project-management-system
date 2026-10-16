@@ -72,13 +72,13 @@
 .meeting-notes-drawer { align-content: start; max-width: min(720px, 100vw); width: 720px; }
 .open-issues-prototype-heading-actions button { align-items: center; display: inline-flex; gap: 6px; }
 /* A corporate installation without GigaChat yet: the setup step stands out. */
-.automation-setup-note { align-items: center; background: var(--warning-soft); border: 1px solid var(--warning, #9a4f28); border-radius: 6px; color: var(--text-strong); display: flex; font-weight: 700; gap: 8px; padding: 10px 12px; }
+.automation-setup-note { align-items: center; background: var(--warning-soft); border: 1px solid var(--warning, #c77700); border-radius: 6px; color: var(--text-strong); display: flex; font-weight: 700; gap: 8px; padding: 10px 12px; }
 .automation-setup-note svg { flex: none; }
 .ai-period { display: inline-flex; }
 .ai-period button { border-radius: 0; margin-left: -1px; }
 .ai-period button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .ai-period button:last-child { border-radius: 0 6px 6px 0; }
-.ai-period button.active { background: var(--accent-soft, #f1f5fa); font-weight: 700; }
+.ai-period button.active { background: var(--accent-soft, #e8f0fe); font-weight: 700; }
 .status-report-text { min-height: 360px; font-family: inherit; }
 .wbs-draft-tree { display: grid; gap: 4px; list-style: none; margin: 0; max-height: 50vh; overflow: auto; padding: 0; }
 .side-drawer.wbs-draft-drawer { max-width: 100vw; width: 720px; }
@@ -101,7 +101,7 @@
 .risk-suggestion-grades input { width: 64px; }
 .risk-suggestion-basis + .risk-suggestion-basis::before { content: "; "; }
 .raid-register-head { align-items: center; display: flex; gap: 12px; justify-content: space-between; }
-.automation-body .link-button { background: none; border: 0; color: var(--accent, #5e83aa); cursor: pointer; padding: 0; text-decoration: underline; }
+.automation-body .link-button { background: none; border: 0; color: var(--accent, #1a56db); cursor: pointer; padding: 0; text-decoration: underline; }
 .risk-suggestion-pick input[type="checkbox"] { flex: none; width: auto; }
 .ai-report-bar { gap: 8px; }
 .ask-question { min-height: 72px; }

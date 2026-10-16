@@ -106,7 +106,7 @@
 }
 
 .leave-legend .leave-legend-off {
-  background: var(--leave-off, #f4f0eb);
+  background: var(--leave-off, #e9eef3);
   border: 1px solid var(--border-strong);
 }
 
@@ -221,7 +221,7 @@
  */
 .leave-grid-shell {
   --leave-row-height: 34px;
-  --leave-off: #f4f0eb;
+  --leave-off: #e9eef3;
   background: var(--surface);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
@@ -476,7 +476,7 @@
 }
 
 .leave-group-title {
-  background: var(--surface-tint, #faf8f5);
+  background: var(--surface-tint, #f5f7fa);
   border-bottom: 1px solid var(--border-5);
 }
 
@@ -578,7 +578,7 @@
 /* Dialogs */
 .leave-dialog-backdrop {
   align-items: flex-start;
-  background: rgba(35, 28, 24, 0.38);
+  background: rgba(15, 23, 42, 0.38);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -850,7 +850,7 @@
 }
 
 .leave-calendar-day.off {
-  background: var(--leave-off, #f4f0eb);
+  background: var(--leave-off, #e9eef3);
   color: var(--danger);
 }
 
@@ -941,7 +941,7 @@
 .leave-ghost {
   border-radius: 4px;
   height: 22px;
-  box-shadow: 0 0 0 2px var(--text-strong), 0 6px 16px rgba(35, 28, 24, 0.25);
+  box-shadow: 0 0 0 2px var(--text-strong), 0 6px 16px rgba(15, 23, 42, 0.25);
   pointer-events: none;
   position: absolute;
   top: 6px;

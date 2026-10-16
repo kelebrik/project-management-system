@@ -6,7 +6,7 @@
 .lesson-card { border: 1px solid var(--border); border-radius: 8px; display: grid; gap: 4px; padding: 8px 10px; font-size: 13px; }
 .lesson-card p { margin: 0; white-space: pre-wrap; }
 .lesson-advice { color: var(--text-secondary); }
-.lesson-category, .lesson-source { background: var(--surface-2, #f4f0eb); border-radius: 10px; font-size: 11px; font-weight: 700; justify-self: start; padding: 1px 8px; }
+.lesson-category, .lesson-source { background: var(--surface-2, #f1f3f5); border-radius: 10px; font-size: 11px; font-weight: 700; justify-self: start; padding: 1px 8px; }
 .lesson-draft { border: 1px dashed var(--border); border-radius: 8px; display: grid; gap: 6px; padding: 8px 10px; }
 .lesson-editor { display: grid; gap: 6px; }
 .lesson-editor label { display: grid; font-size: 12px; font-weight: 600; gap: 4px; color: var(--text-secondary); }

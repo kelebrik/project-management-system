@@ -108,8 +108,8 @@ test("project colours come from the full sorted list", () => {
     { id: "p2", code: "TV", name: "" },
     { id: "p1", code: "AUDIO", name: "" },
   ]);
-  assert.equal(colors.get("p1"), "#4a6a8e");
-  assert.equal(colors.get("p2"), "#86b865");
+  assert.equal(colors.get("p1"), "#2f80ed");
+  assert.equal(colors.get("p2"), "#27ae60");
 });
 
 test("people from the directory without work get a row only when asked", () => {
@@ -130,18 +130,4 @@ test("people from the directory without work get a row only when asked", () => {
   // Two people with one name share a row that says so.
   assert.equal(rows[2].ambiguous, true);
   assert.equal(rows[1].department, "Тестирование");
-});
-
-test("a bar's label reads on its project's colour: dark on light fills, white on deep ones, 4.5:1 at least", async () => {
-  const { readableTextOn } = await import("./workloadModel");
-  const lum = (hex: string) => {
-    const c = (o: number) => { const v = parseInt(hex.slice(1 + o, 3 + o), 16) / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
-    return 0.2126 * c(0) + 0.7152 * c(2) + 0.0722 * c(4);
-  };
-  const contrast = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x! + 0.05) / (y! + 0.05); };
-  for (const fill of ["#4a6a8e", "#86b865", "#d2776f", "#95888b", "#ed8654", "#5f7449", "#b5cce3", "#82634a", "#e8a9a2", "#c2e39a", "#504649", "#d5ad8b"]) {
-    assert.ok(contrast(fill, readableTextOn(fill)) >= 4.5, `${fill} ${readableTextOn(fill)} ${contrast(fill, readableTextOn(fill)).toFixed(2)}`);
-  }
-  assert.equal(readableTextOn("#c2e39a"), "#231c18");
-  assert.equal(readableTextOn("#504649"), "#ffffff");
 });

@@ -9,7 +9,7 @@ import {
   type LeaveRange,
   type buildLeaveTimeline,
 } from "../../app/leaveScheduleModel";
-import { readableTextOn, type WorkloadItem, type WorkloadLeave, type WorkloadProject, type WorkloadRow } from "../../app/workloadModel";
+import type { WorkloadItem, WorkloadLeave, WorkloadProject, WorkloadRow } from "../../app/workloadModel";
 import type { RowShares } from "../../app/workloadAllocations";
 import { workloadEditRights } from "../../app/workloadPlanning";
 import { describeDateHold } from "../../app/scheduleLinks";
@@ -145,7 +145,6 @@ export function WorkloadGrid({
           top: `${ROW_PADDING / 2}px`,
           height: `${BAR_HEIGHT}px`,
           backgroundColor: colors.get(preview.item.projectId) ?? "var(--text-muted)",
-          ["--workload-bar-text" as string]: readableTextOn(colors.get(preview.item.projectId)),
         }}
       >
         <span>
@@ -336,7 +335,6 @@ export function WorkloadGrid({
                               top: `${ROW_PADDING / 2 + lane * LANE_HEIGHT}px`,
                               height: `${BAR_HEIGHT}px`,
                               backgroundColor: colors.get(item.projectId) ?? "var(--text-muted)",
-                              ["--workload-bar-text" as string]: readableTextOn(colors.get(item.projectId)),
                             }}
                             type="button"
                           >

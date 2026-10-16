@@ -412,7 +412,7 @@ export function MilestoneSnakeTimelineSection({
                 refX="8"
                 refY="5"
               >
-                <path d="M 0 0 L 10 5 L 0 10 z" fill="#857d7a" />
+                <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b" />
               </marker>
             </defs>
             <rect
