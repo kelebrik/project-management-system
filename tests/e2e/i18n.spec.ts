@@ -33,13 +33,16 @@ test("WBS fullscreen, export controls and baseline dialog follow the locale", as
   await page.goto(`/${project.code}/wbs`);
   const toolbar = page.locator('.wbs-structure-controls');
   await expect(toolbar.locator('.workspace-fullscreen-button')).toBeVisible();
-  await expect(toolbar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-  await expect(toolbar.getByRole('button', { name: 'PDF EN', exact: true })).toHaveCount(0);
-  await expect(toolbar.getByRole('button', { name: 'EN', exact: true })).toHaveCount(0);
+  // The export actions sit in a menu; the English ones appear only with the Russian interface.
+  await toolbar.getByRole('button', { name: 'Export', exact: true }).click();
+  await expect(toolbar.getByRole('menuitem', { name: 'PDF', exact: true })).toBeVisible();
+  await expect(toolbar.getByRole('menuitem', { name: 'PDF EN', exact: true })).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await toolbar.locator('.workspace-fullscreen-button').click();
   await expect(toolbar.locator('.workspace-fullscreen-button')).toContainText('Normal mode');
   await toolbar.locator('.workspace-fullscreen-button').click();
-  await toolbar.getByRole('button', { name: 'Set the baseline', exact: true }).click();
+  await toolbar.getByRole('button', { name: 'Baseline', exact: true }).click();
+  await toolbar.getByRole('menuitem', { name: 'Set the baseline', exact: true }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('Set the baseline?');
   await expect(dialog).toContainText('The current dates of all WBS items');
@@ -51,10 +54,13 @@ test("WBS fullscreen, export controls and baseline dialog follow the locale", as
   expect((await calendar.boundingBox())!.width).toBeGreaterThanOrEqual(140);
   await page.getByTestId('language-toggle').click();
   await expect(toolbar.locator('.workspace-fullscreen-button')).toBeVisible();
-  await expect(toolbar.getByRole('button', { name: 'PDF', exact: true })).toBeVisible();
-  await expect(toolbar.getByRole('button', { name: 'PDF EN', exact: true })).toBeVisible();
-  await expect(toolbar.getByRole('button', { name: 'EN', exact: true })).toBeVisible();
-  await toolbar.getByRole('button', { name: 'Зафиксировать базовый план', exact: true }).click();
+  await toolbar.getByRole('button', { name: 'Экспорт', exact: true }).click();
+  await expect(toolbar.getByRole('menuitem', { name: 'PDF', exact: true })).toBeVisible();
+  await expect(toolbar.getByRole('menuitem', { name: 'PDF EN', exact: true })).toBeVisible();
+  await expect(toolbar.getByRole('menuitem', { name: /Переводы EN/ })).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await toolbar.getByRole('button', { name: 'Базовый план', exact: true }).click();
+  await toolbar.getByRole('menuitem', { name: 'Зафиксировать базовый план', exact: true }).click();
   await expect(dialog).toContainText('Зафиксировать базовый план?');
 });
 

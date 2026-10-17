@@ -2,7 +2,8 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
 import { dateFormatter } from "../app/dateFormat";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
-import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
+import { FileDown, Flag, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
+import { ToolbarMenu } from "../components/ToolbarMenu";
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -452,31 +453,19 @@ export function ProjectStructureSection() {
                                     ? uiText("ui.admin.savingEllipsisDots")
                                     : uiText("ui.projects.saveChangesAction")}
                                 </button>
-                                {/* A disabled button shows no tooltip: the hint sits on its wrapper. */}
-                                <span
-                                  className="wbs-baseline-action"
-                                  title={
-                                    project.baselineFixedAt
-                                      ? uiText("ui.projects.structureBaselineFixedHint", {
-                                          date: dateFormatter(intlLocale(uiLocale), { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(project.baselineFixedAt)),
-                                        })
-                                      : undefined
-                                  }
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => void saveWbsBaseline()}
-                                    disabled={
-                                      savingBaseline ||
-                                      project.wbsItems.length === 0 ||
-                                      Boolean(project.baselineFixedAt)
-                                    }
-                                  >
-                                    {uiText("ui.projects.structureSetBaselineAction")}
-                                  </button>
-                                </span>
                               </>
                             )}
+                            <span
+                              className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                            >
+                              {savingWbsBulk
+                                ? uiText("structure.savingCount", { count: dirtyWbsItemIds.size })
+                                : dirtyWbsItemIds.size > 0
+                                  ? uiText("structure.dirtyCount", { count: dirtyWbsItemIds.size })
+                                  : lastSavedAt
+                                    ? uiText("structure.savedAt", { time: lastSavedAt.toLocaleTimeString(intlLocale(uiLocale), { hour: "2-digit", minute: "2-digit" }) })
+                                    : uiText("ui.projects.allChangesSavedNotice")}
+                            </span>
                             <div className="column-menu">
                               <button
                                 type="button"
@@ -505,71 +494,83 @@ export function ProjectStructureSection() {
                                 </div>
                               )}
                             </div>
-                            <button
-                              type="button"
-                              className="wbs-pdf-button"
-                              onClick={() => {
-                                renderAllForPrint();
-                                printSectionAsPdf(
-                                  "project-structure-print",
-                                  uiText("structure.printTitle", { name: project.name ?? uiText("structure.projectFallback") }),
-                                );
-                              }}
-                              disabled={project.wbsItems.length === 0}
-                              title={uiText("ui.projects.structureSaveToPdfAction")}
-                            >
-                              <FileDown size={15} />
-                              PDF
-                            </button>
-                            {uiLocale === "ru" && <button
-                              type="button"
-                              className="wbs-pdf-button"
-                              onClick={() => setEnglishPrintRequested(true)}
-                              disabled={project.wbsItems.length === 0}
-                              title={uiText("structure.savePdfEnAction")}
-                            >
-                              <FileDown size={15} />
-                              PDF EN
-                            </button>}
-                            {uiLocale === "ru" && <div className="column-menu wbs-en-menu">
+                            <ToolbarMenu label={uiText("structure.exportMenu")} icon={<FileDown size={15} />} className="wbs-export-menu" onOpenChange={setShowEnglishMenu}>
                               <button
                                 type="button"
-                                className="wbs-pdf-button"
-                                onClick={() =>
-                                  setShowEnglishMenu((current) => !current)
-                                }
-                                title={uiText("ui.projects.structureTranslationsImportExportAction")}
+                                role="menuitem"
+                                onClick={() => {
+                                  renderAllForPrint();
+                                  printSectionAsPdf(
+                                    "project-structure-print",
+                                    uiText("structure.printTitle", { name: project.name ?? uiText("structure.projectFallback") }),
+                                  );
+                                }}
+                                disabled={project.wbsItems.length === 0}
+                                title={uiText("ui.projects.structureSaveToPdfAction")}
                               >
-                                <Languages size={15} />
-                                EN
+                                <FileDown size={15} />
+                                PDF
                               </button>
-                              {showEnglishMenu && (
-                                <div className="column-menu-popover wbs-en-menu-popover">
+                              {uiLocale === "ru" && (
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={() => setEnglishPrintRequested(true)}
+                                  disabled={project.wbsItems.length === 0}
+                                  title={uiText("structure.savePdfEnAction")}
+                                >
+                                  <FileDown size={15} />
+                                  PDF EN
+                                </button>
+                              )}
+                              {uiLocale === "ru" && (
+                                <button type="button" role="menuitem" onClick={() => translationImportInputRef.current?.click()}>
+                                  <Languages size={15} />
+                                  {uiText("structure.translationsImport")}
+                                </button>
+                              )}
+                              {uiLocale === "ru" && (
+                                <button type="button" role="menuitem" onClick={exportEnglishTranslationsHtml} disabled={editableEnglishRows.length === 0}>
+                                  <Languages size={15} />
+                                  {uiText("structure.translationsExport")}
+                                </button>
+                              )}
+                            </ToolbarMenu>
+                            <input
+                              ref={translationImportInputRef}
+                              type="file"
+                              accept=".html,text/html"
+                              className="wbs-translation-import-input"
+                              onChange={handleEnglishImportInputChange}
+                            />
+                            {!isReadOnly && (
+                              <ToolbarMenu label={uiText("structure.baselineMenu")} icon={<Flag size={15} />} className="wbs-baseline-menu">
+                                {/* A disabled button shows no tooltip: the hint sits on its wrapper. */}
+                                <span
+                                  className="wbs-baseline-action"
+                                  title={
+                                    project.baselineFixedAt
+                                      ? uiText("ui.projects.structureBaselineFixedHint", {
+                                          date: dateFormatter(intlLocale(uiLocale), { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(project.baselineFixedAt)),
+                                        })
+                                      : undefined
+                                  }
+                                >
                                   <button
                                     type="button"
-                                    onClick={() =>
-                                      translationImportInputRef.current?.click()
+                                    role="menuitem"
+                                    onClick={() => void saveWbsBaseline()}
+                                    disabled={
+                                      savingBaseline ||
+                                      project.wbsItems.length === 0 ||
+                                      Boolean(project.baselineFixedAt)
                                     }
                                   >
-                                    {uiText("structure.translationsImport")}
+                                    {uiText("ui.projects.structureSetBaselineAction")}
                                   </button>
-                                  <button
-                                    type="button"
-                                    onClick={exportEnglishTranslationsHtml}
-                                    disabled={editableEnglishRows.length === 0}
-                                  >
-                                    {uiText("structure.translationsExport")}
-                                  </button>
-                                </div>
-                              )}
-                              <input
-                                ref={translationImportInputRef}
-                                type="file"
-                                accept=".html,text/html"
-                                className="wbs-translation-import-input"
-                                onChange={handleEnglishImportInputChange}
-                              />
-                            </div>}
+                                </span>
+                              </ToolbarMenu>
+                            )}
                             <div
                               className="segmented-control hierarchy-control"
                               aria-label={uiText("ui.projects.structureHierarchyDepthLabel")}
@@ -593,17 +594,6 @@ export function ProjectStructureSection() {
                                 {uiText("structure.preliminary")}
                               </span>
                             )}
-                            <span
-                              className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
-                            >
-                              {savingWbsBulk
-                                ? uiText("structure.savingCount", { count: dirtyWbsItemIds.size })
-                                : dirtyWbsItemIds.size > 0
-                                  ? uiText("structure.dirtyCount", { count: dirtyWbsItemIds.size })
-                                  : lastSavedAt
-                                    ? uiText("structure.savedAt", { time: lastSavedAt.toLocaleTimeString(intlLocale(uiLocale), { hour: "2-digit", minute: "2-digit" }) })
-                                    : uiText("ui.projects.allChangesSavedNotice")}
-                            </span>
                           </div>
                           {selectedWbsIds.size > 0 && (
                             <div className="wbs-bulk-toolbar">

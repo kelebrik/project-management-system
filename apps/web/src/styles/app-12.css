@@ -9,8 +9,87 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 900;
-  margin-left: auto;
   padding: 6px 9px;
+}
+
+/* The Structure's toolbar stays in view under the top bars while the page scrolls; in full screen the bars are gone. */
+.wbs-structure-controls {
+  position: sticky;
+  top: calc(var(--global-header-h) + var(--section-nav-h));
+  z-index: 35;
+}
+
+.workspace-focus-panel-fullscreen .wbs-structure-controls {
+  top: 0;
+}
+
+/* The levels sit at the right end of the Structure's toolbar; the save state stays by the Save button. */
+.wbs-structure-controls .hierarchy-control {
+  margin-left: auto;
+}
+
+/* A toolbar button with a menu of actions under it (export, baseline). */
+.toolbar-menu {
+  position: relative;
+}
+
+.toolbar-menu > button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+
+.toolbar-menu > button > svg:last-child {
+  opacity: 0.7;
+}
+
+.toolbar-menu-popover {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+  left: 0;
+  min-width: 220px;
+  padding: 6px;
+  position: absolute;
+  top: calc(100% + 4px);
+  z-index: 40;
+}
+
+.toolbar-menu-popover > button,
+.toolbar-menu-popover .wbs-baseline-action > button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--text-heading);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+  justify-content: flex-start;
+  min-height: 34px;
+  padding: 6px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.toolbar-menu-popover > button:hover:not(:disabled),
+.toolbar-menu-popover .wbs-baseline-action > button:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-strong);
+}
+
+.toolbar-menu-popover > button:disabled,
+.toolbar-menu-popover .wbs-baseline-action > button:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.toolbar-menu-popover .wbs-baseline-action {
+  display: block;
 }
 
 .wbs-save-state.saved {

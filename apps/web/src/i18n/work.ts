@@ -402,13 +402,15 @@ export const work = {
     "en": "Save the WBS to PDF in English",
     "ru": "Сохранить Структуру в PDF на английском"
   },
+  "structure.exportMenu": { "en": "Export", "ru": "Экспорт" },
+  "structure.baselineMenu": { "en": "Baseline", "ru": "Базовый план" },
   "structure.translationsImport": {
-    "en": "Import",
-    "ru": "Импорт"
+    "en": "EN translations: import",
+    "ru": "Переводы EN: импорт"
   },
   "structure.translationsExport": {
-    "en": "Export",
-    "ru": "Экспорт"
+    "en": "EN translations: export",
+    "ru": "Переводы EN: экспорт"
   }
 
 } as const;

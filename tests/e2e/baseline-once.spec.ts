@@ -11,11 +11,14 @@ test("the plan is fixed once: the button works until then, and is off after, wit
     await route.fulfill({ status: 409, json: { error: "Базовый план проекта уже зафиксирован 12.10.2026. Изменить его может администратор кнопкой «Обновить базовый план»", code: "BASELINE_ALREADY_FIXED", baselineFixedAt: fixedAt } });
   });
   await page.goto(`/${project.code}/wbs`);
-  const button = page.getByRole("button", { name: "Зафиксировать базовый план", exact: true });
+  const openMenu = () => page.getByRole("button", { name: "Базовый план", exact: true }).click();
+  await openMenu();
+  const button = page.getByRole("menuitem", { name: "Зафиксировать базовый план", exact: true });
   await expect(button).toBeEnabled();
   await button.click();
   await page.getByRole("dialog").getByRole("button", { name: "Зафиксировать", exact: true }).click();
   await expect(page.getByText(/уже зафиксирован 12\.10\.2026/)).toBeVisible();
+  await openMenu();
   await expect(button).toBeDisabled();
   await expect(page.locator(".wbs-baseline-action")).toHaveAttribute("title", /зафиксирован 12\.10\.2026.*Обновить базовый план/);
   expect(posts).toBe(1);
@@ -26,7 +29,8 @@ test("a project whose plan is fixed opens with the button off", async ({ page })
     (fixture as unknown as { baselineFixedAt: string }).baselineFixedAt = "2026-10-01T09:00:00.000Z";
   });
   await page.goto(`/${project.code}/wbs`);
-  await expect(page.getByRole("button", { name: "Зафиксировать базовый план", exact: true })).toBeDisabled();
+  await page.getByRole("button", { name: "Базовый план", exact: true }).click();
+  await expect(page.getByRole("menuitem", { name: "Зафиксировать базовый план", exact: true })).toBeDisabled();
   await expect(page.locator(".wbs-baseline-action")).toHaveAttribute("title", /01\.10\.2026/);
 });
 
@@ -38,9 +42,11 @@ test("after the plan is fixed here, the button is off at once", async ({ page })
     await route.fulfill({ json: { wbsItems: project.wbsItems, wbsDependencies: [], criticalPath: null, baselineFixedAt: fixedAt } });
   });
   await page.goto(`/${project.code}/wbs`);
-  const button = page.getByRole("button", { name: "Зафиксировать базовый план", exact: true });
+  await page.getByRole("button", { name: "Базовый план", exact: true }).click();
+  const button = page.getByRole("menuitem", { name: "Зафиксировать базовый план", exact: true });
   await button.click();
   await page.getByRole("dialog").getByRole("button", { name: "Зафиксировать", exact: true }).click();
+  await page.getByRole("button", { name: "Базовый план", exact: true }).click();
   await expect(button).toBeDisabled();
   await expect(page.locator(".wbs-baseline-action")).toHaveAttribute("title", /16\.10\.2026/);
 });

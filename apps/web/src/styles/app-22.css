@@ -12,7 +12,7 @@
   color: #fff;
   display: flex;
   gap: 12px;
-  height: 52px;
+  height: var(--global-header-h);
   padding: 0 20px;
   position: sticky;
   top: 0;
@@ -228,9 +228,9 @@
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex;
-  min-height: 46px;
+  min-height: var(--section-nav-h);
   position: sticky;
-  top: 52px;
+  top: var(--global-header-h);
   z-index: 80;
 }
 
