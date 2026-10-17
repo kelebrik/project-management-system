@@ -211,7 +211,9 @@
 .passport-row-controls .wbs-row-delete-button {
   opacity: 1;
   pointer-events: auto;
-  position: static;
+  /* relative, not static: the hit zone (::after) stays around the button, not around the whole table */
+  inset: auto;
+  position: relative;
 }
 
 .passport-actions {

@@ -48,6 +48,11 @@ export function useAppRouting({
   const { t: uiText } = useI18n();
   const initialProjectCodeRef = useRef<string | null>(initialRouteProjectCode());
   const pendingDefaultProjectRef = useRef(false);
+  // The view a navigation leaves: the one last asked for, since a transition may not have rendered it yet when the next click comes.
+  const leavingViewRef = useRef<AppView>(activeView);
+  useEffect(() => {
+    leavingViewRef.current = activeView;
+  }, [activeView]);
   const selectDefaultProject = useCallback(() => {
     const nextProject = pickDefaultProject(projects as ProjectListItem[]);
     pendingDefaultProjectRef.current = !nextProject;
@@ -61,7 +66,9 @@ export function useAppRouting({
       const route = appRouteFromPath(window.location.pathname);
       preloadAppPage(route.view);
       pendingDefaultProjectRef.current = false;
-      if (activeView === "portfolio" && route.view === "projects" && !route.projectCode) {
+      const leaving = leavingViewRef.current;
+      leavingViewRef.current = route.view;
+      if (leaving === "portfolio" && route.view === "projects" && !route.projectCode) {
         selectDefaultProject();
       }
       setActiveView(route.view);
@@ -174,7 +181,9 @@ export function useAppRouting({
         return;
       }
       pendingDefaultProjectRef.current = false;
-      if (activeView === "portfolio" && nextView === "projects" && !options?.projectCode) {
+      const leaving = leavingViewRef.current;
+      leavingViewRef.current = nextView;
+      if (leaving === "portfolio" && nextView === "projects" && !options?.projectCode) {
         selectDefaultProject();
       }
       preloadAppPage(nextView);
@@ -195,21 +204,7 @@ export function useAppRouting({
         }
       }
     },
-    [
-      activeView,
-      sectionAccess,
-      isAuthenticated,
-      isProjectModuleEnabled,
-      dirtyWbsItemIds,
-      project?.code,
-      selectedProjectListItem?.code,
-      selectDefaultProject,
-      setActiveView,
-      setAuthMode,
-      setError,
-      setNotice,
-      uiText,
-    ],
+    [sectionAccess, isAuthenticated, isProjectModuleEnabled, dirtyWbsItemIds, project?.code, selectedProjectListItem?.code, selectDefaultProject, setActiveView, setAuthMode, setError, setNotice, uiText],
   );
 
   useEffect(() => {
