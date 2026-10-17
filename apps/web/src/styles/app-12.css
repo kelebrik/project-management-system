@@ -13,6 +13,11 @@
 }
 
 /* The Structure's toolbar stays in view under the top bars while the page scrolls; in full screen the bars are gone. */
+/* The panel clips with overflow: clip, not hidden, so the sticky bar can follow the page scroll. */
+.workspace-focus-panel.workspace-focus-structure {
+  overflow: clip;
+}
+
 .wbs-structure-controls {
   position: sticky;
   top: calc(var(--global-header-h) + var(--section-nav-h));
@@ -149,7 +154,7 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 2;
+  z-index: 21;
 }
 
 .current-work-row .wbs-save-failed {

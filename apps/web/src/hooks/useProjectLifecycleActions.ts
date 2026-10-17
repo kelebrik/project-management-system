@@ -323,7 +323,7 @@ const applyProject = useCallback(
     setProjectTargetApprovedBy("");
     setWbsUndoHistory([]);
     setWbsRedoHistory([]);
-    setFailedWbsSaves({});
+    if (previousProject?.id !== nextProject.id) setFailedWbsSaves({});
     // The view is this person's own (see effectiveProjectView), not the project's. It is
     // applied when a project opens, not on every reload of its data, so a reload racing a
     // layout save cannot put the old columns back.

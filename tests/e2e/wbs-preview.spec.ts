@@ -145,7 +145,7 @@ test("Escape in another row during a preview restores that row as confirmed, not
   await expect(cell(page, "b", "start").locator("input")).toHaveValue("2026-10-15");
   await expect(cell(page, "b", "workDays").locator("input")).toHaveValue("2");
   // Only the refused edit of the first row remains unsaved; the other row is as confirmed.
-  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Не сохранено: 1");
   await expect(page.locator('[data-wbs-row-id="b"] .dirty')).toHaveCount(0);
 });
 
@@ -168,7 +168,7 @@ test("the Gantt chart says it is drawn from a preliminary calculation while the 
   const { patches } = await openPlan(page);
   await longerFirstTask(page);
   await expect.poll(() => patches.length).toBe(1);
-  await page.getByRole("navigation", { name: "Разделы проекта" }).getByRole("button", { name: "Гантт" }).click();
+  await page.getByRole("navigation", { name: "Разделы проекта" }).getByRole("link", { name: "Гантт" }).click();
   const leave = page.getByRole("dialog");
   if (await leave.isVisible().catch(() => false)) await leave.getByRole("button").last().click();
   await expect(page.getByRole("status").filter({ hasText: "Предварительный расчёт" })).toBeVisible();
@@ -365,14 +365,14 @@ test("a change that removes a row edited here is not taken in quietly: the edit 
   await longerFirstTask(page);
   await expect.poll(() => plan.patches.length).toBe(1);
   await plan.patches[0]!.answer(409, { error: "Строку изменили, обновите страницу" });
-  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Не сохранено: 1");
   await page.route("**/api/projects/project-1/structure?since=*", (route) =>
     route.fulfill({ json: { projectId: "project-1", version: "2", baseVersion: "1", full: false, today: "2026-10-13", calendarOverrides: [], items: [], dependencies: [], deletedItemIds: ["a"], deletedDependencyIds: [] } }),
   );
   emit({ structureVersion: "2", structureOnly: true });
   await expect(page.getByRole("status").filter({ hasText: "Анна Орлова" })).toBeVisible();
   await expect(cell(page, "a", "workDays").locator("input")).toHaveValue("5");
-  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Не сохранено: 1");
 });
 
 test("a change made between reading the project and opening its stream is caught up with when the stream opens", async ({ page }) => {
@@ -413,7 +413,7 @@ test("text typed into a row and not yet taken in survives that row being removed
   await plan.patches[0]!.answer(409, { error: "Строку изменили, обновите страницу" });
   await expect(page.getByRole("status").filter({ hasText: "Анна Орлова" })).toBeVisible();
   await expect(typed).toHaveValue("9");
-  await expect(page.locator(".wbs-save-state")).toHaveText("Есть изменения: 1");
+  await expect(page.locator(".wbs-save-state")).toHaveText("Не сохранено: 1");
 });
 
 /** What the signed-in person's database on this device holds for the project. */

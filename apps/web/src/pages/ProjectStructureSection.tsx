@@ -125,7 +125,7 @@ export function ProjectStructureSection() {
   const [englishPrintRequested, setEnglishPrintRequested] = useState(false);
   const englishRowsNeeded = showEnglishMenu || englishPrintRequested;
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-  const failedSaveCount = Object.keys(failedWbsSaves as Record<string, string>).length;
+  const failedSaveCount = Object.keys(failedWbsSaves as Record<string, string>).filter((id) => dirtyWbsItemIds.has(id)).length;
   const [showFullscreenHint, setShowFullscreenHint] = useState(false);
   const fullscreenHintShownRef = useRef(false);
   const previousDirtyCountRef = useRef(dirtyWbsItemIds.size);

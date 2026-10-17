@@ -42,7 +42,14 @@ export function ToolbarMenu({ label, icon, title, className = "", onOpenChange, 
     }
   };
   return (
-    <div ref={rootRef} className={`toolbar-menu ${className}`.trim()} onKeyDown={onKey}>
+    <div
+      ref={rootRef}
+      className={`toolbar-menu ${className}`.trim()}
+      onKeyDown={onKey}
+      onBlur={(event) => {
+        if (open && !rootRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
+      }}
+    >
       <button
         type="button"
         ref={buttonRef}
@@ -65,9 +72,6 @@ export function ToolbarMenu({ label, icon, title, className = "", onOpenChange, 
           onClick={(event) => {
             const action = (event.target as HTMLElement).closest("button, a, label");
             if (action && !action.hasAttribute("data-keep-open")) setOpen(false);
-          }}
-          onBlur={(event) => {
-            if (!rootRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false);
           }}
         >
           {children}

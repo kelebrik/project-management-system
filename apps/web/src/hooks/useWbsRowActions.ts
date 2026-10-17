@@ -105,7 +105,12 @@ export function useWbsRowActions({
 
   /** Marks rows whose save failed, with the reason; an answer that says the write went through is not a failure. */
   const markFailedSaves = (ids: string[], failure: unknown, fallback: string) => {
-    if (failure instanceof StructureWriteSettledError || ids.length === 0) return;
+    // A write that turned out saved after all is not a failure: its mark goes.
+    if (failure instanceof StructureWriteSettledError) {
+      if (failure.saved) clearFailedSaves(ids);
+      return;
+    }
+    if (ids.length === 0) return;
     const message = failure instanceof Error ? failure.message : fallback;
     setFailedWbsSaves((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, message])) }));
   };
@@ -913,6 +918,7 @@ export function useWbsRowActions({
       } else {
         await refreshProject();
       }
+      clearFailedSaves([itemId]);
       setNotice("Элемент Структуры удален");
     } catch (deleteError) {
       reportStructureWriteFailure(deleteError, "Не удалось удалить элемент Структуры", setError, setNotice);
@@ -952,6 +958,7 @@ export function useWbsRowActions({
         await refreshProject(project.id);
       }
       setSelectedWbsIds(new Set());
+      clearFailedSaves(itemIds);
       setNotice(`Удалено элементов Структуры: ${result?.deletedCount ?? itemIds.length}`);
     } catch (deleteError) {
       reportStructureWriteFailure(deleteError, "Не удалось удалить выбранные элементы Структуры", setError, setNotice);

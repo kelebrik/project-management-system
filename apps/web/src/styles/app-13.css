@@ -94,7 +94,6 @@
 .wbs-inline-insert-button::after,
 .wbs-row-delete-button::after,
 .wbs-row-drag-handle::after,
-.wbs-level-step::after,
 .wbs-save-failed::after {
   content: "";
   inset: -4px;
@@ -104,9 +103,20 @@
 .wbs-inline-insert-button,
 .wbs-row-delete-button,
 .wbs-row-drag-handle,
-.wbs-level-step,
+.wbs-level-stepper button,
 .wbs-save-failed {
   position: relative;
+}
+
+/* The two level buttons sit one above the other: each zone grows outwards and sideways, not into the other. */
+.wbs-level-stepper button::after {
+  content: "";
+  inset: -4px -6px 0;
+  position: absolute;
+}
+
+.wbs-level-stepper button:last-child::after {
+  inset: 0 -6px -4px;
 }
 
 .wbs-inline-insert-button {

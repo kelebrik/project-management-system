@@ -63,9 +63,15 @@ export function ProjectMoreMenu({ items, activeView, labelOf, hrefOf, onNavigate
     setShownView(activeView);
     setOpen(false);
   }
-  // The first entry takes the focus once the menu is placed (hidden until then, it cannot be focused).
+  // The first entry takes the focus once the menu is placed (hidden until then, it cannot be focused);
+  // a later re-placement on scroll or resize leaves the focus where the keys put it.
+  const focusedRef = useRef(false);
   useEffect(() => {
-    if (open && place) menuRef.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    if (!open) focusedRef.current = false;
+    if (open && place && !focusedRef.current) {
+      focusedRef.current = true;
+      menuRef.current?.querySelector<HTMLElement>("[role=menuitem]")?.focus();
+    }
   }, [open, place]);
 
   if (items.length === 0) return null;
@@ -75,7 +81,7 @@ export function ProjectMoreMenu({ items, activeView, labelOf, hrefOf, onNavigate
     if (refocus) buttonRef.current?.focus();
   };
   const onMenuKey = (event: KeyboardEvent<HTMLDivElement>) => {
-    const entries = [...(menuRef.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? [])];
+    const entries = Array.from(menuRef.current?.querySelectorAll<HTMLElement>("[role=menuitem]") ?? []);
     const index = entries.indexOf(document.activeElement as HTMLElement);
     if (event.key === "Escape") {
       event.preventDefault();
