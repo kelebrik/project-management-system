@@ -35,6 +35,8 @@ export function useWbsWorkspaceState() {
   const [ganttScale, setGanttScale] = useState<GanttScale>("month");
   const [ganttRangeDays, setGanttRangeDays] = useState<30 | 90 | 180 | null>(90);
   const [showWbsColumnMenu, setShowWbsColumnMenu] = useState(false);
+  /** Rows whose last save failed, with the reason: marked until a save of theirs goes through. */
+  const [failedWbsSaves, setFailedWbsSaves] = useState<Record<string, string>>({});
   const [ganttWbsWidth, setGanttWbsWidth] = useState(360);
   const [ganttPanelHeight, setGanttPanelHeight] = useState(
     GANTT_PANEL_HEIGHT_DEFAULT,
@@ -138,6 +140,8 @@ export function useWbsWorkspaceState() {
     setSelectedWbsIds,
     savingWbsBulk,
     setSavingWbsBulk,
+    failedWbsSaves,
+    setFailedWbsSaves,
     wbsUndoStackRef,
     wbsRedoStackRef,
   };

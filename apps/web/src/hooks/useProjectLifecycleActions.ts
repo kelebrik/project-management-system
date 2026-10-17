@@ -120,6 +120,7 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     setWbsColumnOrder,
     setWbsColumnWidths,
     setWbsDrafts,
+    setFailedWbsSaves,
     setWbsHiddenColumns,
     setWbsRedoHistory,
     setWbsSort,
@@ -322,6 +323,7 @@ const applyProject = useCallback(
     setProjectTargetApprovedBy("");
     setWbsUndoHistory([]);
     setWbsRedoHistory([]);
+    setFailedWbsSaves({});
     // The view is this person's own (see effectiveProjectView), not the project's. It is
     // applied when a project opens, not on every reload of its data, so a reload racing a
     // layout save cannot put the old columns back.
@@ -471,7 +473,7 @@ const applyProject = useCallback(
     );
   },
   // All of these are state setters and refs, stable between renders.
-  [currentUser?.id, projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
+  [currentUser?.id, projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setFailedWbsSaves, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
 );
 
 useEffect(() => {

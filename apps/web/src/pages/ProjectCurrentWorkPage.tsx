@@ -47,6 +47,8 @@ export function ProjectCurrentWorkPage() {
     project,
     saveProjectUiState,
     saveWbsDraftPatch,
+    failedWbsSaves,
+    saveDirtyWbsItems,
     setActiveWbsItemId,
     setError,
     updateWbsDraft,
@@ -199,12 +201,25 @@ export function ProjectCurrentWorkPage() {
           </div>
           {rows.map((row) => (
             <div
-              className="current-work-row"
+              className={`current-work-row${failedWbsSaves[row.id] ? " save-failed" : ""}`}
               role="row"
               key={row.id}
               onFocus={() => setActiveWbsItemId(row.id)}
             >
-              <span role="cell">{row.code}</span>
+              <span role="cell">
+                {row.code}
+                {failedWbsSaves[row.id] && (
+                  <button
+                    type="button"
+                    className="wbs-save-failed"
+                    aria-label={uiText("structure.rowSaveFailed", { message: failedWbsSaves[row.id] })}
+                    title={uiText("structure.rowSaveFailed", { message: failedWbsSaves[row.id] })}
+                    onClick={() => void saveDirtyWbsItems()}
+                  >
+                    !
+                  </button>
+                )}
+              </span>
               <span role="cell">{row.workPackage}</span>
               <span role="cell" className="current-work-title">
                 <a

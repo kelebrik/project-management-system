@@ -403,6 +403,9 @@ export const work = {
     "ru": "Сохранить Структуру в PDF на английском"
   },
   "structure.exportMenu": { "en": "Export", "ru": "Экспорт" },
+  "structure.failedCount": { "en": "Not saved: {count}", "ru": "Не сохранено: {count}" },
+  "structure.retrySave": { "en": "Retry", "ru": "Повторить" },
+  "structure.rowSaveFailed": { "en": "The row was not saved: {message}. Retry", "ru": "Строка не сохранена: {message}. Повторить" },
   "structure.baselineMenu": { "en": "Baseline", "ru": "Базовый план" },
   "structure.translationsImport": {
     "en": "EN translations: import",

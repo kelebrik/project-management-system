@@ -107,6 +107,55 @@
   color: var(--brand);
 }
 
+/* A save that failed: the state names the rows, each row carries a mark that retries; both stay until a save goes through. */
+.wbs-save-state.failed {
+  background: var(--danger-soft);
+  color: var(--danger-800);
+}
+
+.wbs-save-retry {
+  margin-left: 4px;
+}
+
+.wbs-table-row.save-failed,
+.current-work-row.save-failed {
+  box-shadow: inset 3px 0 0 var(--danger);
+}
+
+.wbs-table-row {
+  position: relative;
+}
+
+.wbs-save-failed {
+  align-items: center;
+  background: var(--danger);
+  border: 0;
+  border-radius: 999px;
+  color: var(--on-danger);
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 900;
+  height: 18px;
+  justify-content: center;
+  line-height: 1;
+  min-height: 0;
+  padding: 0;
+  width: 18px;
+}
+
+.wbs-table-row .wbs-save-failed {
+  left: 6px;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.current-work-row .wbs-save-failed {
+  margin-left: 6px;
+}
+
 /* A row edit shown as the browser worked it out, until the server answers. */
 .wbs-preview-state {
   background: var(--brand-soft-2);

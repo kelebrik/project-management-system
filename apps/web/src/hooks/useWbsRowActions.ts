@@ -58,6 +58,7 @@ type WbsRowActionsDeps = {
   pushToast: (tone: ToastTone, message: string) => void;
   setSelectedWbsIds: Dispatch<SetStateAction<Set<string>>>;
   setSavingWbsBulk: Dispatch<SetStateAction<boolean>>;
+  setFailedWbsSaves: Dispatch<SetStateAction<Record<string, string>>>;
   setWbsDrafts: Dispatch<SetStateAction<Record<string, WbsFormState>>>;
   setWbsDropTargetId: Dispatch<SetStateAction<string | null>>;
   setWbsUndoHistory: (nextStack: WbsUndoStep[]) => void;
@@ -89,6 +90,7 @@ export function useWbsRowActions({
   setNotice,
   setSelectedWbsIds,
   setSavingWbsBulk,
+  setFailedWbsSaves,
   setWbsDrafts,
   setWbsDropTargetId,
   setWbsUndoHistory,
@@ -100,6 +102,21 @@ export function useWbsRowActions({
   wbsTree,
   pushToast,
 }: WbsRowActionsDeps) {
+
+  /** Marks rows whose save failed, with the reason; an answer that says the write went through is not a failure. */
+  const markFailedSaves = (ids: string[], failure: unknown, fallback: string) => {
+    if (failure instanceof StructureWriteSettledError || ids.length === 0) return;
+    const message = failure instanceof Error ? failure.message : fallback;
+    setFailedWbsSaves((current) => ({ ...current, ...Object.fromEntries(ids.map((id) => [id, message])) }));
+  };
+  const clearFailedSaves = (ids: string[]) => {
+    setFailedWbsSaves((current) => {
+      if (!ids.some((id) => id in current)) return current;
+      const next = { ...current };
+      for (const id of ids) delete next[id];
+      return next;
+    });
+  };
   const warnScheduleOverrides = useScheduleOverrideWarning(pushToast);
   // A project whose edit may have been saved without the page hearing back: it is read again once no edit is on its way.
   const reconcileProjectRef = useRef<string | null>(null);
@@ -315,6 +332,7 @@ export function useWbsRowActions({
       }
 
       if (dirtyIds.some((itemId) => !isLatestWbsSave(itemId, saveSequence))) return;
+      clearFailedSaves(dirtyIds);
       applyWbsSnapshotResult(
         snapshotResult.wbsItems,
         snapshotResult.wbsDependencies,
@@ -325,6 +343,7 @@ export function useWbsRowActions({
         setNotice("Изменения Структуры сохранены");
       }
     } catch (saveError) {
+      markFailedSaves(dirtyIds.filter((itemId) => isLatestWbsSave(itemId, saveSequence)), saveError, "Не удалось сохранить изменения Структуры");
       reportStructureWriteFailure(saveError, "Не удалось сохранить изменения Структуры", setError, setNotice);
     } finally {
       pendingWbsSaveCountRef.current = Math.max(
@@ -612,11 +631,14 @@ export function useWbsRowActions({
         );
         warned = warnScheduleOverrides({ [itemId]: draft }, activeProject.wbsItems, snapshotResult);
       }
+      clearFailedSaves([itemId]);
       if (!options.silent && !warned) setNotice("Элемент Структуры обновлен");
     } catch (saveError) {
       // Without an answer the write may still have been saved: the project is read again once nothing else is on its way.
       reloadAfterLostAnswer = previewOperation !== null && !(saveError instanceof ApiError);
       if (!isLatestWbsSave(itemId, saveSequence)) return;
+      // A lost answer is not known to have failed: the project is read again instead.
+      if (!reloadAfterLostAnswer) markFailedSaves([itemId], saveError, "Не удалось сохранить элемент Структуры");
       reportStructureWriteFailure(saveError, "Не удалось сохранить элемент Структуры", setError, setNotice);
     } finally {
       endPreview(previewOperation);

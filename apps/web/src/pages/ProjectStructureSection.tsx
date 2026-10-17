@@ -44,6 +44,7 @@ export function ProjectStructureSection() {
     activeWbsHierarchyLevel,
     activeWbsItemId,
     dirtyWbsItemIds,
+    failedWbsSaves,
     structurePreviewDisplay,
     deleteSelectedWbsItems,
     draggedWbsColumn,
@@ -124,6 +125,7 @@ export function ProjectStructureSection() {
   const [englishPrintRequested, setEnglishPrintRequested] = useState(false);
   const englishRowsNeeded = showEnglishMenu || englishPrintRequested;
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
+  const failedSaveCount = Object.keys(failedWbsSaves as Record<string, string>).length;
   const [showFullscreenHint, setShowFullscreenHint] = useState(false);
   const fullscreenHintShownRef = useRef(false);
   const previousDirtyCountRef = useRef(dirtyWbsItemIds.size);
@@ -456,16 +458,24 @@ export function ProjectStructureSection() {
                               </>
                             )}
                             <span
-                              className={`wbs-save-state ${savingWbsBulk ? "saving" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                              className={`wbs-save-state ${savingWbsBulk ? "saving" : failedSaveCount > 0 ? "failed" : dirtyWbsItemIds.size > 0 ? "dirty" : "saved"}`}
+                              role="status"
                             >
                               {savingWbsBulk
                                 ? uiText("structure.savingCount", { count: dirtyWbsItemIds.size })
-                                : dirtyWbsItemIds.size > 0
-                                  ? uiText("structure.dirtyCount", { count: dirtyWbsItemIds.size })
-                                  : lastSavedAt
-                                    ? uiText("structure.savedAt", { time: lastSavedAt.toLocaleTimeString(intlLocale(uiLocale), { hour: "2-digit", minute: "2-digit" }) })
-                                    : uiText("ui.projects.allChangesSavedNotice")}
+                                : failedSaveCount > 0
+                                  ? uiText("structure.failedCount", { count: failedSaveCount })
+                                  : dirtyWbsItemIds.size > 0
+                                    ? uiText("structure.dirtyCount", { count: dirtyWbsItemIds.size })
+                                    : lastSavedAt
+                                      ? uiText("structure.savedAt", { time: lastSavedAt.toLocaleTimeString(intlLocale(uiLocale), { hour: "2-digit", minute: "2-digit" }) })
+                                      : uiText("ui.projects.allChangesSavedNotice")}
                             </span>
+                            {failedSaveCount > 0 && !savingWbsBulk && !isReadOnly && (
+                              <button type="button" className="wbs-save-retry" onClick={() => void saveDirtyWbsItems()}>
+                                {uiText("structure.retrySave")}
+                              </button>
+                            )}
                             <div className="column-menu">
                               <button
                                 type="button"
@@ -860,9 +870,23 @@ export function ProjectStructureSection() {
                                   item.type === "MILESTONE" || item.type === "GOAL"
                                     ? "milestone"
                                     : ""
-                                } ${activeWbsItemId === item.id ? "active" : ""}`}
+                                } ${activeWbsItemId === item.id ? "active" : ""} ${failedWbsSaves[item.id] ? "save-failed" : ""}`}
                                 onClick={() => setActiveWbsItemId(item.id)}
                               >
+                                {failedWbsSaves[item.id] && (
+                                  <button
+                                    type="button"
+                                    className="wbs-save-failed"
+                                    aria-label={uiText("structure.rowSaveFailed", { message: failedWbsSaves[item.id] })}
+                                    title={uiText("structure.rowSaveFailed", { message: failedWbsSaves[item.id] })}
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void saveDirtyWbsItems();
+                                    }}
+                                  >
+                                    !
+                                  </button>
+                                )}
                                 {orderedWbsColumns.map((column) => (
                                   <div
                                     key={`${item.id}-${column.key}`}
