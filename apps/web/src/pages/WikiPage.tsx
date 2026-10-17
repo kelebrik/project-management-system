@@ -1,5 +1,6 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { getWikiGroups } from "../i18n/wiki";
+export { default as WikiNavigation } from "../components/WikiNavigation";
 import { intlLocale } from "../i18n/locale";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import type { Locale } from "../i18n/types";

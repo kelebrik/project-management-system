@@ -21,6 +21,7 @@ import {
 import { projectModuleKeyByView } from "../app/projectModules";
 import { useI18n } from "../i18n/I18nProvider";
 import { hasPendingWbsBuffers } from "../app/wbsBuffers";
+import { preloadAppPage } from "../pages/pageModules";
 
 type AppRoutingDeps = AppStateBag;
 
@@ -58,6 +59,7 @@ export function useAppRouting({
       setError(null);
       setNotice(null);
       const route = appRouteFromPath(window.location.pathname);
+      preloadAppPage(route.view);
       pendingDefaultProjectRef.current = false;
       if (activeView === "portfolio" && route.view === "projects" && !route.projectCode) {
         selectDefaultProject();
@@ -175,6 +177,7 @@ export function useAppRouting({
       if (activeView === "portfolio" && nextView === "projects" && !options?.projectCode) {
         selectDefaultProject();
       }
+      preloadAppPage(nextView);
       setActiveView(nextView);
       const routeProjectCode =
         options?.projectCode ??

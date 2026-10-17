@@ -5,6 +5,11 @@ import App from './App.tsx'
 import { ConfirmProvider } from './components/ConfirmDialog'
 import { I18nProvider } from './i18n/I18nProvider'
 import { ErrorBoundary, ErrorNotice } from './components/ErrorBoundary'
+import { preloadAppPage } from './pages/pageModules'
+import { initialAppView } from './app/routes'
+
+// Fetch the requested page alongside authentication and project data.
+preloadAppPage(initialAppView())
 
 // A number field in focus would take a scroll over it (a wheel, two fingers on a touchpad) as steps up or
 // down: the field lets go of the focus instead, so the value stays and the page scrolls on.

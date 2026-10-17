@@ -1,4 +1,5 @@
-import type { FocusEventHandler, KeyboardEventHandler, ReactNode } from "react";
+import { startTransition, Suspense, type FocusEventHandler, type KeyboardEventHandler, type ReactNode } from "react";
+import { preloadAppPage, WikiNavigation } from "../pages/pageModules";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
 import { NotificationsBell } from "./notifications/NotificationsBell";
 import { CloudHeaderSlot } from "./CloudSlot";
@@ -15,7 +16,6 @@ import {
   type ProjectSectionView,
   type SectionAccess,
 } from "../app/routes";
-import { getWikiGroups } from "../i18n/wiki";
 import { AppPages, IssueDrawer, PageBoundary } from "../pages";
 import { PageContextProvider, type PageContextValue } from "../pages/PageContext";
 import { ProjectCreateDialog } from "./projectCreate/ProjectCreateDialog";
@@ -30,6 +30,10 @@ import { LanguageToggle } from "./LanguageToggle";
 import { useTheme } from "../hooks/useTheme";
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
 import { useI18n } from "../i18n/I18nProvider";
+
+function navigationIntent(view: AppView) {
+  return { onPointerEnter: () => preloadAppPage(view), onFocus: () => preloadAppPage(view) };
+}
 
 type ScheduleHealth = {
   tone: string;
@@ -167,9 +171,10 @@ export function AppShell({
   signedDaysLabel,
   viewTitle,
 }: AppShellProps) {
-  const { t, locale } = useI18n();
-  const wikiGroups = getWikiGroups(locale);
+  const { t } = useI18n();
   useTheme();
+  // Keep the current workspace visible while the destination code arrives.
+  const navigate = (view: AppView) => startTransition(() => openView(view));
   const login = () => {
     onAuthModeChange("login");
     onErrorChange(null);
@@ -212,7 +217,8 @@ export function AppShell({
             <button
               type="button"
               className={activeView === "my-page" ? "active" : ""}
-              onClick={() => openView("my-page")}
+              {...navigationIntent("my-page")}
+              onClick={() => navigate("my-page")}
             >
               <LayoutDashboard size={15} /> {t("view.my-page")}
             </button>
@@ -220,14 +226,16 @@ export function AppShell({
           <button
             type="button"
             className={activeView === "portfolio" ? "active" : ""}
-            onClick={() => openView("portfolio")}
+            {...navigationIntent("portfolio")}
+            onClick={() => navigate("portfolio")}
           >
             <BriefcaseBusiness size={15} /> {t("view.portfolio")}
           </button>
           <button
             type="button"
             className={projectsActive ? "active" : ""}
-            onClick={() => openView("projects")}
+            {...navigationIntent("projects")}
+            onClick={() => navigate("projects")}
           >
             <FolderTree size={15} /> {t("nav.projects")}
           </button>
@@ -235,7 +243,8 @@ export function AppShell({
             <button
               type="button"
               className={isOperationsSectionView ? "active" : ""}
-              onClick={() => openView("leave-schedule")}
+              {...navigationIntent("leave-schedule")}
+              onClick={() => navigate("leave-schedule")}
             >
               <ClipboardList size={15} /> {t("nav.operations")}
             </button>
@@ -244,7 +253,8 @@ export function AppShell({
             <button
               type="button"
               className={isAdminSectionView ? "active" : ""}
-              onClick={() => openView("admin-projects")}
+              {...navigationIntent("admin-projects")}
+              onClick={() => navigate("admin-projects")}
             >
               <Settings size={15} /> {t("nav.administration")}
             </button>
@@ -253,7 +263,8 @@ export function AppShell({
             <button
               type="button"
               className={isDevelopmentSectionView ? "active" : ""}
-              onClick={() => openView("decision-queue")}
+              {...navigationIntent("decision-queue")}
+              onClick={() => navigate("decision-queue")}
             >
               <Code2 size={15} /> {t("nav.development")}
             </button>
@@ -261,7 +272,8 @@ export function AppShell({
           <button
             type="button"
             className={activeView === "wiki" ? "active" : ""}
-            onClick={() => openView("wiki")}
+            {...navigationIntent("wiki")}
+            onClick={() => navigate("wiki")}
           >
             <BookOpen size={15} /> FAQ
           </button>
@@ -283,7 +295,8 @@ export function AppShell({
             <button
               type="button"
               className={activeView === "projects" ? "active" : ""}
-              onClick={() => openView("projects")}
+              {...navigationIntent("projects")}
+              onClick={() => navigate("projects")}
             >
               <FolderTree size={15} /> {t("nav.registry")}
             </button>
@@ -294,7 +307,8 @@ export function AppShell({
                   type="button"
                   key={item.view}
                   className={activeView === item.view ? "active" : ""}
-                  onClick={() => openView(item.view)}
+                  {...navigationIntent(item.view)}
+                  onClick={() => navigate(item.view)}
                   title={t(item.label)}
                 >
                   {item.icon}
@@ -321,7 +335,8 @@ export function AppShell({
               type="button"
               key={item.view}
               className={activeView === item.view ? "active" : ""}
-              onClick={() => openView(item.view)}
+              {...navigationIntent(item.view)}
+              onClick={() => navigate(item.view)}
             >
               {item.icon} {t(item.label)}
             </button>
@@ -344,7 +359,8 @@ export function AppShell({
                 type="button"
                 key={item.view}
                 className={activeView === item.view ? "active" : ""}
-                onClick={() => openView(item.view)}
+                {...navigationIntent(item.view)}
+                onClick={() => navigate(item.view)}
               >
                 {item.icon} {t(item.label)}
               </button>
@@ -363,7 +379,8 @@ export function AppShell({
                   type="button"
                   key={item.view}
                   className={activeView === item.view ? "active" : ""}
-                  onClick={() => openView(item.view)}
+                  {...navigationIntent(item.view)}
+                  onClick={() => navigate(item.view)}
                 >
                   {item.icon} {t(item.label)}
                 </button>
@@ -373,20 +390,12 @@ export function AppShell({
       )}
 
       {activeView === "wiki" && (
-        <nav className="section-navigation section-tabs wiki-section-tabs" aria-label={t("nav.contents")}>
-          {wikiGroups.flatMap((group) => [
-            <a href={`#${group.id}`} key={group.id}>{group.title}</a>,
-            ...group.articles.map((article) => (
-              <a
-                className="wiki-article-tab"
-                href={`#${article.id}`}
-                key={article.id}
-              >
-                {article.title}
-              </a>
-            )),
-          ])}
-        </nav>
+        // A failed shared wiki chunk is reported by the page below; the header stays usable.
+        <ErrorBoundary resetKey={activeView} fallback={() => null}>
+          <Suspense fallback={<nav className="section-navigation section-tabs wiki-section-tabs" aria-label={t("nav.contents")} aria-busy="true" />}>
+            <WikiNavigation />
+          </Suspense>
+        </ErrorBoundary>
       )}
 
       <main className="workspace">

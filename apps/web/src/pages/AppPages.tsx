@@ -1,88 +1,55 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import { ProjectDecisionsPage } from "./ProjectDecisionsPage";
-import { JiraReconciliationPage } from './JiraReconciliationPage';
 import { Suspense } from "react";
-import { lazyWithReload } from "../app/staleBuild";
 import { PageSkeleton } from "../components/Skeleton";
-import { AdminAuditPageContent } from "./AdminAuditPageContent";
-import { AdminAnalyticsPageContent } from "./AdminAnalyticsPageContent";
-import { AdminBackupsPageContent, AdminConfigPageContent, AdminHealthPageContent } from "./AdminStatusPages";
-import { AdminIntegrationsPageContent } from "./AdminIntegrationsPageContent";
-import { AdminModulesPageContent } from "./AdminModulesPageContent";
-import { AdminProjectAccessPageContent } from "./AdminProjectAccessPageContent";
-import { AdminProjectsPageContent } from "./AdminProjectsPageContent";
-import { AdminRolesPageContent } from "./AdminRolesPageContent";
-import { AdminUsersPageContent } from "./AdminUsersPageContent";
-import { BusinessUnitsPageContent } from "./BusinessUnitsPageContent";
-import { ClosedProjectsPage } from "./ClosedProjectsPage";
-import { PortfolioPage } from "./PortfolioPage";
-import { ProjectsPage } from "./ProjectsPage";
-import { ReportsPage } from "./ReportsPage";
-import { ProjectArtifactsPage } from "./ProjectArtifactsPage";
-import { ProjectBusinessRequirementsPage } from "./ProjectBusinessRequirementsPage";
-import { ProjectCalendarsPage } from "./ProjectCalendarsPage";
-import { ProjectCurrentWorkPage } from "./ProjectCurrentWorkPage";
-import { DevelopmentOpenIssuesPage } from "./DevelopmentOpenIssuesPage";
-import { ProjectJiraWorkPage } from "./ProjectJiraWorkPage";
-import { ProjectOverviewMilestonesPage } from "./ProjectOverviewMilestonesPage";
-import { ProjectOverviewSummaryPage } from "./ProjectOverviewSummaryPage";
-import { ProjectPassportPage } from "./ProjectPassportPage";
-import { ProjectRaidPage } from "./ProjectRaidPage";
-import { ProjectChangesPage } from "./ProjectSupportPages";
-import { ProjectWorkspacePage } from "./ProjectWorkspacePage";
 import { usePageContext } from "./PageContext";
-import { WikiPage } from "./WikiPage";
 import { canViewAppView, isDevelopmentSectionViewName, isOperationsSectionViewName } from "../app/routes";
 
-const LeaveSchedulePage = lazyWithReload(() =>
-  import("./LeaveSchedulePage").then((module) => ({
-    default: module.LeaveSchedulePage,
-  })),
-);
-const ProjectHistoryPage = lazyWithReload(() =>
-  import("./ProjectHistoryPage").then((module) => ({
-    default: module.ProjectHistoryPage,
-  })),
-);
-const WorkloadPage = lazyWithReload(() =>
-  import("./WorkloadPage").then((module) => ({
-    default: module.WorkloadPage,
-  })),
-);
-const MyWorkPage = lazyWithReload(() =>
-  import("./MyWorkPage").then((module) => ({
-    default: module.MyWorkPage,
-  })),
-);
-const AutomationRulesPage = lazyWithReload(() => import("./AutomationRulesPage"));
-const ProjectSchedulePage = lazyWithReload(() => import("./ProjectSchedulePage"));
-const MyPagePage = lazyWithReload(() =>
-  import("./MyPagePage").then((module) => ({
-    default: module.MyPagePage,
-  })),
-);
-const SharedPagePage = lazyWithReload(() =>
-  import("./SharedPagePage").then((module) => ({
-    default: module.SharedPagePage,
-  })),
-);
-const RaciMatrixPage = lazyWithReload(() =>
-  import("./RaciMatrixPage").then((module) => ({
-    default: module.RaciMatrixPage,
-  })),
-);
-const LessonsRegisterPage = lazyWithReload(() =>
-  import("./LessonsRegisterPage").then((module) => ({
-    default: module.LessonsRegisterPage,
-  })),
-);
-const DecisionQueuePage = lazyWithReload(() =>
-  import("./DecisionQueuePage").then((module) => ({
-    default: module.DecisionQueuePage,
-  })),
-);
+import {
+  ProjectDecisionsPage,
+  JiraReconciliationPage,
+  AdminAuditPageContent,
+  AdminAnalyticsPageContent,
+  AdminBackupsPageContent,
+  AdminConfigPageContent,
+  AdminHealthPageContent,
+  AdminIntegrationsPageContent,
+  AdminModulesPageContent,
+  AdminProjectAccessPageContent,
+  AdminProjectsPageContent,
+  AdminRolesPageContent,
+  AdminUsersPageContent,
+  BusinessUnitsPageContent,
+  ClosedProjectsPage,
+  PortfolioPage,
+  ProjectsPage,
+  ReportsPage,
+  ProjectArtifactsPage,
+  ProjectBusinessRequirementsPage,
+  ProjectCalendarsPage,
+  ProjectCurrentWorkPage,
+  DevelopmentOpenIssuesPage,
+  ProjectJiraWorkPage,
+  ProjectOverviewMilestonesPage,
+  ProjectOverviewSummaryPage,
+  ProjectPassportPage,
+  ProjectRaidPage,
+  ProjectChangesPage,
+  ProjectWorkspacePage,
+  WikiPage,
+  LeaveSchedulePage,
+  ProjectHistoryPage,
+  WorkloadPage,
+  MyWorkPage,
+  AutomationRulesPage,
+  ProjectSchedulePage,
+  MyPagePage,
+  SharedPagePage,
+  RaciMatrixPage,
+  LessonsRegisterPage,
+  DecisionQueuePage,
+} from "./pageModules";
 
-function DevelopmentPageFallback() {
+function PageFallback() {
   const { t: uiText } = useInterfaceTranslation();
   return (
     <div className="page-loading-skeleton" aria-label={uiText("ui.projects.loadingPage")}>
@@ -108,52 +75,34 @@ export function AppPages() {
   }
 
   return (
-    <>
+    <Suspense fallback={<PageFallback />}>
       {activeView === "portfolio" && <PortfolioPage />}
       {activeView === "workload" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <WorkloadPage />
-        </Suspense>
+        <WorkloadPage />
       )}
       {activeView === "leave-schedule" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <LeaveSchedulePage />
-        </Suspense>
+        <LeaveSchedulePage />
       )}
       {activeView === "my-work" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <MyWorkPage />
-        </Suspense>
+        <MyWorkPage />
       )}
       {activeView === "my-page" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <MyPagePage />
-        </Suspense>
+        <MyPagePage />
       )}
       {activeView === "shared-page" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <SharedPagePage />
-        </Suspense>
+        <SharedPagePage />
       )}
       {activeView === "automation-rules" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <AutomationRulesPage />
-        </Suspense>
+        <AutomationRulesPage />
       )}
       {activeView === "raci-matrix" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <RaciMatrixPage />
-        </Suspense>
+        <RaciMatrixPage />
       )}
       {activeView === "lessons-register" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <LessonsRegisterPage />
-        </Suspense>
+        <LessonsRegisterPage />
       )}
       {activeView === "decision-queue" && (
-        <Suspense fallback={<DevelopmentPageFallback />}>
-          <DecisionQueuePage />
-        </Suspense>
+        <DecisionQueuePage />
       )}
       {(activeView === "projects" || activeView === "project-create") && <ProjectsPage />}
       {activeView === "reports" && <ReportsPage />}
@@ -178,9 +127,7 @@ export function AppPages() {
         {activeView === "admin-audit" && <AdminAuditPageContent />}
         {activeView === "admin-analytics" && <AdminAnalyticsPageContent />}
         {project && activeView === "project-schedule" && (
-          <Suspense fallback={<DevelopmentPageFallback />}>
-            <ProjectSchedulePage />
-          </Suspense>
+          <ProjectSchedulePage />
         )}
         {/* The schedule before the Highcharts one, kept in Development for comparison and its two-page PDF. */}
         {project && activeView === "schedule-legacy" && <ProjectOverviewMilestonesPage />}
@@ -197,6 +144,6 @@ export function AppPages() {
         {project && activeView === "project-raid" && <ProjectRaidPage />}
         {project && activeView === "project-artifacts" && <ProjectArtifactsPage />}
       </section>
-    </>
+    </Suspense>
   );
 }
