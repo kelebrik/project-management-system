@@ -342,3 +342,22 @@ test("my page: a portfolio roadmap with goals named next to them, never overlapp
   await expect(roadmap.locator("h2")).toHaveText("Цели проектов: −1 / +3 месяцев");
   await page.screenshot({ path: test.info().outputPath("my-page-roadmap.png") });
 });
+
+test("my page: a chart switched to a line draws, while the answer still holds its old groups", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await mockAdminProject(page);
+  await mockPages(page);
+  await page.goto("/development/my-page");
+  await expect(page.getByRole("button", { name: /Портфель для руководителя/ })).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
+  await page.getByRole("button", { name: "Создать страницу" }).click();
+  const sheet = page.locator("#dashboard-page");
+  await sheet.locator('[data-widget-id="c-risks"] .mp-widget-head').click();
+  const panel = page.getByRole("complementary", { name: "Виджет" });
+  // The answer for a regrouped widget comes later; here it even keeps the projects as groups.
+  await panel.getByRole("radio", { name: "Линия" }).click();
+  await expect(sheet.locator('[data-widget-id="c-risks"] svg')).toBeVisible();
+  await expect(page.getByText("Не удалось показать страницу")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

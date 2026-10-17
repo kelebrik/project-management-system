@@ -194,3 +194,14 @@ test("every kind of widget and every display has its name in both languages", as
   const messages = pagesMessages as Record<string, { en: string; ru: string } | undefined>;
   assert.deepEqual(keys.filter((key) => !messages[key]?.en || !messages[key]?.ru), []);
 });
+
+test("a group of another field's answer under a date field is named as it is, not taken for a date", () => {
+  // Switching a widget to a line chart regroups it by a date; until the new answer comes, the old groups
+  // (projects here) are drawn under the date field.
+  const dateField = { key: "closedAt", label: { ru: "Закрыто", en: "Closed" }, kind: "date" } as never;
+  for (const bucket of ["day", "week", "month", "quarter"] as const) {
+    assert.doesNotThrow(() => groupLabel("TV-OVERVIEW", dateField, bucket, "ru"));
+    assert.equal(groupLabel("TV-OVERVIEW", dateField, bucket, "ru"), "TV-OVERVIEW");
+  }
+  assert.equal(groupLabel("2026-10-12", dateField, "day", "ru"), "12.10.26");
+});

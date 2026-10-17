@@ -90,8 +90,10 @@ export function TimelineWidget({ widget, result, today }: { widget: PageWidget; 
   if (!primary) return <div className="mp-note">{t("ui.pages.timeline.noDates")}</div>;
   const titleField = source ? PAGE_SOURCES[source].titleField : "title";
   const { shown, more } = fitRows(height - AXIS, LANE, result.total, result.rows.length);
-  const rows = result.rows.slice(0, shown).filter((row) => typeof row.values[primary.key] === "string");
-  const days = rows.flatMap((row) => [row.values[primary.key], planned ? row.values[planned.key] : null]).filter((day): day is string => typeof day === "string").map((day) => day.slice(0, 10));
+  // Only days: the answer before a widget was switched here may hold other values under these columns.
+  const isDay = (value: unknown): value is string => typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value) && !Number.isNaN(Date.parse(`${value.slice(0, 10)}T00:00:00Z`));
+  const rows = result.rows.slice(0, shown).filter((row) => isDay(row.values[primary.key]));
+  const days = rows.flatMap((row) => [row.values[primary.key], planned ? row.values[planned.key] : null]).filter(isDay).map((day) => day.slice(0, 10));
   days.push(today);
   const from = days.reduce((a, b) => (a < b ? a : b));
   const to = days.reduce((a, b) => (a > b ? a : b));
@@ -117,7 +119,7 @@ export function TimelineWidget({ widget, result, today }: { widget: PageWidget; 
         {rows.map((row, index) => {
           const y = index * LANE + LANE / 2;
           const forecast = String(row.values[primary.key]).slice(0, 10);
-          const plan = planned && typeof row.values[planned.key] === "string" ? String(row.values[planned.key]).slice(0, 10) : null;
+          const plan = planned && isDay(row.values[planned.key]) ? String(row.values[planned.key]).slice(0, 10) : null;
           const late = plan !== null && forecast > plan;
           const label = `${source === "workload" ? "" : `${String(row.values.project ?? "")} · `}${formatPageValue(row.values[titleField], null, locale)}`;
           return (

@@ -116,7 +116,8 @@ export function groupLabel(key: string | null, field: PageFieldDef | null, bucke
   if (key === PAGE_OTHER_KEY) return locale === "ru" ? "Остальные" : "Others";
   if (key === "__all__") return locale === "ru" ? "Все" : "All";
   if (field?.kind === "boolean") return field.values?.[key]?.[locale] ?? (key === "true" ? (locale === "ru" ? "Да" : "Yes") : locale === "ru" ? "Нет" : "No");
-  if (field?.kind === "date") {
+  // A key that is no day (the groups of the answer before a widget was regrouped by a date) is named as it is.
+  if (field?.kind === "date" && !Number.isNaN(Date.parse(`${key}T00:00:00Z`))) {
     const date = new Date(`${key}T00:00:00Z`);
     const tag = locale === "ru" ? "ru-RU" : "en-GB";
     if (bucket === "month") return dateFormatter(tag, { month: "short", year: "numeric", timeZone: "UTC" }).format(date);
