@@ -189,6 +189,11 @@ export function confirmedStructure(projectId: string): Readonly<StructureState> 
   return states.get(projectId) ?? null;
 }
 
+/** Every Structure this page holds as confirmed, by project: what a listener that starts late has missed. */
+export function confirmedStructures(): Array<[string, Readonly<StructureState>]> {
+  return [...states.entries()];
+}
+
 /** Counts every Structure write this page started: a catch-up read while one was sent may have missed it. */
 let writeGeneration = 0;
 /** Moves when every copy is forgotten (a sign-out): a catch-up read before must not publish after. */

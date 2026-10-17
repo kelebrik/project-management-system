@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { WbsItem } from "../domainTypes";
-import { expandStructureAnswer, forgetStructureCopies, forgetStructures, onStructureStored, rememberStructure, type StructureChanges } from "../structureStore";
+import { confirmedStructures, expandStructureAnswer, forgetStructureCopies, forgetStructures, onStructureStored, rememberStructure, type StructureChanges } from "../structureStore";
 import { createMemoryStorage } from "./storage";
 import { readCurrentBase } from "./useStructureLocal";
 
@@ -105,3 +105,13 @@ for (const kind of ["changes", "incomplete"] as const) {
     }
   });
 }
+
+test("the Structures confirmed before a listener started are listed for it, and gone once the copies are forgotten", () => {
+  forgetStructures();
+  rememberStructure({ id: "p", structureVersion: "4", wbsItems: [row("a")], wbsDependencies: [], calendarOverrides: [], structureToday: "2026-10-13" });
+  rememberStructure({ id: "q", structureVersion: "2", wbsItems: [], wbsDependencies: [], calendarOverrides: [], structureToday: "2026-10-13" });
+  assert.deepEqual(confirmedStructures().map(([projectId, state]) => `${projectId}@${state.version}`).sort(), ["p@4", "q@2"]);
+  forgetStructureCopies();
+  assert.deepEqual(confirmedStructures(), []);
+  forgetStructures();
+});

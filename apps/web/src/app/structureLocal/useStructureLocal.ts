@@ -3,7 +3,7 @@ import { apiBase } from "../../api/client";
 import { businessUnitHeaders } from "../businessUnitContext";
 import { liveClientHeaders } from "../liveClient";
 import { requestHeaders } from "../structureMutations";
-import { confirmedStructure, forgetStructureCopies, mergeStructureChanges, onStructureStored, structureDeltaHeaders, type StructureChanges, type StructureState } from "../structureStore";
+import { confirmedStructure, confirmedStructures, forgetStructureCopies, mergeStructureChanges, onStructureStored, structureDeltaHeaders, type StructureChanges, type StructureState } from "../structureStore";
 import { requestLeadership } from "./leader";
 import { createBaseCache, createOutbox, type OutboxNotice } from "./outbox";
 import { openIndexedDbStorage, removeStructureDatabaseIfEmpty, type BaseRecord, type OutboxEntry, type StructureLocalStorage } from "./storage";
@@ -134,6 +134,8 @@ export function useStructureLocal(userId: string | null, onNotice: (notice: Outb
       const onOnline = () => void outbox.kick();
       window.addEventListener("online", onOnline);
       const stopStored = onStructureStored((projectId, state) => cache.remember(baseOf(projectId, state)));
+      // A Structure confirmed while the database was opening is kept too, not only the ones to come.
+      confirmedStructures().forEach(([projectId, state]) => cache.remember(baseOf(projectId, state)));
       const release = requestLeadership(`pms-outbox-${userId}`, () => void outbox.lead());
       shutdown = async () => {
         stopStored();
