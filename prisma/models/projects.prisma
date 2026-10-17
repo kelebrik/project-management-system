@@ -1,0 +1,265 @@
+enum RagStatus {
+  GREEN
+  AMBER
+  RED
+}
+
+enum ProjectStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  CLOSED
+}
+
+enum OverviewStatus {
+  DRAFT
+  GENERATED
+  PM_REVIEW
+  APPROVED
+  PUBLISHED
+}
+
+model Project {
+  id                       String                            @id @default(cuid())
+  businessUnitId           String
+  parentId                 String?
+  code                     String                            @unique
+  name                     String
+  portfolio                String
+  sponsor                  String
+  projectManager           String
+  productOwner             String                            @default("")
+  hwTpm                    String                            @default("")
+  swTpm                    String                            @default("")
+  status                   ProjectStatus                     @default(ACTIVE)
+  rag                      RagStatus                         @default(GREEN)
+  startDate                DateTime
+  initialTargetDate        DateTime?
+  targetDate               DateTime
+  budgetPlanned            Decimal                           @db.Decimal(14, 2)
+  budgetForecast           Decimal                           @db.Decimal(14, 2)
+  scheduleVariance         Int                               @default(0)
+  progress                 Int                               @default(0)
+  summary                  String
+  sortOrder                Int                               @default(0)
+  uiState                  Json?
+  createdAt                DateTime                          @default(now())
+  updatedAt                DateTime                          @updatedAt
+  parent                   Project?                          @relation("ProjectHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children                 Project[]                         @relation("ProjectHierarchy")
+  businessUnit             BusinessUnit                      @relation(fields: [businessUnitId], references: [id], onDelete: Restrict)
+  jiraIntegration          JiraIntegration?
+  jiraAnalyticsSettings    JiraAnalyticsSettings?
+  jiraAggregateDefinitions JiraAggregateDefinition[]
+  jiraAggregateRevisions   JiraAggregateDefinitionRevision[]
+  jiraDashboardConversion  JiraAnalyticsDashboardConversion?
+  jiraWorkSections         JiraWorkSection[]
+  tasks                    Task[]
+  issues                   Issue[]
+  jiraSnapshots            JiraIssueSnapshot[]
+  jiraIssueVersions        JiraIssueVersion[]
+  jiraHistoryRetries       JiraIssueHistoryRetry[]
+  jiraSyncRuns             JiraSyncRun[]
+  gitlabBranchCommits      GitlabBranchCommit[]
+  gitlabBranchSyncRuns     GitlabBranchSyncRun[]
+  overviews                ExecutiveOverview[]
+  milestones               Milestone[]
+  wbsItems                 WbsItem[]
+  wbsDependencies          WbsDependency[]
+  calendarOverrides        ProjectCalendarOverride[]
+  artifacts                ProjectArtifact[]
+  raidItems                RaidItem[]
+  changeRequests           ChangeRequest[]
+  targetDateChanges        ProjectTargetDateChange[]
+  wbsCommands              WbsCommand[]
+  structureVersion         ProjectStructureVersion?
+  structureCommits         ProjectStructureCommit[]
+  wbsBaselines             WbsBaseline[]
+  wbsTombstones            WbsTombstone[]
+  savedViews               SavedView[]
+  projectAccesses          ProjectAccess[]
+  artifactTable            ProjectArtifactTable?
+  artifactFiles            ProjectArtifactFile[]
+  businessRequirements     ProjectBusinessRequirements?
+  scheduleShifts           ScheduleShift[]
+  scheduleShiftSessions    ScheduleShiftSession[]
+  decisions                Decision[]
+  planSnapshots            PlanSnapshot[]
+  historySnapshots         ProjectHistorySnapshot[]
+  lessons                  Lesson[]
+  userViewStates           UserProjectViewState[]
+  allocations              ProjectAllocation[]
+  raciAssignments          RaciAssignment[]
+  workCheckIns             WorkCheckIn[]
+  wbsImports               WbsImport[]
+  automationRules          AutomationRule[]
+  notifications            Notification[]
+
+  @@index([parentId])
+  @@index([businessUnitId, status])
+  @@index([sortOrder])
+}
+
+model ProjectTargetDateChange {
+  id           String   @id @default(cuid())
+  projectId    String
+  /// None when the goal had no date before.
+  previousDate DateTime?
+  newDate      DateTime
+  reason       String
+  approvedBy   String?
+  /// The goal that moved, copied, since the goal may be deleted later; none for a project without goals.
+  goalId       String?
+  goalCode     String?
+  goalTitle    String?
+  /// The move was agreed: the goal's baseline moved too, so it is no delay.
+  notDelay     Boolean  @default(false)
+  createdById  String?
+  createdAt    DateTime @default(now())
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([createdById])
+}
+
+model Milestone {
+  id          String   @id @default(cuid())
+  projectId   String
+  code        String?
+  title       String
+  dueDate     DateTime
+  status      String   @default("Planned")
+  owner       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, dueDate])
+  @@index([projectId, code])
+}
+
+model ExecutiveOverview {
+  id                String         @id @default(cuid())
+  projectId         String
+  version           Int
+  status            OverviewStatus @default(DRAFT)
+  generatedAt       DateTime?
+  reviewRequestedAt DateTime?
+  approvedAt        DateTime?
+  approvedBy        String?
+  publishedAt       DateTime?
+  executiveSummary  String
+  kpis              Json?
+  qualityGates      Json?
+  risks             Json?
+  nextSteps         Json?
+  decisions         Json
+  evidence          Json
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+  project           Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, version])
+}
+
+/// A date change of a milestone or goal, with what caused it. Written when an
+/// operation moves a checkpoint (or resets its baseline: kind BASELINE); kept
+/// when the row is deleted, so the code and title are copied.
+model ScheduleShift {
+  id               String    @id @default(cuid())
+  projectId        String
+  kind             String    @default("SHIFT")
+  checkpointId     String?
+  checkpointCode   String
+  checkpointTitle  String
+  checkpointType   String
+  previousDate     DateTime? @db.Date
+  newDate          DateTime? @db.Date
+  deltaDays        Int?
+  baselineDate     DateTime? @db.Date
+  trigger          String
+  sourceItemId     String?
+  sourceCode       String?
+  sourceTitle      String?
+  sourceIssueId    String?
+  sourceNote       String?
+  actorId          String?
+  actorName        String?
+  operationId      String
+  /// The editing session the operation belongs to; none for the system and for rows before sessions.
+  sessionId        String?
+  reasonCategory   String?
+  reasonText       String?
+  reasonRaidItemId String?
+  reasonSetById    String?
+  reasonSetAt      DateTime?
+  createdAt        DateTime  @default(now())
+  project          Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  session          ScheduleShiftSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([checkpointId, createdAt])
+  @@index([operationId])
+  @@index([sessionId])
+}
+
+/// One person's run of edits of a project: saves follow each other with pauses of
+/// at most 30 minutes and nobody else's change between them. The schedule shift
+/// journal counts a session as one step, and the reason for its moves is asked
+/// once it is closed: the person left the editing pages, stopped for 30 minutes
+/// or came back in a new tab. At most one session of a project is open; a closed
+/// one never gains rows (the session lock in services/schedule-shifts.ts).
+model ScheduleShiftSession {
+  id             String          @id @default(cuid())
+  projectId      String
+  actorId        String
+  actorName      String?
+  startedAt      DateTime        @default(now())
+  lastActivityAt DateTime        @default(now())
+  closedAt       DateTime?
+  reviewedAt     DateTime?
+  reviewedById   String?
+  project        Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  shifts         ScheduleShift[]
+
+  @@index([projectId, actorId, closedAt])
+}
+
+/// A named copy of the plan taken for a committee or a review. It never changes
+/// and never touches the baseline or the current plan; rows are kept as JSON.
+model PlanSnapshot {
+  id            String   @id @default(cuid())
+  projectId     String
+  name          String
+  takenAt       DateTime @default(now())
+  createdById   String?
+  createdByName String?
+  rowCount      Int
+  rows          Json
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, takenAt])
+}
+
+/// How a project stood at the end of a day (Moscow) on which it changed:
+/// structure, RAID, open issues and project fields, captured after writes.
+/// A later capture of the same day replaces the row; `partial` marks a day
+/// whose last changes were captured only with the next day.
+model ProjectHistorySnapshot {
+  id          String   @id @default(cuid())
+  projectId   String
+  day         DateTime @db.Date
+  takenAt     DateTime @default(now())
+  lastWriteAt DateTime
+  contentHash String   @db.Char(64)
+  payload     Json?
+  sizeBytes   Int
+  oversized   Boolean  @default(false)
+  partial     Boolean  @default(false)
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, day])
+  @@index([projectId, takenAt])
+}

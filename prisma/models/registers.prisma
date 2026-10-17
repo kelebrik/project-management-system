@@ -1,0 +1,248 @@
+enum IssueSource {
+  INTERNAL
+  JIRA
+}
+
+enum IssueSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum RaidItemType {
+  RISK
+  ASSUMPTION
+  DEPENDENCY
+}
+
+enum RaidItemStatus {
+  OPEN
+  IN_PROGRESS
+  MITIGATED
+  VALIDATED
+  BREACHED
+  CLOSED
+}
+
+enum ChangeRequestType {
+  SCOPE
+  BUDGET
+  SCHEDULE
+  RESOURCE
+}
+
+enum ChangeRequestStatus {
+  DRAFT
+  SUBMITTED
+  IN_REVIEW
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+}
+
+model Issue {
+  id               String              @id @default(cuid())
+  projectId        String
+  phaseId          String?
+  workPackageId    String?             @unique
+  riskId           String?
+  source           IssueSource
+  category         String              @default("Без раздела")
+  title            String
+  referenceLabel   String              @default("")
+  referenceUrl     String?
+  severity         IssueSeverity
+  readiness        RagStatus           @default(RED)
+  status           String
+  owner            String
+  impact           String
+  decisionRequired Boolean             @default(false)
+  dueDate          DateTime?
+  initialDueDate   DateTime?
+  closedDelayDays  Int?
+  jiraTicketKey    String?
+  jiraTicketUrl    String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+  project          Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  phase            WbsItem?            @relation("IssuePhase", fields: [phaseId], references: [id], onDelete: SetNull)
+  workPackage      WbsItem?            @relation("IssueWorkPackage", fields: [workPackageId], references: [id], onDelete: SetNull)
+  risk             RaidItem?           @relation("IssueRisk", fields: [riskId], references: [id], onDelete: SetNull)
+  threadLinks      IssueThreadLink[]
+  jiraLinks        IssueJiraLink[]
+  statusUpdates    IssueStatusUpdate[]
+
+  @@index([projectId, phaseId])
+  @@index([riskId])
+}
+
+model IssueThreadLink {
+  id        String   @id @default(cuid())
+  issueId   String
+  threadUrl String
+  createdAt DateTime @default(now())
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, threadUrl])
+  @@index([issueId, createdAt])
+}
+
+model IssueJiraLink {
+  id        String   @id @default(cuid())
+  issueId   String
+  jiraKey   String
+  jiraUrl   String
+  createdAt DateTime @default(now())
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@unique([issueId, jiraKey])
+  @@index([jiraKey])
+}
+
+model IssueStatusUpdate {
+  id        String   @id @default(cuid())
+  issueId   String
+  statusAt  DateTime
+  text      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  issue     Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+
+  @@index([issueId, statusAt])
+  @@index([issueId, createdAt])
+}
+
+model RaidItem {
+  id                 String                 @id @default(cuid())
+  projectId          String
+  type               RaidItemType
+  title              String
+  description        String
+  owner              String
+  status             RaidItemStatus         @default(OPEN)
+  probability        Int                    @default(0)
+  impact             Int                    @default(0)
+  riskScore          Int                    @default(0)
+  mitigationPlan     String?
+  contingencyPlan    String?
+  dueDate            DateTime?
+  residualRisk       Int                    @default(0)
+  validationDate     DateTime?
+  linkedRiskId       String?
+  dependencyType     String?
+  predecessor        String?
+  successor          String?
+  supplier           String?
+  jiraTicketKey      String?
+  jiraTicketUrl      String?
+  decisionRequired   Boolean                @default(false)
+  escalationLevel    String                 @default("Project")
+  scheduleImpactDays Int                    @default(0)
+  budgetImpact       Decimal                @default(0) @db.Decimal(14, 2)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  project            Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  linkedRisk         RaidItem?              @relation("RaidLinkedRisk", fields: [linkedRiskId], references: [id], onDelete: SetNull)
+  linkedAssumptions  RaidItem[]             @relation("RaidLinkedRisk")
+  openIssues         Issue[]                @relation("IssueRisk")
+  statusUpdates      RaidItemStatusUpdate[]
+
+  @@index([projectId, type, status])
+  @@index([projectId, riskScore])
+  @@index([linkedRiskId])
+}
+
+model RaidItemStatusUpdate {
+  id         String   @id @default(cuid())
+  raidItemId String
+  statusAt   DateTime
+  text       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  raidItem   RaidItem @relation(fields: [raidItemId], references: [id], onDelete: Cascade)
+
+  @@index([raidItemId, statusAt])
+  @@index([raidItemId, createdAt])
+}
+
+model ChangeRequest {
+  id                 String              @id @default(cuid())
+  projectId          String
+  type               ChangeRequestType
+  title              String
+  description        String
+  owner              String
+  status             ChangeRequestStatus @default(DRAFT)
+  impactAnalysis     String
+  affectedBaseline   String
+  implementationPlan String?
+  scheduleImpactDays Int                 @default(0)
+  budgetImpact       Decimal             @default(0) @db.Decimal(14, 2)
+  scopeImpact        String?
+  approvalRoute      String              @default("PMO -> Sponsor")
+  decisionRequired   Boolean             @default(false)
+  dueDate            DateTime?
+  approvedAt         DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  project            Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([projectId, updatedAt])
+}
+
+/// A decision of the project: proposed, sent to one approver, or recorded as taken.
+/// Links to an issue, risk, structure row or change request are checked to be in
+/// the same project when written; a decision that replaces another supersedes it.
+model Decision {
+  id              String    @id @default(cuid())
+  projectId       String
+  title           String
+  context         String    @default("")
+  decision        String    @default("")
+  status          String    @default("PROPOSED")
+  decidedBy       String?
+  decidedAt       DateTime?
+  createdById     String?
+  createdByName   String?
+  approverUserId  String?
+  approverName    String?
+  requestedAt     DateTime?
+  approvalComment String?
+  answeredAt      DateTime?
+  issueId         String?
+  raidItemId      String?
+  wbsItemId       String?
+  changeRequestId String?
+  supersedesId    String?   @unique
+  version         Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  project         Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([approverUserId, status])
+}
+
+/// A lesson of a project: what happened and what to do next time, with the
+/// record it came from (a move of the schedule, a risk or problem, an issue,
+/// a decision) or written by hand. Kept after the project closes, for the next ones.
+model Lesson {
+  id             String   @id @default(cuid())
+  projectId      String
+  category       String
+  title          String
+  text           String   @default("")
+  recommendation String   @default("")
+  sourceKind     String   @default("MANUAL")
+  sourceRef      String?
+  createdById    String?
+  createdByName  String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([category, createdAt])
+}

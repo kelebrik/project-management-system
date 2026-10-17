@@ -3,8 +3,10 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
 
-const sourceRoots = ['apps', 'packages', 'tests'];
-const codeExtensions = new Set(['.css', '.js', '.jsx', '.scss', '.ts', '.tsx']);
+const sourceRoots = ['apps', 'packages', 'tests', 'prisma', 'scripts', 'docs'];
+const codeExtensions = new Set([
+  '.cjs', '.css', '.html', '.js', '.jsx', '.mjs', '.prisma', '.scss', '.sh', '.ts', '.tsx',
+]);
 const ignoredDirectories = new Set(['build', 'dist', 'node_modules']);
 
 async function codeFiles(directory: string): Promise<string[]> {

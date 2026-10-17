@@ -1,0 +1,115 @@
+/// A person on the leave schedule. Not every person is a user of the system.
+model LeaveEmployee {
+  id         String   @id @default(cuid())
+  name       String
+  department String   @default("")
+  userId     String?  @unique
+  isActive   Boolean  @default(true)
+  sortOrder  Int      @default(0)
+  /// The share of a full working week this person has for projects, 100 for full time.
+  capacityPercent Int  @default(100)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  leaves     Leave[]
+  allocations ProjectAllocation[]
+}
+
+model LeaveType {
+  id        String   @id @default(cuid())
+  name      String
+  nameEn    String   @default("")
+  color     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  leaves    Leave[]
+}
+
+model Leave {
+  id          String        @id @default(cuid())
+  employeeId  String
+  typeId      String
+  startDate   DateTime      @db.Date
+  endDate     DateTime      @db.Date
+  comment     String        @default("")
+  createdById String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  employee    LeaveEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  type        LeaveType     @relation(fields: [typeId], references: [id], onDelete: Restrict)
+
+  @@index([employeeId, startDate])
+  @@index([startDate, endDate])
+}
+
+/// Deviations from the Monday-to-Friday week: public holidays and working weekends.
+model LeaveCalendarDay {
+  date         DateTime @id @db.Date
+  isWorkingDay Boolean
+  description  String   @default("")
+  updatedAt    DateTime @default(now()) @updatedAt
+}
+
+/// Who does what for a phase, work package or deliverable: Responsible,
+/// Accountable, Consulted or Informed. People are named as on the structure
+/// (compared by their normalised name); a row has at most one Accountable,
+/// which a partial unique index in the migration enforces.
+model RaciAssignment {
+  id         String   @id @default(cuid())
+  projectId  String
+  wbsItemId  String
+  personName String
+  personKey  String
+  role       String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbsItem    WbsItem  @relation(fields: [wbsItemId], references: [id], onDelete: Cascade)
+
+  @@unique([wbsItemId, personKey])
+  @@index([projectId])
+}
+
+/// A person's weekly word on one piece of their work: whether it is on track,
+/// what got done, what is in the way. One per work item, person and week.
+model WorkCheckIn {
+  id         String   @id @default(cuid())
+  projectId  String
+  wbsItemId  String
+  userId     String
+  personName String
+  weekStart  DateTime @db.Date
+  confidence String
+  done       String   @default("")
+  blocker    String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  wbsItem    WbsItem  @relation(fields: [wbsItemId], references: [id], onDelete: Cascade)
+
+  @@unique([wbsItemId, userId, weekStart])
+  @@index([projectId, weekStart])
+}
+
+/**
+ * The share of a person's time planned for a project over a period: 50 means
+ * half of their working days. Summed over projects and set against their
+ * capacity (less on leave), it shows who is planned beyond what they have.
+ */
+model ProjectAllocation {
+  id         String        @id @default(cuid())
+  employeeId String
+  projectId  String
+  percent    Int
+  startsOn   DateTime      @db.Date
+  endsOn     DateTime?     @db.Date
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  employee   LeaveEmployee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  project    Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([projectId])
+}

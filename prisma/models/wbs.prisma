@@ -1,0 +1,335 @@
+enum WbsItemType {
+  PHASE
+  WORK_PACKAGE
+  DELIVERABLE
+  MILESTONE
+  GOAL
+  TASK
+}
+
+enum WbsItemStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  IN_REVIEW
+  AT_RISK
+  BLOCKED
+  DONE
+  CANCELLED
+}
+
+enum WbsDependencyType {
+  FS
+  SS
+  FF
+  SF
+}
+
+enum ProjectCalendarCode {
+  RU
+  CN
+  RU_CN
+}
+
+enum WbsCommandType {
+  CREATE
+  UPDATE
+  DELETE
+  MOVE
+  INDENT
+  OUTDENT
+  BULK_UPDATE
+  RESTORE
+  BASELINE
+}
+
+enum WbsBaselineStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  projectId     String
+  title         String
+  owner         String
+  status        String
+  priority      String
+  dueDate       DateTime?
+  jiraTicketKey String?
+  jiraTicketUrl String?
+  jiraStatus    String?
+  jiraAssignee  String?
+  jiraPriority  String?
+  jiraUpdatedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model WbsItem {
+  id                String              @id @default(cuid())
+  projectId         String
+  parentId          String?
+  code              String
+  title             String
+  type              WbsItemType         @default(TASK)
+  status            WbsItemStatus       @default(NOT_STARTED)
+  owner             String
+  startDate         DateTime?
+  dueDate           DateTime?
+  baselineStartDate DateTime?
+  baselineDueDate   DateTime?
+  forecastStartDate DateTime?
+  forecastDueDate   DateTime?
+  wbsLevel          Int?
+  predecessor1      String?
+  predecessor2      String?
+  predecessor3      String?
+  predecessor4      String?
+  predecessor5      String?
+  predecessor6      String?
+  leadLagDays       Int                 @default(0)
+  workDays          Int?
+  calendarDays      Int?
+  excelStartDate    DateTime?
+  excelEndDate      DateTime?
+  planWorkDays      Int?
+  planCalendarDays  Int?
+  calendarCode      ProjectCalendarCode @default(RU)
+  templateColor     String?
+  priority          String?
+  effortPercent     Int                 @default(0)
+  plannedCost       Decimal             @default(0) @db.Decimal(14, 2)
+  forecastCost      Decimal             @default(0) @db.Decimal(14, 2)
+  progress          Int                 @default(0)
+  jiraTicketKey     String?
+  jiraTicketUrl     String?
+  jiraGoalLabels    String[]            @default([])
+  mattermostUrl     String?
+  description       String?
+  comment           String?
+  closedAt          DateTime?
+  sortOrder         Int                 @default(0)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  project           Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  parent            WbsItem?            @relation("WbsHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children          WbsItem[]           @relation("WbsHierarchy")
+  predecessors      WbsDependency[]     @relation("WbsDependencySuccessor")
+  successors        WbsDependency[]     @relation("WbsDependencyPredecessor")
+  phaseIssues       Issue[]             @relation("IssuePhase")
+  workPackageIssue  Issue?              @relation("IssueWorkPackage")
+  raciAssignments   RaciAssignment[]
+  workCheckIns      WorkCheckIn[]
+
+  @@unique([projectId, code])
+  @@index([projectId, parentId])
+  @@index([projectId, sortOrder])
+  @@index([projectId, closedAt])
+}
+
+/// The version of a project's Structure, moved by one on every write under the project's lock.
+model ProjectStructureVersion {
+  projectId    String  @id
+  version      BigInt  @default(0)
+  /// The oldest version the change journal reaches back to: changes since an older one are read whole.
+  journalFloor BigInt  @default(0)
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+/// One committed Structure write: every version the journal covers has one.
+model ProjectStructureCommit {
+  projectId   String
+  version     BigInt
+  createdAt   DateTime                 @default(now()) @db.Timestamptz(3)
+  /// How many rows and links the write touched: a reader learns how much a gap holds without scanning it.
+  changeCount Int                      @default(0)
+  project     Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changes     ProjectStructureChange[]
+
+  @@id([projectId, version])
+}
+
+/// A row or link a Structure write touched: the reader takes its state now, or learns it is gone.
+model ProjectStructureChange {
+  projectId  String
+  version    BigInt
+  entityType String
+  entityId   String
+  commit     ProjectStructureCommit @relation(fields: [projectId, version], references: [projectId, version], onDelete: Cascade)
+
+  @@id([projectId, version, entityType, entityId])
+}
+
+/// A Structure write sent with a mutation id: claimed while it runs, then its
+/// outcome, so the same request sent again is answered without running twice.
+model StructureMutationReceipt {
+  userId          String
+  mutationId      String
+  /// Null only for a refusal given before the project was known.
+  projectId       String?
+  method          String
+  path            String
+  payloadHash     String
+  baseVersion     BigInt?
+  /// IN_PROGRESS while its request runs, then COMMITTED or TERMINAL (refused for good).
+  state           String
+  /// Who runs it now: a claim left by a dead request is taken over with a new token.
+  claimToken      String
+  claimedAt       DateTime @default(now()) @db.Timestamptz(3)
+  commitVersion   BigInt?
+  /// The answer as sent: status, body and the headers the page reads.
+  outcome         Json?
+  outcomeComplete Boolean  @default(false)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+
+  @@id([userId, mutationId])
+  @@index([createdAt])
+}
+
+model WbsCommand {
+  id               String         @id @default(cuid())
+  projectId        String
+  userId           String?
+  type             WbsCommandType
+  payload          Json
+  beforeSnapshot   Json?
+  afterSnapshot    Json?
+  createdAt        DateTime       @default(now())
+  /// The Structure version the command's write produced; empty on older commands.
+  structureVersion BigInt?
+  /// The command's place among the commands of its write.
+  commandOrdinal   Int?
+  project          Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user             User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+  @@index([type, createdAt])
+}
+
+model WbsBaseline {
+  id          String            @id @default(cuid())
+  projectId   String
+  version     Int
+  title       String
+  status      WbsBaselineStatus @default(ACTIVE)
+  createdById String?
+  createdAt   DateTime          @default(now())
+  project     Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy   User?             @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  items       WbsBaselineItem[]
+
+  @@unique([projectId, version])
+  @@index([projectId, status])
+  @@index([createdById])
+}
+
+model WbsBaselineItem {
+  id              String              @id @default(cuid())
+  baselineId      String
+  sourceWbsItemId String?
+  parentCode      String?
+  code            String
+  title           String
+  type            WbsItemType         @default(TASK)
+  status          WbsItemStatus       @default(NOT_STARTED)
+  owner           String
+  startDate       DateTime?
+  dueDate         DateTime?
+  wbsLevel        Int?
+  predecessor1    String?
+  predecessor2    String?
+  predecessor3    String?
+  predecessor4    String?
+  predecessor5    String?
+  predecessor6    String?
+  leadLagDays     Int                 @default(0)
+  workDays        Int?
+  calendarDays    Int?
+  calendarCode    ProjectCalendarCode @default(RU)
+  effortPercent   Int                 @default(0)
+  progress        Int                 @default(0)
+  sortOrder       Int                 @default(0)
+  baseline        WbsBaseline         @relation(fields: [baselineId], references: [id], onDelete: Cascade)
+
+  @@unique([baselineId, code])
+  @@index([baselineId, sortOrder])
+  @@index([sourceWbsItemId])
+}
+
+model ProjectCalendarOverride {
+  id           String              @id @default(cuid())
+  projectId    String
+  calendarCode ProjectCalendarCode
+  date         DateTime
+  isWorkingDay Boolean
+  description  String?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, calendarCode, date])
+  @@index([projectId, calendarCode, date])
+}
+
+model WbsDependency {
+  id            String            @id @default(cuid())
+  projectId     String
+  predecessorId String
+  successorId   String
+  type          WbsDependencyType @default(FS)
+  lagDays       Int               @default(0)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  project       Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  predecessor   WbsItem           @relation("WbsDependencyPredecessor", fields: [predecessorId], references: [id], onDelete: Cascade)
+  successor     WbsItem           @relation("WbsDependencySuccessor", fields: [successorId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, predecessorId, successorId, type])
+  @@index([projectId, predecessorId])
+  @@index([projectId, successorId])
+}
+
+model WbsTombstone {
+  id             String      @id @default(cuid())
+  projectId      String
+  auditEventId   String?     @unique
+  deletedById    String?
+  restoredById   String?
+  itemIds        Json
+  itemCount      Int
+  items          Json
+  dependencies   Json?
+  expiresAt      DateTime
+  restoredAt     DateTime?
+  restoredRootId String?
+  createdAt      DateTime    @default(now())
+  project        Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  auditEvent     AuditEvent? @relation(fields: [auditEventId], references: [id], onDelete: SetNull)
+  deletedBy      User?       @relation("WbsTombstoneDeletedBy", fields: [deletedById], references: [id], onDelete: SetNull)
+  restoredBy     User?       @relation("WbsTombstoneRestoredBy", fields: [restoredById], references: [id], onDelete: SetNull)
+
+  @@index([projectId, createdAt])
+  @@index([expiresAt])
+  @@index([restoredAt])
+  @@index([deletedById, createdAt])
+  @@index([restoredById, restoredAt])
+}
+
+/**
+ * One import of a table into a project's Structure; the key makes a repeated send a no-op.
+ */
+model WbsImport {
+  id         String   @id @default(cuid())
+  projectId  String
+  importKey  String
+  userId     String?
+  summary    Json
+  createdIds String[] @default([])
+  createdAt  DateTime @default(now())
+  project    Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, importKey])
+}

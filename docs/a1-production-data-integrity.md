@@ -132,7 +132,7 @@ Archive the complete baseline directory before running the migration. Do not edi
 Use the exact immutable image ID recorded above. Run only:
 
 ```text
-prisma migrate deploy --schema /app/prisma/schema.prisma
+prisma migrate deploy --schema /app/prisma
 ```
 
 Do not use `migrate dev`, `migrate reset`, `db push`, or `db execute`. Disable job

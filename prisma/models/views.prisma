@@ -1,0 +1,114 @@
+model SavedView {
+  id         String    @id @default(cuid())
+  ownerId    String?
+  projectId  String?
+  viewType   String
+  name       String
+  config     Json
+  isShared   Boolean   @default(false)
+  sortOrder  Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  owner      User?     @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  project    Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, viewType])
+  @@index([projectId, viewType])
+  @@index([isShared, viewType])
+  @@index([updatedAt])
+}
+
+/**
+ * How one person sees one project: column order, hidden columns and widths of
+ * the Structure and other tables, sorting, the hierarchy level shown, panel
+ * sizes. Personal, so arranging the view never changes it for anyone else.
+ */
+model UserProjectViewState {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String
+  state     Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([projectId])
+}
+
+/// How a person lays out every project alike (GLOBAL_VIEW_STATE_KEYS in
+/// packages/shared): the Structure's columns, sorting, Gantt panel sizes and
+/// the sidebar. Changed in one project, the layout holds in all of them.
+model UserViewDefaults {
+  userId    String   @id
+  state     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/**
+ * A page of "My page": one sheet of widgets over live project data, owned by
+ * one person. The document holds the format, scope, period and widgets; the
+ * revision guards against two tabs saving over each other.
+ */
+model DashboardPage {
+  id        String   @id @default(cuid())
+  ownerId   String
+  title     String
+  document  Json
+  revision  Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  owner     User                   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  revisions DashboardPageRevision[]
+  releases  DashboardPageRelease[]
+  shares    DashboardPageShare[]
+
+  @@index([ownerId, updatedAt])
+}
+
+/// A version of a page kept on purpose ("before the committee"), to go back to.
+model DashboardPageRevision {
+  id        String        @id @default(cuid())
+  pageId    String
+  title     String
+  document  Json
+  label     String        @default("")
+  createdAt DateTime      @default(now())
+  page      DashboardPage @relation(fields: [pageId], references: [id], onDelete: Cascade)
+
+  @@index([pageId, createdAt])
+}
+
+/// A page as it was shown at a meeting: the document and the answers of that moment, frozen.
+model DashboardPageRelease {
+  id         String               @id @default(cuid())
+  pageId     String
+  title      String
+  label      String               @default("")
+  document   Json
+  answers    Json
+  projectIds String[]             @default([])
+  createdAt  DateTime             @default(now())
+  page       DashboardPage        @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  shares     DashboardPageShare[]
+
+  @@index([pageId, createdAt])
+}
+
+/// A read-only link to a page (live) or to one of its releases; only the hash of the token is kept.
+model DashboardPageShare {
+  id        String                @id @default(cuid())
+  pageId    String
+  releaseId String?
+  tokenHash String                @unique
+  expiresAt DateTime?
+  revokedAt DateTime?
+  createdAt DateTime              @default(now())
+  page      DashboardPage         @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  release   DashboardPageRelease? @relation(fields: [releaseId], references: [id], onDelete: Cascade)
+
+  @@index([pageId])
+}

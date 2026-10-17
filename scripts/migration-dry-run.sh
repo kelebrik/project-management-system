@@ -10,7 +10,7 @@ OUTPUT="${MIGRATION_DRY_RUN_OUTPUT:-./migration-dry-run.sql}"
 
 npx prisma migrate diff \
   --from-url "$DATABASE_URL" \
-  --to-schema-datamodel prisma/schema.prisma \
+  --to-schema-datamodel prisma \
   --script > "$OUTPUT"
 
 if [ ! -s "$OUTPUT" ]; then

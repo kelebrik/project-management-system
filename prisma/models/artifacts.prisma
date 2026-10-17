@@ -1,0 +1,50 @@
+model ProjectBusinessRequirements {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  columns   Json
+  rows      Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}
+
+model ProjectArtifact {
+  id          String   @id @default(cuid())
+  projectId   String
+  title       String
+  type        String
+  owner       String
+  status      String   @default("Draft")
+  url         String?
+  description String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, sortOrder])
+}
+
+model ProjectArtifactTable {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  columns   Json
+  rows      Json
+  revision  Int      @default(1)
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model ProjectArtifactFile {
+  id        String   @id @default(cuid())
+  projectId String
+  name      String
+  data      Bytes
+  size      Int
+  createdAt DateTime @default(now())
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+}

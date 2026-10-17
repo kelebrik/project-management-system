@@ -26,7 +26,7 @@ scripts/restore-db.sh "$BACKUP_FILE"
 DATABASE_URL="$RESTORE_DRILL_DATABASE_URL" npx prisma migrate deploy
 DATABASE_URL="$RESTORE_DRILL_DATABASE_URL" npx prisma migrate diff \
   --from-url "$RESTORE_DRILL_DATABASE_URL" \
-  --to-schema-datamodel prisma/schema.prisma \
+  --to-schema-datamodel prisma \
   --exit-code
 
 echo "Restore drill completed from $BACKUP_FILE"

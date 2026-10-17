@@ -1,0 +1,95 @@
+model GitlabBranchSyncRun {
+  id                  String               @id @default(cuid())
+  projectId           String
+  aggregateId         String
+  aggregateVersion    Int
+  scopeKey            String               @db.Char(64)
+  projectPath         String
+  targetBranch        String
+  headSha             String?
+  lookbackDays        Int
+  includeMergeCommits Boolean
+  windowStartedAt     DateTime
+  windowEndedAt       DateTime
+  status              String
+  commitCount         Int                  @default(0)
+  linkedCount         Int                  @default(0)
+  unlinkedCount       Int                  @default(0)
+  undeterminedCount   Int                  @default(0)
+  errorMessage        String?
+  startedAt           DateTime             @default(now())
+  finishedAt          DateTime?
+  createdById         String?
+  project             Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  commits             GitlabBranchCommit[]
+
+  @@index([projectId, aggregateId, startedAt])
+  @@index([projectId, scopeKey, startedAt])
+}
+
+model GitlabBranchCommit {
+  id                String               @id @default(cuid())
+  projectId         String
+  syncRunId         String?
+  scopeKey          String               @db.Char(64)
+  projectPath       String
+  targetBranch      String
+  commitSha         String
+  shortSha          String
+  title             String
+  message           String
+  authorName        String
+  authorEmail       String?
+  committedAt       DateTime
+  webUrl            String
+  sourceBranch      String?
+  mergeRequestIid   Int?
+  mergeRequestTitle String?
+  mergeRequestUrl   String?
+  jiraKeys          String[]             @default([])
+  jiraLinkState     String
+  observedAt        DateTime
+  retiredAt         DateTime?
+  project           Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  syncRun           GitlabBranchSyncRun? @relation(fields: [syncRunId], references: [id], onDelete: SetNull)
+
+  @@unique([projectId, scopeKey, commitSha])
+  @@index([projectId, scopeKey, committedAt])
+  @@index([projectId, jiraLinkState, committedAt])
+  @@index([syncRunId])
+}
+
+model WebhookEndpoint {
+  id          String            @id @default(cuid())
+  name        String
+  url         String
+  secret      String?
+  events      Json
+  isActive    Boolean           @default(true)
+  createdById String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  createdBy   User?             @relation("WebhookEndpointCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  deliveries  WebhookDelivery[]
+
+  @@index([createdById])
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id           String          @id @default(cuid())
+  endpointId   String
+  eventType    String
+  payload      Json
+  status       String          @default("PENDING")
+  statusCode   Int?
+  responseBody String?
+  error        String?
+  attemptedAt  DateTime?
+  createdAt    DateTime        @default(now())
+  endpoint     WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([endpointId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([status, createdAt])
+}

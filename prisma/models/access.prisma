@@ -1,0 +1,158 @@
+enum UserRole {
+  ADMIN
+  PROJECT_MANAGER
+  TEAM_MEMBER
+  EXECUTIVE_VIEWER
+}
+
+enum ProjectAccessLevel {
+  VIEW
+  EDIT
+  ADMIN
+}
+
+enum BusinessUnitRole {
+  ADMIN
+  PROJECT_MANAGER
+  VIEWER
+}
+
+model BusinessUnit {
+  id          String                   @id @default(cuid())
+  code        String                   @unique
+  name        String
+  isDefault   Boolean                  @default(false)
+  isActive    Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  projects    Project[]
+  memberships BusinessUnitMembership[]
+
+  @@index([isActive, name])
+}
+
+model BusinessUnitMembership {
+  id             String           @id @default(cuid())
+  businessUnitId String
+  userId         String
+  role           BusinessUnitRole @default(VIEWER)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  businessUnit   BusinessUnit     @relation(fields: [businessUnitId], references: [id], onDelete: Cascade)
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([businessUnitId, userId])
+  @@index([userId, role])
+  @@index([businessUnitId, role])
+}
+
+model BusinessUnitRolePermission {
+  id         String           @id @default(cuid())
+  role       BusinessUnitRole
+  permission String
+  enabled    Boolean          @default(true)
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
+model User {
+  id                      String                    @id @default(cuid())
+  email                   String                    @unique
+  name                    String
+  /// The login of this person in Jira; by default the part of the e-mail before @.
+  jiraLogin               String?
+  role                    UserRole                  @default(EXECUTIVE_VIEWER)
+  passwordHash            String?
+  isActive                Boolean                   @default(true)
+  lastLoginAt             DateTime?
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @updatedAt
+  sessions                UserSession[]
+  wbsCommands             WbsCommand[]
+  wbsBaselines            WbsBaseline[]
+  auditEvents             AuditEvent[]
+  auditEventChanges       AuditEventChange[]
+  wbsTombstonesDeleted    WbsTombstone[]            @relation("WbsTombstoneDeletedBy")
+  wbsTombstonesRestored   WbsTombstone[]            @relation("WbsTombstoneRestoredBy")
+  savedViews              SavedView[]
+  apiTokensCreated        ApiToken[]                @relation("ApiTokenCreatedBy")
+  webhookEndpointsCreated WebhookEndpoint[]         @relation("WebhookEndpointCreatedBy")
+  targetDateChanges       ProjectTargetDateChange[]
+  projectAccesses         ProjectAccess[]
+  businessUnitMemberships BusinessUnitMembership[]
+  leaveEmployees          LeaveEmployee[]
+  pageVisits              PageVisit[]
+  notifications           Notification[]
+  projectViewStates       UserProjectViewState[]
+  viewDefaults            UserViewDefaults?
+  dashboardPages          DashboardPage[]
+
+  @@index([role, isActive])
+}
+
+model ProjectAccess {
+  id          String             @id @default(cuid())
+  projectId   String
+  userId      String
+  level       ProjectAccessLevel
+  grantedById String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, level])
+  @@index([projectId, level])
+}
+
+model RolePermission {
+  id         String   @id @default(cuid())
+  role       UserRole
+  permission String
+  enabled    Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([role, permission])
+  @@index([role])
+  @@index([permission])
+}
+
+model UserSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model ApiToken {
+  id                 String    @id @default(cuid())
+  name               String
+  tokenHash          String    @unique
+  tokenPrefix        String
+  scopes             Json
+  isActive           Boolean   @default(true)
+  rateLimitPerMinute Int       @default(120)
+  expiresAt          DateTime?
+  lastUsedAt         DateTime?
+  createdById        String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  createdBy          User?     @relation("ApiTokenCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([createdById])
+  @@index([isActive, expiresAt])
+  @@index([tokenPrefix])
+}

@@ -1,0 +1,117 @@
+enum PageVisitActorType {
+  USER
+  ANONYMOUS
+}
+
+model PageVisit {
+  id                   String             @id @default(cuid())
+  eventId              String             @unique
+  actorType            PageVisitActorType
+  userId               String?
+  userName             String?
+  anonymousVisitorHash String?
+  projectId            String?
+  projectCode          String?
+  projectName          String?
+  pageKey              String
+  occurredAt           DateTime           @default(now())
+  user                 User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([occurredAt])
+  @@index([userId])
+}
+
+model DictionaryItem {
+  id          String   @id @default(cuid())
+  dictionary  String
+  code        String
+  label       String
+  description String?
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([dictionary, code])
+  @@index([dictionary, isActive, sortOrder])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String   @default("")
+  isSecret  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditEvent {
+  id           String             @id @default(cuid())
+  actorId      String?
+  actorEmail   String?
+  actorName    String?
+  action       String
+  objectType   String
+  objectId     String?
+  projectId    String?
+  ipAddress    String?
+  userAgent    String?
+  beforeValue  Json?
+  afterValue   Json?
+  metadata     Json?
+  createdAt    DateTime           @default(now())
+  actor        User?              @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  changes      AuditEventChange[]
+  wbsTombstone WbsTombstone?
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([objectType, objectId])
+  @@index([projectId, createdAt])
+  @@index([action, createdAt])
+}
+
+model AuditEventChange {
+  id           String     @id @default(cuid())
+  auditEventId String
+  actorId      String?
+  projectId    String?
+  objectType   String
+  objectId     String?
+  field        String
+  oldValue     Json?
+  newValue     Json?
+  oldText      String?
+  newText      String?
+  createdAt    DateTime   @default(now())
+  auditEvent   AuditEvent @relation(fields: [auditEventId], references: [id], onDelete: Cascade)
+  actor        User?      @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([auditEventId])
+  @@index([projectId, createdAt])
+  @@index([objectType, objectId, createdAt])
+  @@index([field, createdAt])
+  @@index([actorId, createdAt])
+}
+
+/// One call to an AI provider: reserved before the request, closed after it.
+/// Budgets count these rows, so limits hold across restarts and instances.
+/// The text sent to the model is never stored.
+model AiUsage {
+  id               String    @id @default(cuid())
+  feature          String
+  status           String    @default("RESERVED")
+  userId           String?
+  clientIp         String?
+  projectId        String?
+  provider         String
+  model            String
+  inputChars       Int
+  promptTokens     Int       @default(0)
+  completionTokens Int       @default(0)
+  createdAt        DateTime  @default(now())
+  finishedAt       DateTime?
+
+  @@index([createdAt])
+  @@index([userId, createdAt])
+  @@index([clientIp, createdAt])
+}
