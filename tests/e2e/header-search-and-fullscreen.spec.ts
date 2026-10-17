@@ -52,10 +52,17 @@ test("the header search folds to its magnifier and opens on hover or click; Ctrl
   await page.keyboard.type("ab");
   await page.clock.runFor(8_000);
   await expect(search).toHaveClass(/expanded/);
-  // A cursor left in the field does not count as use: ten quiet seconds fold it.
-  await page.clock.runFor(2_500);
-  await expect(search).toHaveClass(/collapsed/);
+  // The cursor still in the field counts as use: however long it stays, the search does not fold.
+  await page.clock.runFor(25_000);
+  await expect(search).toHaveClass(/expanded/);
+  await expect(field).toBeFocused();
+  // Once the focus leaves it, ten quiet seconds fold it.
+  await page.keyboard.press("Tab");
   await expect(field).not.toBeFocused();
+  await page.clock.runFor(9_000);
+  await expect(search).toHaveClass(/expanded/);
+  await page.clock.runFor(1_500);
+  await expect(search).toHaveClass(/collapsed/);
 
   // Going to another page folds it at once.
   await search.hover();

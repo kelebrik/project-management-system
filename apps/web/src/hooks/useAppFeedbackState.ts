@@ -10,6 +10,20 @@ export type Toast = {
 
 const MAX_TOASTS = 4;
 
+/**
+ * The toasts with one more: a message already shown is not shown twice, and
+ * when there are too many the oldest goes, an error last of all: errors stay
+ * until they are closed or the next attempt succeeds, so they must not be
+ * pushed out by notices that pile up.
+ */
+export function addToast(toasts: Toast[], toast: Toast): Toast[] {
+  if (toasts.some((shown) => shown.tone === toast.tone && shown.message === toast.message)) return toasts;
+  const next = [...toasts, toast];
+  if (next.length <= MAX_TOASTS) return next;
+  const victim = next.find((shown) => shown.tone !== "error" && shown.id !== toast.id) ?? next[0]!;
+  return next.filter((shown) => shown.id !== victim.id);
+}
+
 export function useAppFeedbackState() {
   const [loading, setLoading] = useState(true);
   // error/notice оставлены для инлайн-ошибки на экране входа (AuthPage).
@@ -24,13 +38,8 @@ export function useAppFeedbackState() {
 
   const pushToast = useCallback((tone: ToastTone, message: string) => {
     setToasts((prev) => {
-      // не дублируем идентичное сообщение, которое уже висит
-      if (prev.some((toast) => toast.tone === tone && toast.message === message)) {
-        return prev;
-      }
-      const id = (idRef.current += 1);
-      const next = [...prev, { id, tone, message }];
-      return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next;
+      if (prev.some((toast) => toast.tone === tone && toast.message === message)) return prev;
+      return addToast(prev, { id: (idRef.current += 1), tone, message });
     });
   }, []);
 

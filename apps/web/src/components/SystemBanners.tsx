@@ -11,9 +11,10 @@ type SystemBannersProps = {
   onLogin: () => void;
 };
 
-const AUTO_DISMISS_MS: Record<Toast["tone"], number> = {
+/** How long a toast stays; an error stays until it is closed or the next attempt succeeds. */
+const AUTO_DISMISS_MS: Record<Toast["tone"], number | null> = {
   success: 4500,
-  error: 8000,
+  error: null,
   // Warnings explain something unexpected and take longer to read.
   warning: 12000,
 };
@@ -27,10 +28,9 @@ function ToastItem({
 }) {
   const { t } = useI18n();
   useEffect(() => {
-    const timeoutId = window.setTimeout(
-      () => onDismiss(toast.id),
-      AUTO_DISMISS_MS[toast.tone],
-    );
+    const after = AUTO_DISMISS_MS[toast.tone];
+    if (after === null) return;
+    const timeoutId = window.setTimeout(() => onDismiss(toast.id), after);
     return () => window.clearTimeout(timeoutId);
   }, [toast.id, toast.tone, onDismiss]);
 

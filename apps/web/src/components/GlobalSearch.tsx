@@ -58,6 +58,9 @@ export function GlobalSearch({
   const [focused, setFocused] = useState(false);
   const collapseTimerRef = useRef(0);
   const hoverRef = useRef(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  /** Whether the search is in use: the pointer rests on it or the focus is inside it (the field or the results). */
+  const inUse = () => hoverRef.current || Boolean(rootRef.current?.contains(document.activeElement));
 
   const stopCollapse = () => window.clearTimeout(collapseTimerRef.current);
   const collapse = () => {
@@ -66,12 +69,19 @@ export function GlobalSearch({
     onOpenChange(false);
     if (document.activeElement === inputRef.current) inputRef.current?.blur();
   };
-  /** Waits for a quiet spell before folding; any use of the field restarts the wait. */
+  /**
+   * Waits for a quiet spell before folding; any use of the field restarts the
+   * wait. A search still in use (focused, or under the pointer) does not fold,
+   * however long: someone reading the results is not idle. The wait starts
+   * again once it is left.
+   */
   const scheduleCollapse = () => {
     stopCollapse();
     collapseTimerRef.current = window.setTimeout(() => {
-      // The pointer resting on the search keeps it open; leaving restarts the wait.
-      if (hoverRef.current) return;
+      if (inUse()) {
+        scheduleCollapse();
+        return;
+      }
       collapse();
     }, SEARCH_IDLE_COLLAPSE_MS);
   };
@@ -113,7 +123,12 @@ export function GlobalSearch({
 
   return (
     <div
+      ref={rootRef}
       className={`global-search ${expanded ? "expanded" : "collapsed"} ${className}`.trim()}
+      onBlur={(event) => {
+        // The focus left the search (not moved within it): the wait before folding begins.
+        if (!rootRef.current?.contains(event.relatedTarget as Node | null)) scheduleCollapse();
+      }}
       onMouseEnter={() => {
         hoverRef.current = true;
         expand();
