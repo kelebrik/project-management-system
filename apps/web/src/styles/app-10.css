@@ -447,3 +447,4 @@
 .status-legend .tone-ar {
   box-shadow: inset 0 0 0 1px var(--border-strong);
 }
+.wbs-baseline-action { display: inline-flex; }

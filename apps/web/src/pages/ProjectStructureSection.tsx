@@ -1,5 +1,6 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { intlLocale } from "../i18n/locale";
+import { dateFormatter } from "../app/dateFormat";
 import { useI18n as useLocaleTranslation } from "../i18n/I18nProvider";
 import { FileDown, Languages, Maximize2, Minimize2, RefreshCw, X } from "lucide-react";
 import { useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -451,16 +452,29 @@ export function ProjectStructureSection() {
                                     ? uiText("ui.admin.savingEllipsisDots")
                                     : uiText("ui.projects.saveChangesAction")}
                                 </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void saveWbsBaseline()}
-                                  disabled={
-                                    savingBaseline ||
-                                    project.wbsItems.length === 0
+                                {/* A disabled button shows no tooltip: the hint sits on its wrapper. */}
+                                <span
+                                  className="wbs-baseline-action"
+                                  title={
+                                    project.baselineFixedAt
+                                      ? uiText("ui.projects.structureBaselineFixedHint", {
+                                          date: dateFormatter(intlLocale(uiLocale), { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(project.baselineFixedAt)),
+                                        })
+                                      : undefined
                                   }
                                 >
-                                  {uiText("ui.projects.structureSetBaselineAction")}
-                                </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => void saveWbsBaseline()}
+                                    disabled={
+                                      savingBaseline ||
+                                      project.wbsItems.length === 0 ||
+                                      Boolean(project.baselineFixedAt)
+                                    }
+                                  >
+                                    {uiText("ui.projects.structureSetBaselineAction")}
+                                  </button>
+                                </span>
                               </>
                             )}
                             <div className="column-menu">

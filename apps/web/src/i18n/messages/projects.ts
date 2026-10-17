@@ -574,6 +574,10 @@ export const projectsCoreMessages = {
     "en": "Set the baseline",
     "ru": "Зафиксировать базовый план"
   },
+  "ui.projects.structureBaselineFixedHint": {
+    "en": "The baseline was set on {date}; it is set once per project. An administrator changes it with «Update baseline»",
+    "ru": "Базовый план зафиксирован {date}; фиксируется один раз за проект. Изменить его может администратор кнопкой «Обновить базовый план»"
+  },
   "ui.projects.structureColumnsAction": {
     "en": "Columns",
     "ru": "Колонки"

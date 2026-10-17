@@ -260,7 +260,15 @@ export function useWbsSnapshotActions({
         },
       );
       const result = await response.json().catch(() => null);
+      // The plan is fixed once per project: the day it was fixed comes back, also when it already was.
+      // Noted after the Structure the answer carries is applied, which would put the old project back.
+      const noteBaselineFixed = () => {
+        if (typeof result?.baselineFixedAt !== "string") return;
+        const baselineFixedAt: string = result.baselineFixedAt;
+        setProject((current) => (current && current.id === project.id ? { ...current, baselineFixedAt } : current));
+      };
       if (!response.ok) {
+        noteBaselineFixed();
         throw new Error(result?.error ?? t("baseline.saveError"));
       }
       if (result?.wbsItems) {
@@ -272,6 +280,7 @@ export function useWbsSnapshotActions({
       } else {
         await refreshProject(project.id);
       }
+      noteBaselineFixed();
       setNotice(
         selectedCount > 0
           ? t("baseline.savedSelected", { count: selectedCount })

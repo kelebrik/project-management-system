@@ -32,9 +32,9 @@ export function registerProjectOverviewRoutes(
     // The day the path was worked out for comes along: the browser works out the next ones for it.
     const today = new Date();
     const structureToday = today.toISOString().slice(0, 10);
-    const { structureVersion, project, criticalPath, closedIssues } = await prisma.$transaction(async (tx) => {
+    const { structureVersion, project, criticalPath, closedIssues, firstBaseline } = await prisma.$transaction(async (tx) => {
       const structureVersion = await readStructureVersion(req.params.projectId, tx);
-      const [project, criticalPath, closedIssues] = await Promise.all([
+      const [project, criticalPath, closedIssues, firstBaseline] = await Promise.all([
         tx.project.findUnique({
           where: { id: req.params.projectId },
           include: projectDetailsInclude,
@@ -47,8 +47,10 @@ export function registerProjectOverviewRoutes(
             projectId: req.params.projectId,
           },
         }),
+        // The plan is fixed once: the page knows whether, and when.
+        tx.wbsBaseline.findFirst({ where: { projectId: req.params.projectId }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } }),
       ]);
-      return { structureVersion, project, criticalPath, closedIssues };
+      return { structureVersion, project, criticalPath, closedIssues, firstBaseline };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 60_000, maxWait: 10_000 });
 
     if (!project) {
@@ -68,7 +70,8 @@ export function registerProjectOverviewRoutes(
 
     // The person's own view comes with the project, so the page opens with their layout at once.
     const myViewState = await loadProjectViewState(user?.id, project.id);
-    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion, structureToday });
+    const baselineFixedAt = firstBaseline?.createdAt.toISOString() ?? null;
+    res.json({ ...project, closedIssues, criticalPath, currentUserAccessLevel, myViewState, structureVersion, structureToday, baselineFixedAt });
   });
 
   // The Structure changed since the version a browser holds, or whole: rows, links, calendar, the server's day.

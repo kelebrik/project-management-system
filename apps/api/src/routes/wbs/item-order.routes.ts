@@ -251,6 +251,17 @@ export function registerWbsItemOrderRoutes(router: Router) {
           return { updatedCount: result.updatedCount, change };
         }
 
+        // The whole plan is fixed once per project, by anyone who may; after that only an
+        // administrator moves single rows' baselines (the «Update baseline» above).
+        const fixed = await db.wbsBaseline.findFirst({ where: { projectId: project.id }, orderBy: { createdAt: 'asc' }, select: { createdAt: true } });
+        if (fixed) {
+          const [year, month, dayOfMonth] = fixed.createdAt.toISOString().slice(0, 10).split('-');
+          rejectStructureWrite(
+            409,
+            `Базовый план проекта уже зафиксирован ${dayOfMonth}.${month}.${year}. Изменить его может администратор кнопкой «Обновить базовый план»`,
+            { code: 'BASELINE_ALREADY_FIXED', baselineFixedAt: fixed.createdAt.toISOString() },
+          );
+        }
         const baseline = await createWbsBaselineFromCurrentPlan(project.id, db);
         const change = await finishStructureChange(db, project.id, req);
         await recordWbsCommand({
@@ -263,9 +274,9 @@ export function registerWbsItemOrderRoutes(router: Router) {
             version: baseline.version,
           },
         }, db);
-        return { change };
+        return { change, baselineFixedAt: baseline.createdAt.toISOString() };
       });
-      res.json('updatedCount' in result ? { updatedCount: result.updatedCount, ...structureResponse(result.change) } : structureResponse(result.change));
+      res.json('updatedCount' in result ? { updatedCount: result.updatedCount, ...structureResponse(result.change) } : { ...structureResponse(result.change), baselineFixedAt: result.baselineFixedAt });
     } catch (error) {
       if (respondToStructureRejection(res, error)) return;
       throw error;

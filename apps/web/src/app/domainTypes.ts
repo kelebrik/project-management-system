@@ -189,6 +189,8 @@ export type ProjectDetails = Omit<ProjectListItem, "wbsItems"> & {
   changeRequests: unknown[];
   /** This person's own view of the project, null until they arrange it. */
   myViewState?: ProjectViewState | null;
+  /** When the project's plan was fixed (the first baseline); it is fixed once, then only an administrator updates rows. */
+  baselineFixedAt?: string | null;
 };
 
 export type PassportRow = {
