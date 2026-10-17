@@ -425,9 +425,9 @@
   color: var(--text-heading);
   font-size: 13px;
   height: 100%;
-  min-height: 42px;
+  min-height: var(--row-h);
   min-width: 0;
-  padding: 7px 8px;
+  padding: var(--row-pad-y) 8px;
   width: 100%;
 }
 
@@ -462,8 +462,8 @@
 }
 
 .current-work-editable-cell .wbs-url-field {
-  min-height: 42px;
-  padding: 7px 8px;
+  min-height: var(--row-h);
+  padding: var(--row-pad-y) 8px;
 }
 
 .current-work-editable-cell > input[aria-label^="Ссылка "] {
@@ -780,7 +780,7 @@
 .wbs-table-row {
   background: var(--surface);
   border-top: 1px solid var(--border);
-  min-height: 42px;
+  min-height: var(--row-h);
 }
 
 .wbs-row-stack {
@@ -847,9 +847,9 @@
   color: var(--text-heading);
   font-size: 13px;
   height: 100%;
-  min-height: 42px;
+  min-height: var(--row-h);
   min-width: 0;
-  padding: 7px 8px;
+  padding: var(--row-pad-y) 8px;
   width: 100%;
 }
 
@@ -870,12 +870,12 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 24px;
   height: 100%;
-  min-height: 42px;
+  min-height: var(--row-h);
   width: 100%;
 }
 
 .wbs-table-row .wbs-predecessor-input {
-  min-height: 42px;
+  min-height: var(--row-h);
   padding-right: 6px;
 }
 
@@ -897,6 +897,15 @@
   justify-content: center;
   padding: 0;
   width: 18px;
+}
+
+/* Compact rows: the two timing buttons still fit one above the other. */
+[data-density="compact"] .wbs-predecessor-timing {
+  gap: 1px;
+}
+
+[data-density="compact"] .wbs-predecessor-timing-button {
+  height: 14px;
 }
 
 .wbs-predecessor-timing-button:first-child {

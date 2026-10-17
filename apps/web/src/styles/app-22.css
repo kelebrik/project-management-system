@@ -821,3 +821,27 @@ a,
     overflow-x: auto;
   }
 }
+
+/* The keyboard focus is visible on every control; controls with an indicator of their own keep it. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.wbs-table-row input:focus-visible,
+.wbs-table-row select:focus-visible,
+.current-work-row input:focus-visible,
+.current-work-row select:focus-visible,
+.current-work-row textarea:focus-visible,
+.section-tabs button:focus-visible,
+.section-tabs a:focus-visible,
+.global-section-nav button:focus-visible,
+.section-more-menu a:focus-visible {
+  outline: none;
+}

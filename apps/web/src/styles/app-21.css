@@ -375,7 +375,7 @@
   border-bottom: 1px solid var(--border);
   display: grid;
   gap: 10px;
-  min-height: 42px;
+  min-height: var(--row-h);
   padding: 5px 8px;
 }
 

@@ -9,6 +9,8 @@ export const common = {
   "nav.registry": { en: "Registry", ru: "Реестр" },
   "nav.more": { en: "More", ru: "Ещё" },
   "nav.moreSections": { en: "More sections", ru: "Другие разделы" },
+  "density.toCompact": { en: "Compact rows", ru: "Компактные строки" },
+  "density.toComfortable": { en: "Comfortable rows", ru: "Обычные строки" },
   "nav.projectSections": { en: "Project sections", ru: "Разделы проекта" },
   "auth.product": { en: "Project management", ru: "Управление проектами" },
   "auth.productSite": { en: "Gantry on GitHub (opens in a new window)", ru: "Gantry на GitHub (откроется в новом окне)" },

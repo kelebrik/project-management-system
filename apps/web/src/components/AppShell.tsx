@@ -28,6 +28,7 @@ import { ProjectMoreMenu } from "./ProjectMoreMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
 import { ErrorBoundary, ErrorNotice } from "./ErrorBoundary";
+import { DensityToggle } from "./DensityToggle";
 import { LanguageToggle } from "./LanguageToggle";
 import { useTheme } from "../hooks/useTheme";
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
@@ -286,6 +287,7 @@ export function AppShell({
         </div>
         {currentUser && <NotificationsBell />}
         {currentUser && <CloudHeaderSlot user={currentUser} />}
+        <DensityToggle sidebarCollapsed />
         <LanguageToggle sidebarCollapsed />
       </header>
 

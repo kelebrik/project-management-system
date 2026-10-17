@@ -4,7 +4,7 @@
 .wbs-float-near { background: var(--warning-soft, #fff4e5); color: var(--warning-strong, #9a5b00); }
 .wbs-float-free { background: none; color: var(--text-heading); }
 .wbs-float-none { background: none; color: var(--text-muted); }
-.wbs-float-cell { align-items: center; display: flex; height: 100%; min-height: 42px; padding: 0 8px; position: relative; }
+.wbs-float-cell { align-items: center; display: flex; height: 100%; min-height: var(--row-h); padding: 0 8px; position: relative; }
 button.wbs-float { border: 0; cursor: pointer; font-family: inherit; font-variant-numeric: tabular-nums; min-height: 0; }
 .date-drivers-popover { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); display: grid; font-size: 13px; font-weight: 400; gap: 8px; padding: 10px 12px; position: fixed; text-align: left; white-space: normal; width: 380px; z-index: 96; }
 .date-drivers-head { align-items: center; display: flex; justify-content: space-between; }
