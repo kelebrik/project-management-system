@@ -125,6 +125,7 @@ docker compose up -d --build
 - Unit tests: `npm run test:unit`
 - Integration API smoke tests: `INTEGRATION_BASE_URL=http://localhost:3000 npm run test:integration`
 - E2E read-only UI smoke tests: `E2E_BASE_URL=http://localhost:3000 npm run test:e2e`
+  - Локально удобнее с dev-сервером web: `E2E_BASE_URL=http://127.0.0.1:5190 E2E_WEB_SERVER_COMMAND="npm run dev --workspace @pms/web -- --host 127.0.0.1 --port 5190 --strictPort" PLAYWRIGHT_USE_SYSTEM_CHROME=true npx playwright test`. В конфиге два воркера: один dev-сервер обслуживает все вкладки, с бо́льшим числом первые загрузки страниц упираются в таймаут теста. Строки `Failed to fetch dynamically imported module …` в логе прогона — работа `tests/e2e/stale-build.spec.ts`, он нарочно ломает загрузку модулей.
 - Full verification: `npm run typecheck && npm run test && npm run build`
 - OpenAPI: `/api/openapi.json`
 - Health/readiness: `/api/health`, `/api/ready`

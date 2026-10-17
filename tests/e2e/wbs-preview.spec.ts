@@ -417,8 +417,16 @@ test("text typed into a row and not yet taken in survives that row being removed
 });
 
 /** What the signed-in person's database on this device holds for the project. */
+/**
+ * The Structure the tab keeps on the device, or null before it is written. The
+ * database is only looked at when it exists: opening a missing one would make
+ * it (and abort it) under the tab's own opening.
+ */
 function keptBase(page: Page) {
-  return page.evaluate(() => new Promise<{ version: string; items: number } | null>((resolve) => {
+  return page.evaluate(async () => {
+    const known = await indexedDB.databases();
+    if (!known.some((entry) => entry.name === "pms-structure-admin-1")) return null;
+    return new Promise<{ version: string; items: number } | null>((resolve) => {
     const opening = indexedDB.open("pms-structure-admin-1");
     opening.onupgradeneeded = () => {
       opening.transaction?.abort();
@@ -438,12 +446,13 @@ function keptBase(page: Page) {
         resolve(read.result ? { version: read.result.version, items: read.result.items.length } : null);
       };
     };
-  }));
+  });
+  });
 }
 
 test("the Structure the server confirmed is kept on the device across a reload, and forgotten on sign-out", async ({ page }) => {
   await openPlan(page);
-  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  await expect.poll(() => keptBase(page), { timeout: 15_000 }).toEqual({ version: "1", items: 3 });
   await page.reload();
   await expect(page.locator('[data-wbs-row-id="p"]')).toBeVisible();
   expect(await keptBase(page)).toEqual({ version: "1", items: 3 });
@@ -454,7 +463,7 @@ test("the Structure the server confirmed is kept on the device across a reload, 
 
 test("a tab holding an older Structure does not overwrite a newer one kept by another, and one tab leads at a time", async ({ page, context }) => {
   await openPlan(page);
-  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  await expect.poll(() => keptBase(page), { timeout: 15_000 }).toEqual({ version: "1", items: 3 });
   // Another tab of the same person keeps a newer version meanwhile.
   await page.evaluate(() => new Promise<void>((resolve) => {
     const opening = indexedDB.open("pms-structure-admin-1");
@@ -540,7 +549,7 @@ test("a database of the first version keeps numbering its writes on from the one
 
 test("a write another tab keeps while this one signs out is not lost with the database", async ({ page, context }) => {
   await openPlan(page);
-  await expect.poll(() => keptBase(page), { timeout: 5_000 }).toEqual({ version: "1", items: 3 });
+  await expect.poll(() => keptBase(page), { timeout: 15_000 }).toEqual({ version: "1", items: 3 });
   const second = await context.newPage();
   await openPlan(second);
   // The other tab keeps a write under the database lock, as the queue does, finishing while this tab signs out.

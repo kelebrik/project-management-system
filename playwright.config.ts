@@ -9,6 +9,9 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 5_000 },
   fullyParallel: false,
+  // One dev server transforms the pages for every worker: with more than two, first loads of
+  // pages and the tabs of the multi-tab Structure tests run into the test timeout now and then.
+  workers: 2,
   reporter: [["list"], ["html", { open: "never", outputFolder: "playwright-report" }]],
   use: {
     baseURL,
