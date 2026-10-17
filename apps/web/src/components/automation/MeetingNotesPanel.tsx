@@ -2,6 +2,11 @@ import { Sparkles, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { parseMeetingNotes, type MeetingDraft } from "@pms/shared";
 import { ApiError, apiClient } from "../../api/client";
+import { useRecoverableDraft } from "../../hooks/useRecoverableDraft";
+import { clearFormDraft, formDraftKey } from "../../app/formDrafts";
+import { DraftRecoveryNotice } from "../DraftRecoveryNotice";
+
+const isBlankNotes = (text: string) => text.trim() === "";
 import { StructureWriteSettledError } from "../../app/structureStore";
 import type { ProjectDetails } from "../../app/domainTypes";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
@@ -29,6 +34,8 @@ export function MeetingNotesContent() {
   const project = rawProject as ProjectDetails;
   const kindEnabled = (kind: MeetingDraft["kind"]) => isProjectModuleEnabled(kind === "TASK" ? "structure" : kind === "RISK" ? "raid" : "issues");
   const [text, setText] = useState("");
+  const notesKey = formDraftKey("meeting", project.id);
+  const draft = useRecoverableDraft<string>({ key: notesKey, value: text, setValue: setText, isBlank: isBlankNotes });
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [busy, setBusy] = useState(false);
   const [preparing, setPreparing] = useState(false);
@@ -101,7 +108,8 @@ export function MeetingNotesContent() {
     let sortOrder = Math.max(0, ...project.wbsItems.map((item) => item.sortOrder)) + 10;
     const savedTitles = new Set(titles);
     // Existing create handlers own the WBS queue; keep requests sequential and don't retry unknown outcomes.
-    for (const row of rows.filter((item) => item.selected && kindEnabled(item.kind) && item.state !== "saved" && item.state !== "unknown")) {
+    const chosen = rows.filter((item) => item.selected && kindEnabled(item.kind) && item.state !== "saved" && item.state !== "unknown");
+    for (const row of chosen) {
       if (row.title.trim().length < 3 || savedTitles.has(normalized(row.title))) {
         setRows((current) =>
           current.map((item) =>
@@ -184,6 +192,8 @@ export function MeetingNotesContent() {
       }
     }
     setNotice(uiText("meeting.createdCount", { count }));
+    // The notes have done their work only once every chosen row is made; after a refusal they stay to come back to.
+    if (count > 0 && count === chosen.length) clearFormDraft(notesKey);
     try {
       await refreshProject();
     } catch {
@@ -212,6 +222,7 @@ export function MeetingNotesContent() {
           <p>{uiText("ui.automation.meetingNotesParsingRules")}</p>
         </>
       )}
+      {draft.offer && <DraftRecoveryNotice savedAt={draft.offer.savedAt} onContinue={draft.restore} onDiscard={draft.discard} />}
       <label>
         {uiText("ui.automation.meetingNotesText")}
         <textarea

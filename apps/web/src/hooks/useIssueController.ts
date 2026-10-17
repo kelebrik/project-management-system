@@ -8,6 +8,7 @@ import {
 import type { Issue, IssueStatusUpdate, IssueThreadLink, ProjectDetails } from "../app/domainTypes";
 import { emptyIssueForm, type IssueEditDraft, type IssueFormState, type JiraLinkDraft, type TaskJiraDraft } from "../app/formState";
 import { apiBase, authenticatedFetch, responseErrorMessage } from "../app/http";
+import { clearFormDraft, formDraftKey } from "../app/formDrafts";
 import { useConfirm } from "./useConfirm";
 
 type IssueStatusDraft = { text: string };
@@ -170,6 +171,7 @@ export function useIssueController({
         }
         setIssueForm(emptyIssueForm);
         setIssueFormErrors({});
+        clearFormDraft(formDraftKey("issue", projectId));
         await refreshProject(projectId);
         setIssueDrawerMode(null);
         setNotice(

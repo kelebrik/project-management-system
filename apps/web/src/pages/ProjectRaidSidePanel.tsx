@@ -2,6 +2,13 @@ import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
 import type { RaidItemType } from "../app/domainTypes";
 import { ProjectRaidMatrixCard } from "./ProjectRaidMatrixCard";
+import { useRecoverableDraft } from "../hooks/useRecoverableDraft";
+import { formDraftKey, isBlankForm } from "../app/formDrafts";
+import { emptyRaidForm, type RaidFormState } from "../app/formState";
+import { DraftRecoveryNotice } from "../components/DraftRecoveryNotice";
+
+// The kind kept from the last entry is not typing.
+const isBlankRaidForm = (form: RaidFormState) => isBlankForm(form, emptyRaidForm, ["type"]);
 
 type ProjectRaidSidePanelProps = {
   showMatrix?: boolean;
@@ -11,15 +18,24 @@ export function ProjectRaidSidePanel({ showMatrix = true }: ProjectRaidSidePanel
   const { t: uiText } = useInterfaceTranslation();
   const {
     createRaidItem,
+    project,
     raidForm,
     raidTypeLabel,
     setRaidForm,
   } = usePageContext();
+  const draft = useRecoverableDraft<RaidFormState>({
+    key: formDraftKey("raid", project?.id ?? null),
+    value: raidForm,
+    setValue: setRaidForm,
+    isBlank: isBlankRaidForm,
+    enabled: Boolean(project),
+  });
 
   return <div className="raid-side-column">
                       {showMatrix && <ProjectRaidMatrixCard />}
                         <form className="raid-form stack-form" onSubmit={createRaidItem}>
                           <h3>{uiText("ui.projects.newEntryAction")}</h3>
+                          {draft.offer && <DraftRecoveryNotice savedAt={draft.offer.savedAt} onContinue={draft.restore} onDiscard={draft.discard} />}
                         <div className="form-section-title">{uiText("ui.projects.raidPanelGeneralTab")}</div>
                         <div className="two-col">
                         <label>

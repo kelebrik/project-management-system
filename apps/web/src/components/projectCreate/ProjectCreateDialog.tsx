@@ -9,6 +9,10 @@ import { businessUnitForProjectCreation, type BusinessUnitOption } from "../../a
 import type { ProjectStructureCopyOption } from "../../app/projectStructureCopy";
 import { EMPLOYEE_NAMES_LIST_ID } from "../../hooks/useEmployeeDirectory";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { newProjectFormDefaults, type ProjectFormState } from "../../app/formState";
+import { useRecoverableDraft } from "../../hooks/useRecoverableDraft";
+import { formDraftKey, isBlankForm } from "../../app/formDrafts";
+import { DraftRecoveryNotice } from "../DraftRecoveryNotice";
 import { newImportKey, useWbsTableReader } from "../../hooks/useWbsTableReader";
 import { useI18n } from "../../i18n/I18nProvider";
 import { usePageContext } from "../../pages/PageContext";
@@ -29,17 +33,32 @@ type Errors = Partial<Record<"businessUnitId" | "name" | "code" | "projectManage
  * SW TPM, all optional. 3, the Structure: the standard one, copies of other
  * projects, or a table from Excel or Google Sheets, checked before creating.
  */
+const PROJECT_FORM_OWN_FIELDS: ReadonlyArray<keyof ProjectFormState> = ["businessUnitId", "portfolio", "code", "projectManager", "startDate", "targetDate", "status", "rag", "sortOrder"];
+const BLANK_PROJECT_FORM = newProjectFormDefaults();
+const isBlankProjectForm = (form: ProjectFormState) => isBlankForm(form, BLANK_PROJECT_FORM, PROJECT_FORM_OWN_FIELDS);
+
 export function ProjectCreateDialog() {
   const { t } = useI18n();
   const { closeProjectCreate, createProject, currentUser, newProjectForm, projects, setNewProjectForm } = usePageContext();
   const containerRef = useFocusTrap<HTMLDivElement>(true, closeProjectCreate);
+  // What was typed survives a reload and a closed tab; the fields the dialog fills by itself do not count as typing.
+  const draft = useRecoverableDraft<ProjectFormState>({
+    key: formDraftKey("project", currentUser?.id ?? null),
+    value: newProjectForm,
+    setValue: setNewProjectForm,
+    isBlank: isBlankProjectForm,
+  });
   const [step, setStep] = useState<Step>(1);
   const [units, setUnits] = useState<BusinessUnitOption[]>([]);
   const [copyOptions, setCopyOptions] = useState<ProjectStructureCopyOption[]>([]);
   const [copyOptionsError, setCopyOptionsError] = useState<string | null>(null);
   const [loadingCopies, setLoadingCopies] = useState(true);
-  const [codeTouched, setCodeTouched] = useState(false);
-  const [managerTouched, setManagerTouched] = useState(false);
+  // The state holds a code or a manager only when it was typed (see update and next): what the dialog fills in
+  // by itself is left blank there and recomputed. So a kept code or manager is a typed one.
+  const typedCode = (form: ProjectFormState) => Boolean(form.code);
+  const typedManager = (form: ProjectFormState) => Boolean(form.projectManager);
+  const [codeTouched, setCodeTouched] = useState(() => typedCode(newProjectForm));
+  const [managerTouched, setManagerTouched] = useState(() => typedManager(newProjectForm));
   const [unitConfirmed, setUnitConfirmed] = useState(false);
   const [errors, setErrors] = useState<Errors>({});
   const [source, setSource] = useState<StructureSource>("standard");
@@ -58,7 +77,15 @@ export function ProjectCreateDialog() {
   const code = codeTouched ? newProjectForm.code : newProjectForm.name.trim() ? suggestProjectCode(newProjectForm.name, takenCodes) : "";
   const projectManager = managerLocked ? currentUser!.name : managerTouched ? newProjectForm.projectManager : newProjectForm.projectManager || currentUser?.name || "";
   const form = { ...newProjectForm, code, projectManager };
-  const update = (patch: Partial<typeof newProjectForm>) => setNewProjectForm({ ...form, ...patch });
+  // What the dialog fills in by itself (the code from the name, the manager from the person) is not kept as if typed:
+  // it is left blank in the state and follows the name next time, unless this very change types it.
+  const typedOnly = (next: typeof newProjectForm, patch: Partial<typeof newProjectForm> = {}) => ({
+    ...next,
+    ...(codeTouched || "code" in patch ? {} : { code: "" }),
+    ...(managerTouched || "projectManager" in patch ? {} : { projectManager: "" }),
+    ...patch,
+  });
+  const update = (patch: Partial<typeof newProjectForm>) => setNewProjectForm(typedOnly(form, patch));
   const clear = (field: keyof Errors) => errors[field] && setErrors((current) => ({ ...current, [field]: undefined }));
 
   // The unit the page works in is the expected one; creating elsewhere is confirmed here, not in another dialog.
@@ -107,7 +134,7 @@ export function ProjectCreateDialog() {
       const found = stepOneErrors();
       setErrors(found);
       if (Object.values(found).some(Boolean)) return;
-      setNewProjectForm(form);
+      setNewProjectForm(typedOnly(form));
     }
     setStep((current) => (current < 3 ? ((current + 1) as Step) : current));
   };
@@ -172,6 +199,18 @@ export function ProjectCreateDialog() {
           ))}
         </ol>
         <EmployeeNamesList />
+        {draft.offer && (
+          <DraftRecoveryNotice
+            savedAt={draft.offer.savedAt}
+            onContinue={() => {
+              // A code or manager typed before stays as typed, not recomputed from the name.
+              if (draft.offer && typedCode(draft.offer.value)) setCodeTouched(true);
+              if (draft.offer && typedManager(draft.offer.value)) setManagerTouched(true);
+              draft.restore();
+            }}
+            onDiscard={draft.discard}
+          />
+        )}
         <div className="form-grid compact-form project-create-body">
           {step === 1 && (
             <>

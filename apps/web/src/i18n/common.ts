@@ -25,4 +25,7 @@ export const common = {
   "search.empty": { en: "No results", ru: "Ничего не найдено" },
   "common.cancel": { en: "Cancel", ru: "Отмена" },
   "common.delete": { en: "Delete", ru: "Удалить" },
+  "draft.found": { en: "There is an unfinished draft from {when}.", ru: "Есть незавершённый черновик от {when}." },
+  "draft.continue": { en: "Continue", ru: "Продолжить" },
+  "draft.discard": { en: "Delete", ru: "Удалить" },
 } as const;

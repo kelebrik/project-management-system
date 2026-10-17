@@ -1,0 +1,41 @@
+/* The notice of an unfinished draft at the top of a form: one line, two choices. */
+.draft-recovery {
+  align-items: center;
+  background: var(--info-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  flex-wrap: wrap;
+  font-size: var(--fs-sm);
+  gap: 8px 10px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+}
+
+.draft-recovery > span {
+  flex: 1 1 auto;
+}
+
+.draft-recovery button {
+  font-size: var(--fs-xs);
+  min-height: 28px;
+  padding: 0 10px;
+}
+
+.draft-recovery-continue {
+  background: var(--brand);
+  border: 1px solid var(--brand);
+  border-radius: 6px;
+  color: var(--on-brand);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.draft-recovery-discard {
+  background: transparent;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}

@@ -1,8 +1,15 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
 import { usePageContext } from "./PageContext";
+import { useRecoverableDraft } from "../hooks/useRecoverableDraft";
+import { formDraftKey, isBlankForm } from "../app/formDrafts";
+import { emptyIssueForm, type IssueFormState } from "../app/formState";
+import { DraftRecoveryNotice } from "../components/DraftRecoveryNotice";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useConfirm } from "../hooks/useConfirm";
 import type { Issue } from "../app/domainTypes";
+
+// A phase chosen for the issue by the page is not typing.
+const isBlankIssueForm = (form: IssueFormState) => isBlankForm(form, emptyIssueForm, ["phaseId"]);
 
 export function IssueDrawer() {
   const { t: uiText } = useInterfaceTranslation();
@@ -26,6 +33,13 @@ export function IssueDrawer() {
     setError,
     updateIssueFormLink,
   } = ctx;
+  const draft = useRecoverableDraft<IssueFormState>({
+    key: formDraftKey("issue", project?.id ?? null),
+    value: issueForm,
+    setValue: setIssueForm,
+    isBlank: isBlankIssueForm,
+    enabled: Boolean(project) && issueDrawerMode === "create",
+  });
   const phases = project?.wbsItems.filter((item: { type: string }) => item.type === "PHASE") ?? [];
   const categories = [...new Set<string>(
     (project?.issues ?? []).map((issue: Issue) => issue.category.trim()).filter(Boolean),
@@ -92,6 +106,7 @@ export function IssueDrawer() {
               </div>
               {issueDrawerMode === "create" && (
                 <form className="stack-form" onSubmit={createOpenIssue}>
+                  {draft.offer && <DraftRecoveryNotice savedAt={draft.offer.savedAt} onContinue={draft.restore} onDiscard={draft.discard} />}
                   <label className={issueFormErrors.title ? "field-error" : ""}>
                     {uiText("ui.projects.issueTitle")}
                     <input

@@ -10,6 +10,7 @@ import {
   type RaidFormState,
 } from "../app/formState";
 import { apiBase, authenticatedFetch } from "../app/http";
+import { clearFormDraft, formDraftKey } from "../app/formDrafts";
 import { isoDate } from "../app/dateUtils";
 import { useI18n } from "../i18n/I18nProvider";
 import { useConfirm } from "./useConfirm";
@@ -93,6 +94,7 @@ export function useRaidController({
           );
         }
         setRaidForm({ ...emptyRaidForm, type: raidForm.type });
+        clearFormDraft(formDraftKey("raid", projectId));
         await refreshProject(projectId);
         setExpandedRaidId(result.id);
         setNotice(uiText("ui.projects.raidCreated"));

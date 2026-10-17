@@ -21,6 +21,7 @@ import {
   type ProjectFormState,
   type ProjectRegistryDraft,
 } from "../app/formState";
+import { clearFormDraft, formDraftKey } from "../app/formDrafts";
 import { apiBase, authenticatedFetch } from "../app/http";
 import type { AppView } from "../app/routes";
 import { useConfirm } from "./useConfirm";
@@ -211,6 +212,7 @@ export function useProjectRegistryController({
           window.dispatchEvent(new CustomEvent(BUSINESS_UNITS_CHANGED_EVENT));
         }
         setNewProjectForm(newProjectFormDefaults());
+        clearFormDraft(formDraftKey("project", currentUser?.id ?? null));
         setProjectCreateOpen(false);
         openView("project-structure", { replace: true });
         setSelectedProjectId(result.id);

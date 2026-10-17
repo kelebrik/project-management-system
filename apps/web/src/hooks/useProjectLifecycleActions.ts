@@ -6,6 +6,8 @@ import { effectiveProjectView, viewPatchOf, writeDemoView } from "../app/project
 import type { ProjectDetails, ProjectUiState } from "../app/domainTypes";
 import {
   artifactToForm,
+  emptyIssueForm,
+  emptyRaidForm,
   issueToDraft,
   normalizePassportRows,
   raidToForm,
@@ -121,6 +123,9 @@ export function useProjectLifecycleActions(deps: ProjectLifecycleActionsDeps) {
     setWbsColumnWidths,
     setWbsDrafts,
     setFailedWbsSaves,
+    setIssueForm,
+    setIssueFormErrors,
+    setRaidForm,
     setWbsHiddenColumns,
     setWbsRedoHistory,
     setWbsSort,
@@ -323,7 +328,13 @@ const applyProject = useCallback(
     setProjectTargetApprovedBy("");
     setWbsUndoHistory([]);
     setWbsRedoHistory([]);
-    if (previousProject?.id !== nextProject.id) setFailedWbsSaves({});
+    if (previousProject?.id !== nextProject.id) {
+      setFailedWbsSaves({});
+      // The forms for a new issue and a new risk are the project's: another project starts them blank.
+      setIssueForm(emptyIssueForm);
+      setIssueFormErrors({});
+      setRaidForm(emptyRaidForm);
+    }
     // The view is this person's own (see effectiveProjectView), not the project's. It is
     // applied when a project opens, not on every reload of its data, so a reload racing a
     // layout save cannot put the old columns back.
@@ -473,7 +484,7 @@ const applyProject = useCallback(
     );
   },
   // All of these are state setters and refs, stable between renders.
-  [currentUser?.id, projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setFailedWbsSaves, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
+  [currentUser?.id, projectRef, setActiveWbsItemId, setArtifactDrafts, setCollapsedWbsIds, setExpandedArtifactId, setExpandedIssueId, setExpandedRaidId, setGanttPanelHeight, setGanttPanelWidth, setGanttWbsWidth, setIssueEditDrafts, setIssueLinkDrafts, setJiraForm, setJiraWorkSectionDrafts, setPassportRows, setProject, setProjectTargetApprovedBy, setProjectTargetChangeReason, setProjectTargetDateDraft, setRaidDrafts, setRaidStatusDrafts, setSelectedCalendarYear, setSelectedWbsIds, setSidebarCollapsed, setTaskDrafts, setWbsColumnOrder, setWbsColumnWidths, setWbsDrafts, setFailedWbsSaves, setIssueForm, setIssueFormErrors, setRaidForm, setWbsHiddenColumns, setWbsRedoHistory, setWbsSort, setWbsUndoHistory, wbsDraftsRef],
 );
 
 useEffect(() => {
