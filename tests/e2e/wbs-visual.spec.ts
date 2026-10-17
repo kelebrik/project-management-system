@@ -164,13 +164,15 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
   const trimmedTabLabels = projectTabLabels.map((label) => label.trim());
   const structureIndex = trimmedTabLabels.indexOf("Структура");
   expect(structureIndex).toBeGreaterThanOrEqual(0);
+  // Decisions, Jira work, the passport, requirements and calendars sit behind «Ещё».
   expect(trimmedTabLabels.slice(structureIndex, structureIndex + 5)).toEqual([
     "Структура",
     "Вопросы",
-    "Решения",
     "Риски",
-    "Работы Jira",
+    "Артефакты",
+    "История",
   ]);
+  expect(trimmedTabLabels).not.toContain("Паспорт");
   const projectTabsFit = await projectNav.locator(".section-tabs").evaluate(
     (element) => element.scrollWidth <= element.clientWidth + 1,
   );
@@ -368,11 +370,10 @@ test("project navigation and current work reflect the structure", async ({ page 
     "Текучка",
     "Структура",
     "Вопросы",
-    "Решения",
     "Риски",
-    "Работы Jira",
-    "Паспорт",
-    "Требования",
+    "Артефакты",
+    "История",
+    "Ещё",
   ];
   const tabPositions = await Promise.all(
     orderedLabels.map(async (label) => {

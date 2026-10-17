@@ -319,11 +319,69 @@
   color: var(--text);
 }
 
-.section-tabs button.active {
+.section-tabs button.active,
+.section-tabs a.active {
   color: var(--text-strong);
 }
 
-.section-tabs button.active::after {
+/* «Ещё»: the sections kept behind a menu; the button names the open one. */
+.section-tabs .section-more-button {
+  gap: 6px;
+}
+
+.section-tabs .section-more-button svg:last-child {
+  opacity: 0.7;
+}
+
+.section-tabs .section-more-prefix {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.section-more-menu {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 2px;
+  min-width: 220px;
+  padding: 6px;
+  position: fixed;
+  z-index: 60;
+}
+
+.section-more-menu a {
+  align-items: center;
+  border-radius: 6px;
+  color: var(--text-heading);
+  display: flex;
+  font-size: 13px;
+  font-weight: 700;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 10px;
+  text-decoration: none;
+}
+
+.section-more-menu a:hover,
+.section-more-menu a:focus-visible {
+  background: var(--surface-2);
+  color: var(--text-strong);
+  outline: none;
+}
+
+.section-more-menu a:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--brand-border-strong);
+}
+
+.section-more-menu a.active {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.section-tabs button.active::after,
+.section-tabs a.active::after {
   background: var(--brand);
   bottom: 0;
   content: "";

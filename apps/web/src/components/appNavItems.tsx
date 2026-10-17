@@ -1,7 +1,7 @@
 // The sections the header and the command palette offer.
 import type { ReactNode } from "react";
 import { Archive, BarChart3, BriefcaseBusiness, CalendarDays, CircleHelp, ClipboardCheck, FileArchive, FileSpreadsheet, FileText, FolderTree, GanttChartSquare, Gavel, GitBranch, GraduationCap, Grid3x3, HardDriveDownload, HeartPulse, History, Import, KeyRound, LayoutDashboard, ListChecks, ListTodo, NotebookText, ShieldAlert, ShieldCheck, SlidersHorizontal, Users, Workflow } from "lucide-react";
-import type { AppView } from "../app/routes";
+import type { AppView, ProjectSectionView } from "../app/routes";
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
 import type { ProjectNavItem } from "./ProjectSidebarMenu";
 
@@ -91,6 +91,28 @@ export const projectNavItems: ProjectNavItem[] = [
     icon: <History size={17} />,
   },
 ];
+
+/**
+ * Project sections kept behind «Ещё» (the user's choice): the bar holds what
+ * is opened daily, these open from the menu. The active one is still named
+ * on the menu's button.
+ */
+export const MORE_PROJECT_VIEWS: readonly ProjectSectionView[] = [
+  "project-decisions",
+  "project-jira-work",
+  "project-passport",
+  "project-business-requirements",
+  "project-calendars",
+];
+
+/** The project's sections as the bar shows them: pinned in the bar, the rest under «Ещё»; disabled modules in neither. */
+export function splitProjectNavItems(items: ProjectNavItem[], isEnabled: (key: ProjectNavItem["key"]) => boolean) {
+  const shown = items.filter((item) => isEnabled(item.key));
+  return {
+    pinned: shown.filter((item) => !MORE_PROJECT_VIEWS.includes(item.view)),
+    more: shown.filter((item) => MORE_PROJECT_VIEWS.includes(item.view)),
+  };
+}
 
 export type AdminNavItem = {
   view: AppView;

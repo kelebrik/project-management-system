@@ -7,6 +7,8 @@ export const common = {
   "nav.operations": { en: "Operations", ru: "Операционка" },
   "nav.faq": { en: "FAQ", ru: "FAQ" },
   "nav.registry": { en: "Registry", ru: "Реестр" },
+  "nav.more": { en: "More", ru: "Ещё" },
+  "nav.moreSections": { en: "More sections", ru: "Другие разделы" },
   "nav.projectSections": { en: "Project sections", ru: "Разделы проекта" },
   "auth.product": { en: "Project management", ru: "Управление проектами" },
   "auth.productSite": { en: "Gantry on GitHub (opens in a new window)", ru: "Gantry на GitHub (откроется в новом окне)" },

@@ -1,5 +1,6 @@
 import { startTransition, Suspense, type FocusEventHandler, type KeyboardEventHandler, type ReactNode } from "react";
 import { preloadAppPage, WikiNavigation } from "../pages/pageModules";
+import { appPathForView } from "../app/routes";
 import { ShiftReasonPrompt } from "./scheduleShifts/ShiftReasonPrompt";
 import { NotificationsBell } from "./notifications/NotificationsBell";
 import { CloudHeaderSlot } from "./CloudSlot";
@@ -22,7 +23,8 @@ import { ProjectCreateDialog } from "./projectCreate/ProjectCreateDialog";
 import { AppTopbar } from "./AppTopbar";
 import { BusinessUnitSwitcher } from "./BusinessUnitSwitcher";
 import { ProjectPicker } from "./ProjectPicker";
-import { adminNavItems, developmentNavItems, operationsNavItems, projectNavItems } from "./appNavItems";
+import { adminNavItems, developmentNavItems, operationsNavItems, projectNavItems, splitProjectNavItems } from "./appNavItems";
+import { ProjectMoreMenu } from "./ProjectMoreMenu";
 import { SidebarIdentity } from "./SidebarIdentity";
 import { SystemBanners } from "./SystemBanners";
 import { ErrorBoundary, ErrorNotice } from "./ErrorBoundary";
@@ -175,6 +177,7 @@ export function AppShell({
   useTheme();
   // Keep the current workspace visible while the destination code arrives.
   const navigate = (view: AppView) => startTransition(() => openView(view));
+  const projectSections = splitProjectNavItems(projectNavItems, isProjectModuleEnabled);
   const login = () => {
     onAuthModeChange("login");
     onErrorChange(null);
@@ -300,9 +303,7 @@ export function AppShell({
             >
               <FolderTree size={15} /> {t("nav.registry")}
             </button>
-            {projectNavItems
-              .filter((item) => isProjectModuleEnabled(item.key))
-              .map((item) => (
+            {projectSections.pinned.map((item) => (
                 <button
                   type="button"
                   key={item.view}
@@ -315,6 +316,14 @@ export function AppShell({
                   {t(projectNavShortLabels[item.view] ?? item.label)}
                 </button>
               ))}
+            <ProjectMoreMenu
+              items={projectSections.more}
+              activeView={activeView}
+              labelOf={(item) => projectNavShortLabels[item.view] ?? item.label}
+              hrefOf={(view) => appPathForView(view, project?.code ?? null)}
+              onNavigate={navigate}
+              onPreload={preloadAppPage}
+            />
             <button
               type="button"
               className={pageContext.projectCreateOpen ? "active" : ""}
