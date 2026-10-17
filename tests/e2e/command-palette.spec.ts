@@ -8,7 +8,7 @@ test("Ctrl K opens the palette: a section in the wrong layout, a found row, Esc 
   }));
 
   await page.goto("/TV-OVERVIEW/overview");
-  await expect(page.getByRole("button", { name: "Структура" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Структура" }).first()).toBeVisible();
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByRole("dialog", { name: "Палитра команд" });
   await expect(palette).toBeVisible();
@@ -43,7 +43,7 @@ test("Ctrl K opens the palette: a section in the wrong layout, a found row, Esc 
   await expect(palette).toBeHidden();
 
   // Closing gives the focus back to where it was.
-  const tab = page.getByRole("button", { name: "Структура" }).first();
+  const tab = page.getByRole("link", { name: "Структура" }).first();
   await tab.focus();
   await page.keyboard.press("ControlOrMeta+K");
   await expect(palette.getByRole("combobox")).toBeFocused();
@@ -54,7 +54,7 @@ test("Ctrl K opens the palette: a section in the wrong layout, a found row, Esc 
 test("the palette creates an open issue in the current project", async ({ page }) => {
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/overview");
-  await expect(page.getByRole("button", { name: "Структура" }).first()).toBeVisible();
+  await expect(page.getByRole("link", { name: "Структура" }).first()).toBeVisible();
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByRole("dialog", { name: "Палитра команд" });
   await palette.getByRole("combobox").fill("вопрос");

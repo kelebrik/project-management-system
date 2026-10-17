@@ -67,7 +67,7 @@ test("the header search folds to its magnifier and opens on hover or click; Ctrl
   // Going to another page folds it at once.
   await search.hover();
   await expect(search).toHaveClass(/expanded/);
-  await page.getByRole("button", { name: "Портфель" }).first().click();
+  await page.getByRole("link", { name: "Портфель" }).first().click();
   await expect(search).toHaveClass(/collapsed/);
 });
 
@@ -163,7 +163,7 @@ test("results that arrive after the search folded stay hidden", async ({ page })
   await page.keyboard.type("тел");
   await asked;
   // The user leaves for another page before the answer comes.
-  await page.getByRole("button", { name: "Портфель" }).first().click();
+  await page.getByRole("link", { name: "Портфель" }).first().click();
   await expect(page.locator(".app-global-header .global-search")).toHaveClass(/collapsed/);
   const response = page.waitForResponse(/\/api\/search/);
   release();

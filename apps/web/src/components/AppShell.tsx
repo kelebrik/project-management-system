@@ -30,13 +30,10 @@ import { SystemBanners } from "./SystemBanners";
 import { ErrorBoundary, ErrorNotice } from "./ErrorBoundary";
 import { DensityToggle } from "./DensityToggle";
 import { LanguageToggle } from "./LanguageToggle";
+import { NavTab } from "./NavTab";
 import { useTheme } from "../hooks/useTheme";
 import type { SimpleTranslationKey as TranslationKey } from "../i18n/types";
 import { useI18n } from "../i18n/I18nProvider";
-
-function navigationIntent(view: AppView) {
-  return { onPointerEnter: () => preloadAppPage(view), onFocus: () => preloadAppPage(view) };
-}
 
 type ScheduleHealth = {
   tone: string;
@@ -218,69 +215,62 @@ export function AppShell({
         <BusinessUnitSwitcher />
         <nav className="global-section-nav" aria-label={t("nav.mainSections")}>
           {isAuthenticated && (
-            <button
-              type="button"
-              className={activeView === "my-page" ? "active" : ""}
-              {...navigationIntent("my-page")}
-              onClick={() => navigate("my-page")}
+            <NavTab
+              view="my-page"
+              active={activeView === "my-page"}
+              onNavigate={navigate}
             >
               <LayoutDashboard size={15} /> {t("view.my-page")}
-            </button>
+            </NavTab>
           )}
-          <button
-            type="button"
-            className={activeView === "portfolio" ? "active" : ""}
-            {...navigationIntent("portfolio")}
-            onClick={() => navigate("portfolio")}
+          <NavTab
+            view="portfolio"
+            active={activeView === "portfolio"}
+            onNavigate={navigate}
           >
             <BriefcaseBusiness size={15} /> {t("view.portfolio")}
-          </button>
-          <button
-            type="button"
-            className={projectsActive ? "active" : ""}
-            {...navigationIntent("projects")}
-            onClick={() => navigate("projects")}
+          </NavTab>
+          <NavTab
+            view="projects"
+            active={projectsActive}
+            onNavigate={navigate}
           >
             <FolderTree size={15} /> {t("nav.projects")}
-          </button>
+          </NavTab>
           {canViewOperationsSections && (
-            <button
-              type="button"
-              className={isOperationsSectionView ? "active" : ""}
-              {...navigationIntent("leave-schedule")}
-              onClick={() => navigate("leave-schedule")}
+            <NavTab
+              view="leave-schedule"
+              active={isOperationsSectionView}
+              onNavigate={navigate}
             >
               <ClipboardList size={15} /> {t("nav.operations")}
-            </button>
+            </NavTab>
           )}
           {canViewAdminSections && (
-            <button
-              type="button"
-              className={isAdminSectionView ? "active" : ""}
-              {...navigationIntent("admin-projects")}
-              onClick={() => navigate("admin-projects")}
+            <NavTab
+              view="admin-projects"
+              active={isAdminSectionView}
+              onNavigate={navigate}
             >
               <Settings size={15} /> {t("nav.administration")}
-            </button>
+            </NavTab>
           )}
           {canViewDevelopmentSections && (
-            <button
-              type="button"
-              className={isDevelopmentSectionView ? "active" : ""}
-              {...navigationIntent("decision-queue")}
-              onClick={() => navigate("decision-queue")}
+            <NavTab
+              view="decision-queue"
+              active={isDevelopmentSectionView}
+              onNavigate={navigate}
             >
               <Code2 size={15} /> {t("nav.development")}
-            </button>
+            </NavTab>
           )}
-          <button
-            type="button"
-            className={activeView === "wiki" ? "active" : ""}
-            {...navigationIntent("wiki")}
-            onClick={() => navigate("wiki")}
+          <NavTab
+            view="wiki"
+            active={activeView === "wiki"}
+            onNavigate={navigate}
           >
             <BookOpen size={15} /> FAQ
-          </button>
+          </NavTab>
         </nav>
         <div className="global-header-search">
           {renderGlobalSearch("global-search-topbar")}
@@ -297,26 +287,25 @@ export function AppShell({
             {projectPicker(firstEnabledProjectView)}
           </div>
           <nav className="section-tabs" aria-label={t("nav.projectSections")}>
-            <button
-              type="button"
-              className={activeView === "projects" ? "active" : ""}
-              {...navigationIntent("projects")}
-              onClick={() => navigate("projects")}
+            <NavTab
+              view="projects"
+              active={activeView === "projects"}
+              onNavigate={navigate}
             >
               <FolderTree size={15} /> {t("nav.registry")}
-            </button>
+            </NavTab>
             {projectSections.pinned.map((item) => (
-                <button
-                  type="button"
+                <NavTab
                   key={item.view}
-                  className={activeView === item.view ? "active" : ""}
-                  {...navigationIntent(item.view)}
-                  onClick={() => navigate(item.view)}
+                  view={item.view}
+                  projectCode={project?.code ?? null}
+                  active={activeView === item.view}
+                  onNavigate={navigate}
                   title={t(item.label)}
                 >
                   {item.icon}
                   {t(projectNavShortLabels[item.view] ?? item.label)}
-                </button>
+                </NavTab>
               ))}
             <ProjectMoreMenu
               items={projectSections.more}
@@ -342,15 +331,14 @@ export function AppShell({
           {adminNavItems
             .filter((item) => canViewAppView(item.view, sectionAccess))
             .map((item) => (
-            <button
-              type="button"
+            <NavTab
               key={item.view}
-              className={activeView === item.view ? "active" : ""}
-              {...navigationIntent(item.view)}
-              onClick={() => navigate(item.view)}
+              view={item.view}
+              active={activeView === item.view}
+              onNavigate={navigate}
             >
               {item.icon} {t(item.label)}
-            </button>
+            </NavTab>
             ))}
         </nav>
       )}
@@ -366,15 +354,14 @@ export function AppShell({
             {developmentNavItems
               .filter((item) => canViewAppView(item.view, sectionAccess))
               .map((item) => (
-              <button
-                type="button"
+              <NavTab
                 key={item.view}
-                className={activeView === item.view ? "active" : ""}
-                {...navigationIntent(item.view)}
-                onClick={() => navigate(item.view)}
+                view={item.view}
+                active={activeView === item.view}
+                onNavigate={navigate}
               >
                 {item.icon} {t(item.label)}
-              </button>
+              </NavTab>
             ))}
           </nav>
         </div>
@@ -386,15 +373,14 @@ export function AppShell({
             {operationsNavItems
               .filter((item) => canViewAppView(item.view, sectionAccess))
               .map((item) => (
-                <button
-                  type="button"
+                <NavTab
                   key={item.view}
-                  className={activeView === item.view ? "active" : ""}
-                  {...navigationIntent(item.view)}
-                  onClick={() => navigate(item.view)}
+                  view={item.view}
+                  active={activeView === item.view}
+                  onNavigate={navigate}
                 >
                   {item.icon} {t(item.label)}
-                </button>
+                </NavTab>
               ))}
           </nav>
         </div>

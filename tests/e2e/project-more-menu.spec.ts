@@ -6,7 +6,7 @@ test("five sections sit behind «Ещё»; the open one is named on the button; 
   await page.goto(`/${project.code}/wbs`);
   const nav = page.getByRole("navigation", { name: "Разделы проекта" });
   for (const hidden of ["Решения", "Работы Jira", "Паспорт", "Требования", "Календари"]) {
-    await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
   }
   const more = nav.getByRole("button", { name: "Ещё", exact: true });
   await expect(more).toBeVisible();
@@ -35,6 +35,6 @@ test("five sections sit behind «Ещё»; the open one is named on the button; 
   const named = nav.getByRole("button", { name: /Ещё · Паспорт/ });
   await expect(named).toHaveClass(/active/);
   // Back in the bar: the button is plain «Ещё» again.
-  await nav.getByRole("button", { name: "Структура", exact: true }).click();
+  await nav.getByRole("link", { name: "Структура", exact: true }).click();
   await expect(nav.getByRole("button", { name: "Ещё", exact: true })).not.toHaveClass(/active/);
 });

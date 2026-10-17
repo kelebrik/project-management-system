@@ -58,7 +58,8 @@
   display: none;
 }
 
-.global-section-nav button {
+.global-section-nav button,
+.global-section-nav a {
   align-items: center;
   background: transparent;
   border: 0;
@@ -72,19 +73,24 @@
   height: 52px;
   padding: 0 12px;
   position: relative;
+  text-decoration: none;
 }
 
 .global-section-nav button:hover,
-.global-section-nav button:focus-visible {
+.global-section-nav button:focus-visible,
+.global-section-nav a:hover,
+.global-section-nav a:focus-visible {
   background: rgba(255, 255, 255, 0.05);
   color: #fff;
 }
 
-.global-section-nav button.active {
+.global-section-nav button.active,
+.global-section-nav a.active {
   color: #fff;
 }
 
-.global-section-nav button.active::after {
+.global-section-nav button.active::after,
+.global-section-nav a.active::after {
   background: #5eead4;
   bottom: 0;
   content: "";

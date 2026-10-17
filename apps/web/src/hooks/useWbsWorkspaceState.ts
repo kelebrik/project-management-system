@@ -62,6 +62,7 @@ export function useWbsWorkspaceState() {
   const [wbsRedoStack, setWbsRedoStack] = useState<WbsUndoStep[]>([]);
   const [restoringWbsSnapshot, setRestoringWbsSnapshot] = useState(false);
   const [activeWbsItemId, setActiveWbsItemId] = useState<string | null>(null);
+  const [wbsDetailsOpen, setWbsDetailsOpen] = useState(false);
   const [hoveredGanttItemId, setHoveredGanttItemId] = useState<string | null>(
     null,
   );
@@ -130,6 +131,8 @@ export function useWbsWorkspaceState() {
     setRestoringWbsSnapshot,
     activeWbsItemId,
     setActiveWbsItemId,
+    wbsDetailsOpen,
+    setWbsDetailsOpen,
     hoveredGanttItemId,
     setHoveredGanttItemId,
     ganttLinkDraft,

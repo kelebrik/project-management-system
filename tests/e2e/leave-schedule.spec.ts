@@ -205,7 +205,7 @@ test("Operations is open to a project manager, who edits leaves without listing 
 
   // The old Development address still opens the page, now under Operations.
   await page.goto("/development/leave-schedule");
-  await expect(page.getByRole("navigation", { name: "Операционка" }).getByRole("button", { name: "График отпусков" })).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: "Операционка" }).getByRole("link", { name: "График отпусков" })).toHaveClass(/active/);
 
   await page.getByRole("button", { name: "Добавить отсутствие" }).click();
   const dialog = page.getByRole("dialog", { name: "Новое отсутствие" });

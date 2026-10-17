@@ -85,6 +85,6 @@ test("any open goal is moved from the passport; an agreed move needs who agreed 
   await expect(page.getByLabel("Новая дата цели")).toHaveValue(isoDay(20));
 
   // The registry follows without a reload: the bar ends at the project's new target.
-  await page.getByRole("button", { name: "Реестр" }).click();
+  await page.getByRole("link", { name: "Реестр" }).click();
   await expect(page.locator(".portfolio-chart .highcharts-point").first()).toHaveAttribute("aria-label", new RegExp(shown(isoDay(95))));
 });

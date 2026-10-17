@@ -155,12 +155,12 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
   const projectNav = page.locator(".project-section-navigation");
   await expect(globalNav).toBeVisible();
   await expect(projectNav).toBeVisible();
-  await expect(globalNav.getByRole("button", { name: "Проекты" })).toBeVisible();
-  await expect(projectNav.getByRole("button", { name: "Гантт" })).toHaveClass(
+  await expect(globalNav.getByRole("link", { name: "Проекты" })).toBeVisible();
+  await expect(projectNav.getByRole("link", { name: "Гантт" })).toHaveClass(
     /active/,
   );
-  await expect(projectNav.getByRole("button", { name: "Риски" })).toBeVisible();
-  const projectTabLabels = await projectNav.locator("button").allTextContents();
+  await expect(projectNav.getByRole("link", { name: "Риски" })).toBeVisible();
+  const projectTabLabels = await projectNav.locator("a, button").allTextContents();
   const trimmedTabLabels = projectTabLabels.map((label) => label.trim());
   const structureIndex = trimmedTabLabels.indexOf("Структура");
   expect(structureIndex).toBeGreaterThanOrEqual(0);
@@ -267,7 +267,7 @@ test("visual refresh keeps two-level navigation and Gantt rows aligned", async (
   await expect(globalNav).toBeVisible();
   await expect(projectNav).toBeVisible();
   await expect(page.locator(".global-header-search")).toBeHidden();
-  await expect(projectNav.getByRole("button", { name: "Гантт" })).toBeVisible();
+  await expect(projectNav.getByRole("link", { name: "Гантт" })).toBeVisible();
 
   if (process.env.CAPTURE_DESIGN_REFRESH === "1") {
     await page.screenshot({
@@ -377,7 +377,8 @@ test("project navigation and current work reflect the structure", async ({ page 
   ];
   const tabPositions = await Promise.all(
     orderedLabels.map(async (label) => {
-      const tab = projectNav.getByRole("button", { name: label, exact: true });
+      // The sections are links; «Ещё» is the button that opens the rest.
+      const tab = projectNav.getByRole(label === "Ещё" ? "button" : "link", { name: label, exact: true });
       await expect(tab).toBeVisible();
       return (await tab.boundingBox())?.x ?? 0;
     }),

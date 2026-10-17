@@ -297,7 +297,7 @@ test("report builder creates and filters a project status report", async ({ page
 
   await page.goto("/development/reports");
 
-  await expect(page.getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("link", { name: "Отчёты" })).toHaveClass(/active/);
   await expect(page.getByRole("heading", { name: "Что сделано" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Что в работе" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Что предстоит сделать" })).toBeVisible();
@@ -419,8 +419,8 @@ test("reports are a tab of Development for administrators, and the old address l
   );
 
   await page.goto("/reports");
-  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
-  await expect(page.getByRole("banner").getByRole("button", { name: "Отчёты" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("link", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("banner").getByRole("link", { name: "Отчёты" })).toHaveCount(0);
   await page.getByRole("button", { name: "Сводка портфеля" }).click();
   await expect(page.locator(".portfolio-report-scroll tbody tr")).toHaveCount(1);
   await expect(page.locator(".portfolio-report-scroll tbody tr")).toContainText("Поставщик: Задержка плат");
@@ -430,7 +430,7 @@ test("reports are a tab of Development for administrators, and the old address l
   // A project manager no longer has them: Development is for administrators.
   role = "PROJECT_MANAGER";
   await page.goto("/development/reports");
-  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Разработка" })).toHaveCount(0);
   await expect(page.locator(".portfolio-report-scroll")).toHaveCount(0);
 });
 
@@ -445,7 +445,7 @@ test("the archive opens for an administrator and the demo visitor but not for a 
     route.fulfill({ json: { enabled: false, hostname: null } }),
   );
   await page.route("**/api/projects", (route) => route.fulfill({ json: [] }));
-  const archiveTab = () => page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Архив" });
+  const archiveTab = () => page.getByRole("navigation", { name: "Разработка" }).getByRole("link", { name: "Архив" });
 
   await page.goto("/development/archive");
   await expect(archiveTab()).toHaveClass(/active/);
@@ -457,5 +457,5 @@ test("the archive opens for an administrator and the demo visitor but not for a 
   user = { id: "user-2", role: "PROJECT_MANAGER" };
   await page.goto("/closed-projects");
   await expect(archiveTab()).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Разработка" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Разработка" })).toHaveCount(0);
 });

@@ -22,7 +22,7 @@ test("the project schedule tab draws goals, phases, milestones and shifts with H
     };
   });
   await page.goto("/TV-OVERVIEW/schedule");
-  await expect(page.locator(".project-section-navigation").getByRole("button", { name: "График" })).toHaveClass(/active/);
+  await expect(page.locator(".project-section-navigation").getByRole("link", { name: "График" })).toHaveClass(/active/);
   const cards = page.locator(".lab-card");
   await expect(cards).toHaveCount(6);
   await expect(page.locator(".lab-card .highcharts-root")).toHaveCount(6);
@@ -66,7 +66,7 @@ test("the old schedule lives in Development as «Старый график»", a
   await mockAdminProject(page);
   await page.goto("/TV-OVERVIEW/schedule");
   await page.goto("/development/schedule-legacy");
-  await expect(page.locator(".development-section-navigation").getByRole("button", { name: "Старый график" })).toHaveClass(/active/);
+  await expect(page.locator(".development-section-navigation").getByRole("link", { name: "Старый график" })).toHaveClass(/active/);
   await expect(page.locator("#milestones-by-phase")).toBeVisible();
   await expect(page.locator(".development-section-navigation .section-project-picker")).toBeVisible();
 });

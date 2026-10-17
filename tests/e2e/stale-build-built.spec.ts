@@ -17,7 +17,7 @@ test("built: a page whose file is gone reloads the tab once and then shows", { t
     return route.fallback();
   });
   await page.goto("/projects");
-  await page.getByRole("button", { name: "Моя страница" }).first().click();
+  await page.getByRole("link", { name: "Моя страница" }).first().click();
   await expect(page.getByText("Мои страницы (0)")).toBeVisible();
   expect(failures).toBe(1);
 });
@@ -27,11 +27,11 @@ test("built: a page that keeps failing says a new version is out, instead of a b
   await mockAdminProject(page);
   await page.route(/\/assets\/MyPagePage-[^/]+\.js$/, (route) => route.fulfill({ status: 404, contentType: "text/plain", body: "Not found" }));
   await page.goto("/projects");
-  await page.getByRole("button", { name: "Моя страница" }).first().click();
+  await page.getByRole("link", { name: "Моя страница" }).first().click();
   const notice = page.getByRole("alert").filter({ hasText: "Не удалось показать страницу" });
   await expect(notice).toBeVisible();
   await expect(notice).toContainText("вышла новая версия приложения");
-  await page.getByRole("button", { name: "Портфель" }).first().click();
+  await page.getByRole("link", { name: "Портфель" }).first().click();
   await expect(notice).toHaveCount(0);
 });
 
@@ -47,7 +47,7 @@ test("built: a page answered with the application's HTML instead of its script a
     return route.fallback();
   });
   await page.goto("/projects");
-  await page.getByRole("button", { name: "Моя страница" }).first().click();
+  await page.getByRole("link", { name: "Моя страница" }).first().click();
   await expect(page.getByText("Мои страницы (0)")).toBeVisible();
   expect(failures).toBe(1);
 });

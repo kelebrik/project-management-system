@@ -29,20 +29,20 @@ test("portfolio to projects selects the largest complete WBS and preserves expli
   await mockAdminPortfolio(page, projectsFixture());
   await page.goto("/SMALL/overview");
   await expect(picker(page, "SMALL")).toBeVisible();
-  await navigation(page).getByRole("button", { name: "Проекты", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Проекты", exact: true }).click();
   await expect(picker(page, "SMALL")).toBeVisible();
-  await navigation(page).getByRole("button", { name: "Портфель", exact: true }).click();
-  await navigation(page).getByRole("button", { name: "Проекты", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Портфель", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Проекты", exact: true }).click();
   await expect(page).toHaveURL(/\/projects(?:[?#]|$)/);
   await expect(picker(page, "LARGE")).toBeVisible();
 
-  await navigation(page).getByRole("button", { name: "Портфель", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Портфель", exact: true }).click();
   // The passport fields next to the progress open the project's passport, as the cards did.
   await page.getByRole("button", { name: /Открыть паспорт: SMALL/ }).click();
   await expect(picker(page, "SMALL")).toBeVisible();
   await expect(page).toHaveURL(/\/SMALL\/passport/);
-  await navigation(page).getByRole("button", { name: "Проекты", exact: true }).click();
-  await navigation(page).getByRole("button", { name: "Портфель", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Проекты", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Портфель", exact: true }).click();
   await page.goBack();
   await expect(page).toHaveURL(/\/projects(?:[?#]|$)/);
   await expect(picker(page, "LARGE")).toBeVisible();
@@ -98,6 +98,6 @@ test("leaving projects cancels a pending default selection", async ({ page }) =>
     window.dispatchEvent(new PopStateEvent("popstate"));
   });
   release();
-  await navigation(page).getByRole("button", { name: "Проекты", exact: true }).click();
+  await navigation(page).getByRole("link", { name: "Проекты", exact: true }).click();
   await expect(picker(page, "SMALL")).toBeVisible();
 });

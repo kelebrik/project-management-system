@@ -54,7 +54,7 @@ test("workload shows owners with work coloured by project and marks overlaps", a
   await mockWorkload(page);
   await page.goto("/operations/workload");
 
-  await expect(page.getByRole("navigation", { name: "Операционка" }).getByRole("button", { name: "Загрузка" })).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: "Операционка" }).getByRole("link", { name: "Загрузка" })).toHaveClass(/active/);
   // Two spellings of one name make one row, matched to the directory.
   await expect(page.getByRole("rowheader", { name: /Иванов/ })).toHaveCount(1);
   await expect(page.getByRole("rowheader", { name: /Петров/ })).toHaveCount(1);

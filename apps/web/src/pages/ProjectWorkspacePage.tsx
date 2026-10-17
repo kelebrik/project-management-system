@@ -6,6 +6,8 @@ import { EmployeeNamesList } from "../components/EmployeeNamesList";
 import { WbsDraftButton } from "../components/ai/AiProjectButtons";
 import { PlanSnapshotsButton } from "../components/planSnapshots/PlanSnapshotsButton";
 import { WbsTableButton } from "../components/wbsTable/WbsTableButton";
+import { WbsDetailsPanel } from "../components/wbs/WbsDetailsPanel";
+import { PanelRight } from "lucide-react";
 import { hasPendingWbsBuffers } from "../app/wbsBuffers";
 
 export function ProjectWorkspacePage() {
@@ -27,7 +29,7 @@ export function ProjectWorkspacePage() {
                         activeView === "project-structure"
                           ? "workspace-focus-structure"
                           : "workspace-focus-gantt"
-                      }`}
+                      } ${ctx.wbsDetailsOpen ? "with-details" : ""}`}
                     >
                     <div className="panel-title">
                       <div>
@@ -42,9 +44,10 @@ export function ProjectWorkspacePage() {
                           : uiText("ui.projects.ganttTabDescription")}
                       </p>
                     </div>
-                    {activeView === "project-structure" && (
-                      // The page's tools sit together on the right, in one row.
-                      <div className="structure-title-actions">
+                    {/* The page's tools sit together on the right, in one row. */}
+                    <div className="structure-title-actions">
+                      {activeView === "project-structure" && (
+                        <>
                         <PlanSnapshotsButton
                           canWrite={!ctx.isReadOnly && !ctx.isClosedProject}
                           hasUnsavedEdits={() => (ctx.dirtyWbsItemIds?.size ?? 0) > 0 || hasPendingWbsBuffers() || Boolean(ctx.savingWbsBulk)}
@@ -61,8 +64,26 @@ export function ProjectWorkspacePage() {
                         {!ctx.isReadOnly && (
                           <WbsDraftButton onApplied={() => ctx.refreshProject(ctx.project.id)} projectId={ctx.project.id} unsavedRows={ctx.dirtyWbsItemIds?.size ?? 0} />
                         )}
-                      </div>
-                    )}
+                        </>
+                      )}
+                      <button
+                        type="button"
+                        id="wbs-details-toggle"
+                        className={`wbs-details-toggle ${ctx.wbsDetailsOpen ? "active" : ""}`.trim()}
+                        aria-pressed={Boolean(ctx.wbsDetailsOpen)}
+                        aria-controls={ctx.wbsDetailsOpen ? "wbs-details-panel" : undefined}
+                        title={uiText("structure.cardTitle")}
+                        onClick={() => ctx.setWbsDetailsOpen(!ctx.wbsDetailsOpen)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape" && ctx.wbsDetailsOpen) {
+                            event.preventDefault();
+                            ctx.setWbsDetailsOpen(false);
+                          }
+                        }}
+                      >
+                        <PanelRight size={15} /> {uiText("structure.card")}
+                      </button>
+                    </div>
                         </div>
                       <div className="wbs-gantt-layout">
                       {activeView === "project-structure" && !ctx.isReadOnly && <EmployeeNamesList />}
@@ -70,6 +91,7 @@ export function ProjectWorkspacePage() {
                       {activeView === "project-gantt" && <ProjectGanttSection key={`${ctx.currentUser?.id}:${ctx.project.id}`} />}
                   </div>
                 </article>
+                {ctx.wbsDetailsOpen && <WbsDetailsPanel />}
     </>
               );
 }

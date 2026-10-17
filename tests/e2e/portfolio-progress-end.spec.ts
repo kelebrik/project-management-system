@@ -31,7 +31,7 @@ test("a goal moved earlier in the passport ends the portfolio bar there, with no
   await saved;
 
   // Back to the registry inside the app: the bar ends at the new goal, not the old last date.
-  await page.getByRole("button", { name: "Реестр" }).click();
+  await page.getByRole("link", { name: "Реестр" }).click();
   await expect(bar).toHaveAttribute("aria-label", new RegExp(shown(isoDay(90))));
   await expect(bar).not.toHaveAttribute("aria-label", new RegExp(shown(isoDay(160))));
 });

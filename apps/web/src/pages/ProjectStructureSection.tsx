@@ -182,11 +182,18 @@ export function ProjectStructureSection() {
   });
   // A row asked for by a link or a selection may be outside the rendered window: scroll to it first.
   const scrollToWindowRow = useEffectEvent((id: string) => scrollToRow(id));
-  const revealActiveRow = useEffectEvent((id: string) => {
-    if (rowsWindowed && !document.getElementById(`wbs-item-${id}`)) scrollToRow(id);
+  const revealActiveRow = useEffectEvent((id: string, onOpen: boolean) => {
+    if (rowsWindowed && !document.getElementById(`wbs-item-${id}`)) {
+      scrollToRow(id);
+      return;
+    }
+    // Coming back from the Gantt chart, the row chosen there is brought into view.
+    if (onOpen) document.getElementById(`wbs-item-${id}`)?.scrollIntoView({ block: "center" });
   });
+  const openedRef = useRef(false);
   useEffect(() => {
-    if (activeWbsItemId) revealActiveRow(activeWbsItemId);
+    if (activeWbsItemId) revealActiveRow(activeWbsItemId, !openedRef.current);
+    openedRef.current = true;
   }, [activeWbsItemId]);
 
   useEffect(() => {

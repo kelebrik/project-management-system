@@ -105,7 +105,7 @@ test("saves ask nothing; leaving the Structure asks once about the session's net
   }
   await expect(prompt).toHaveCount(0);
 
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Состояние" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Состояние" }).click();
   await expect.poll(() => closes).toEqual([{ sessionId: "s1", mode: "leave" }]);
   await expect(prompt).toBeVisible();
   await expect(prompt).toContainText("2 Готово к релизу");
@@ -116,11 +116,11 @@ test("saves ask nothing; leaving the Structure asks once about the session's net
   expect(reasons).toEqual([{ sessionId: "s1", checkpointIds: ["m"], category: "ESTIMATE", text: "", raidItemId: null }]);
 
   // Back to editing: a new session, asked about on its own when left.
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Структура" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Структура" }).click();
   if ((await page.locator('[data-wbs-row-id="a"]').count()) === 0) await page.getByRole("button", { name: "2", exact: true }).click();
   await editWorkDays(page, "4");
   await expect.poll(() => saves).toEqual(["s1", "s1", "s1", "s2"]);
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Состояние" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Состояние" }).click();
   await expect.poll(() => closes.map((close) => close.sessionId)).toEqual(["s1", "s2"]);
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Без причины" }).last().click();
@@ -131,8 +131,8 @@ test("moving between the Structure, Current work and Gantt keeps the session goi
   const { saves, closes } = await openPlan(page);
   await editWorkDays(page, "5");
   await expect.poll(() => saves.length).toBe(1);
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Гантт" }).click();
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Структура" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Гантт" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Структура" }).click();
   await page.waitForTimeout(500);
   expect(closes).toEqual([]);
 });
@@ -152,7 +152,7 @@ test("a question that could not be fetched after a leave is said so and fetched 
   await editWorkDays(page, "5");
   await expect.poll(() => saves.length).toBe(1);
   control.failNext = 1;
-  await page.locator(".project-section-navigation").getByRole("button", { name: "Состояние" }).click();
+  await page.locator(".project-section-navigation").getByRole("link", { name: "Состояние" }).click();
   await expect.poll(() => closes.map((close) => close.sessionId)).toEqual(["s1"]);
   const failed = page.getByRole("status").filter({ hasText: "Не удалось узнать, о каких сдвигах спросить" });
   await expect(failed).toBeVisible();

@@ -8,9 +8,9 @@ test("my page is first in the top bar, says what it can do once, and reports mov
   await page.route(/\/api\/pages(\?.*)?$/, (route) => route.fulfill({ json: { canSave: true, limit: 50, pages: [] } }));
   await page.route("**/api/pages/scope-options", (route) => route.fulfill({ json: { projects: [], portfolios: [] } }));
   await page.goto("/portfolio");
-  const sections = page.getByRole("navigation", { name: /разделы|sections/i }).getByRole("button");
+  const sections = page.getByRole("navigation", { name: /разделы|sections/i }).getByRole("link");
   await expect(sections.first()).toHaveText(/Моя страница/, { timeout: 15_000 });
-  await expect(page.getByRole("navigation", { name: /разделы|sections/i }).getByRole("button", { name: "Отчёты" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: /разделы|sections/i }).getByRole("link", { name: "Отчёты" })).toHaveCount(0);
 
   await sections.first().click();
   await expect(page).toHaveURL(/\/my-page$/);
@@ -31,5 +31,5 @@ test("my page is first in the top bar, says what it can do once, and reports mov
 
   await page.goto("/reports");
   await expect(page).toHaveURL(/\/reports/);
-  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("button", { name: "Отчёты" })).toHaveClass(/active/);
+  await expect(page.getByRole("navigation", { name: "Разработка" }).getByRole("link", { name: "Отчёты" })).toHaveClass(/active/);
 });

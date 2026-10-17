@@ -1,5 +1,5 @@
 import { useI18n as useInterfaceTranslation } from "../i18n/I18nProvider";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { ScenarioResult } from "@pms/shared";
 import { createScenarioGantt } from "../app/scenarioGanttModel";
 import { usePageContext } from "./PageContext";
@@ -47,6 +47,14 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
     wbsGantt: workingGantt,
     ganttRangeDays,
   } = usePageContext();
+  // The chosen row comes into view when the chart opens; a later choice only scrolls if it is out of view.
+  const openedRef = useRef(false);
+  useEffect(() => {
+    if (activeWbsItemId) {
+      document.getElementById(`gantt-row-${activeWbsItemId}`)?.scrollIntoView({ block: openedRef.current ? "nearest" : "center", inline: "nearest" });
+    }
+    openedRef.current = true;
+  }, [activeWbsItemId]);
   // Lengths of the links meant in pixels (arrowheads, corners) are turned into % of the timeline.
   const timelineWidth = useElementWidth(ganttTimelineRef);
   const percentPerPx = 100 / Math.max(1, timelineWidth || 1200);
@@ -138,6 +146,7 @@ export function ProjectGanttPanel({ scenario = null }: { scenario?: ScenarioResu
                                       : ""
                                   }`}
                                   key={item.id}
+                                  id={`gantt-row-${item.id}`}
                                   style={{
                                     paddingLeft: `${wbsDisplayLevel(item) * 14 + 10}px`,
                                   }}
