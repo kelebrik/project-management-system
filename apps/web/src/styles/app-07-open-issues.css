@@ -353,8 +353,8 @@
 }
 
 .issue-inline-error {
-  background: #fef2f2;
-  border: 1px solid #fecaca;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
   border-radius: 4px;
   color: var(--danger-800);
   display: block;

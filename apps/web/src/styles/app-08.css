@@ -19,6 +19,11 @@
   color: #be185d;
 }
 
+[data-theme="dark"] .milestone-state.pink {
+  background: #3b1f2e;
+  color: #f9a8d4;
+}
+
 .milestone-sections {
   display: grid;
   gap: 16px;

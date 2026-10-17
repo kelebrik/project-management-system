@@ -195,9 +195,9 @@
 }
 
 .risk-matrix-problems {
-  background: var(--text-strong);
+  background: var(--inverse-surface);
   border-radius: 999px;
-  color: #fff;
+  color: var(--on-inverse);
   font-size: 11px;
   min-width: 20px;
   padding: 1px 6px;

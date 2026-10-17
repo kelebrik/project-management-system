@@ -241,7 +241,7 @@
 }
 
 .gantt-head {
-  background: #f7f9fc;
+  background: var(--surface-2);
   display: grid;
   grid-template-columns: var(--gantt-wbs-width, 360px) 8px minmax(var(--gantt-timeline-width, 520px), 1fr);
   min-width: calc(var(--gantt-wbs-width, 360px) + 8px + var(--gantt-timeline-width, 520px));
@@ -260,7 +260,7 @@
 }
 
 .gantt-head > span:first-child {
-  background: #f7f9fc;
+  background: var(--surface-2);
   box-shadow: 1px 0 0 var(--border-2);
   left: 0;
   position: sticky;
@@ -268,8 +268,8 @@
 }
 
 .gantt-scale {
-  background: #f7f9fc;
-  color: #5f6f85;
+  background: var(--surface-2);
+  color: var(--text-muted);
   font-size: 12px;
   font-weight: 900;
   letter-spacing: 0.02em;
@@ -312,9 +312,9 @@
 
 .gantt-label {
   align-items: center;
-  background: #fbfcfe;
+  background: var(--surface);
   border-right: 1px solid var(--border-2);
-  color: #2f3b4d;
+  color: var(--text-heading);
   display: flex;
   gap: 7px;
   font-size: 13px;
@@ -368,7 +368,7 @@
 
 .gantt-label.predecessor,
 .gantt-track-row.predecessor {
-  background: #f0fdf4;
+  background: var(--success-soft);
 }
 
 .gantt-label.successor,

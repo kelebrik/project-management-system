@@ -41,9 +41,9 @@
 }
 
 .toast.warning {
-  background: #fffbeb;
+  background: var(--warning-bg);
   border: 1px solid #fcd34d;
-  color: #92400e;
+  color: var(--warning-800);
 }
 
 .toast strong {
@@ -399,7 +399,7 @@
 }
 
 .schedule-impact-group.acceleration .executive-overview-row {
-  background: #f0fdf4;
+  background: var(--success-soft);
   border-color: #bbf7d0;
 }
 

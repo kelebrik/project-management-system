@@ -37,7 +37,7 @@
 }
 
 .progress {
-  background: #e5e7eb;
+  background: var(--surface-tint);
   border-radius: 999px;
   height: 9px;
   overflow: hidden;
@@ -336,7 +336,7 @@
 
 .portfolio-project-timeline-title strong {
   align-items: center;
-  background: #e0f2fe;
+  background: var(--info-soft);
   border-radius: 999px;
   color: var(--info-800);
   display: inline-flex;
@@ -645,8 +645,8 @@
 
 .portfolio-goal-dot.goal-health-late-warning,
 .portfolio-goal-item.goal-health-late-warning .portfolio-goal-item-index {
-  background: var(--warning-500);
-  color: #92400e;
+  background: #b45309;
+  color: #ffffff;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--warning-500) 28%, transparent);
 }
 .portfolio-goal-dot.goal-health-late-danger,
@@ -749,7 +749,7 @@
 
 .portfolio-blocker-item {
   align-items: center;
-  background: #fbfdff;
+  background: var(--surface-2);
   border: 0;
   color: var(--text);
   cursor: pointer;
@@ -775,7 +775,7 @@
   align-items: center;
   background: var(--danger);
   border-radius: 999px;
-  color: #fff;
+  color: var(--on-danger);
   display: inline-flex;
   font-size: 13px;
   font-weight: 900;
@@ -923,8 +923,8 @@
 }
 
 .portfolio-raid-due.soon {
-  background: #ffedd5;
-  color: #c2410c;
+  background: var(--warning-soft);
+  color: var(--warning-800);
 }
 
 .portfolio-raid-due.normal,

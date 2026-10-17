@@ -239,9 +239,9 @@
 }
 
 .read-only-mode .sidebar-user-icon {
-  background: #ffedd5;
+  background: var(--warning-soft);
   border-color: #fdba74;
-  color: #9a3412;
+  color: var(--warning-800);
 }
 
 .readonly-banner {
@@ -249,7 +249,7 @@
   background: var(--warning-bg);
   border: 1px solid #fed7aa;
   border-radius: 8px;
-  color: #9a3412;
+  color: var(--warning-800);
   display: flex;
   gap: 10px;
   padding: 10px 12px;
@@ -264,7 +264,7 @@
 .readonly-banner button {
   background: var(--surface);
   border: 1px solid #fdba74;
-  color: #9a3412;
+  color: var(--warning-800);
   font-size: 13px;
   font-weight: 900;
   padding: 7px 10px;

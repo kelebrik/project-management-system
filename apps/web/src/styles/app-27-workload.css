@@ -332,7 +332,7 @@
   margin-left: 6px;
   padding: 0 6px;
 }
-.workload-share-chip.overloaded { background: #fff7ed; border-color: #ea580c; color: #9a3412; font-weight: 600; }
+.workload-share-chip.overloaded { background: var(--warning-bg); border-color: #ea580c; color: var(--warning-800); font-weight: 600; }
 .workload-share-chip.empty { opacity: 0; }
 .workload-row:hover .workload-share-chip.empty, .workload-share-chip.empty:focus-visible { opacity: 1; }
 .side-drawer.workload-shares { align-content: start; display: grid; gap: 10px; max-width: 100vw; width: 560px; }

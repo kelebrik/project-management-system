@@ -121,7 +121,7 @@
 
 .confirm-accept.danger {
   background: var(--danger);
-  color: var(--on-brand);
+  color: var(--on-danger);
 }
 
 .confirm-accept.danger:hover {

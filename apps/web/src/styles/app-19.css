@@ -85,7 +85,7 @@
 }
 
 .search-scope-tabs button.active {
-  background: #e0ecff;
+  background: var(--brand-soft);
   color: var(--brand);
 }
 
@@ -217,7 +217,7 @@
 
 .portfolio-project-filter.is-filtered summary strong {
   background: var(--danger);
-  color: #fff;
+  color: var(--on-danger);
 }
 
 .portfolio-project-filter-chevron {

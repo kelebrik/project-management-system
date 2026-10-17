@@ -553,21 +553,21 @@
 }
 
 .jira-capacity-gates .complete {
-  background: #eef8f2;
+  background: var(--success-soft);
   border-color: #a9d6b9;
-  color: #23633a;
+  color: var(--success-800);
 }
 
 .jira-capacity-gates .review {
-  background: #fff8e8;
+  background: var(--warning-soft);
   border-color: #e4c875;
-  color: #765800;
+  color: var(--warning-800);
 }
 
 .jira-capacity-gates .blocked {
-  background: #fff0f0;
-  border-color: #e6aaaa;
-  color: #982b2b;
+  background: var(--danger-soft);
+  border-color: var(--danger-border);
+  color: var(--danger-800);
 }
 
 .jira-capacity-summary {
@@ -837,7 +837,7 @@
 
 .jira-work-type {
   align-items: center;
-  background: #3b82f6;
+  background: #2563eb;
   border-radius: 4px;
   color: #fff;
   display: inline-flex;
@@ -850,7 +850,7 @@
 
 .jira-work-priority,
 .jira-work-status {
-  background: #e8edf5;
+  background: var(--surface-3);
   border-radius: 4px;
   color: var(--text-heading);
   display: inline-flex;

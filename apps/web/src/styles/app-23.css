@@ -196,15 +196,15 @@
 }
 
 .attendance-kind.user {
-  background: #e8f4f1;
-  border-color: #acd2ca;
-  color: #286c66;
+  background: var(--brand-soft);
+  border-color: var(--brand-border);
+  color: var(--brand);
 }
 
 .attendance-kind.anonymous {
-  background: #fff3df;
-  border-color: #e7c58d;
-  color: #875b1d;
+  background: var(--warning-soft);
+  border-color: var(--warning-soft);
+  color: var(--warning-800);
 }
 
 .attendance-retention-note {

@@ -269,7 +269,7 @@
 }
 
 .overview-status-pill {
-  background: #eef2ff;
+  background: var(--brand-soft);
   border: 1px solid #c7d2fe;
   border-radius: 999px;
   color: var(--brand) !important;

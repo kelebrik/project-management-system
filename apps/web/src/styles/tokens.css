@@ -32,7 +32,7 @@
   --text-strongest: #0d151c;
   --text-heading: #293633;
   --text-secondary: #475652;
-  --text-muted: #64716f;
+  --text-muted: #5f6c6a;
   --text-faint: #8b9694;
 
   /* Тёмные «инвертированные» поверхности (тултипы, тёмные бейджи).
@@ -50,6 +50,8 @@
   --brand-border: #a9d8d1;
   --brand-border-strong: #74bdb4;
   --on-brand: #ffffff;
+  /* Текст на заливке --danger / --danger-700 (кнопки подтверждения). */
+  --on-danger: #ffffff;
 
   /* --- Опасность / RAG red --- */
   --danger: #dc2626;
@@ -73,6 +75,8 @@
   --warning-800: #92400e;
   --warning-bg: #fff7ed;
   --info-800: #075985;
+  /* Информационная подложка (подсказки, выбранные вкладки): текст на ней --info-800. */
+  --info-soft: #e0f2fe;
 
   /* --- Радиусы --- */
   --radius-sm: 6px;
@@ -143,7 +147,9 @@
   --brand-soft-2: #1d4742;
   --brand-border: #28655e;
   --brand-border-strong: #38877e;
-  --on-brand: #ffffff;
+  /* Тёмный текст: бирюзовый акцент тёмной темы светлый, белый на нём не читается (2:1). */
+  --on-brand: #0b1220;
+  --on-danger: #0b1220;
 
   --danger: #f0616a;
   --danger-500: #f0616a;
@@ -164,6 +170,7 @@
   --warning-800: #f0b968;
   --warning-bg: #2a2012;
   --info-800: #5fb0e0;
+  --info-soft: #15293a;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
   --shadow: 0 8px 18px rgba(0, 0, 0, 0.45);

@@ -477,7 +477,7 @@
 }
 
 .calendar-month > strong {
-  background: #d1d5db;
+  background: var(--border);
   color: var(--text);
   display: block;
   font-size: 15px;
@@ -495,7 +495,7 @@
   background: var(--surface-3);
   border-bottom: 1px solid #d1d5db;
   border-right: 1px solid #d1d5db;
-  color: #374151;
+  color: var(--text-secondary);
   font-size: 13px;
   font-weight: 900;
   padding: 7px 2px;
@@ -528,8 +528,8 @@
 }
 
 .calendar-day.holiday {
-  background: #fff7f7;
-  color: var(--danger-500);
+  background: var(--danger-bg);
+  color: var(--danger-800);
 }
 
 .calendar-day.custom {
@@ -681,7 +681,7 @@
 }
 
 .wbs-table-row:hover {
-  background: #fbfcfe;
+  background: var(--surface-2);
 }
 
 .wbs-table-row.active {
@@ -708,7 +708,7 @@
 }
 
 .wbs-table-row.milestone {
-  background: #fffaf3;
+  background: var(--warning-bg);
 }
 
 .wbs-table-row input,
@@ -788,7 +788,7 @@
 .wbs-predecessor-timing-button.active {
   background: var(--brand-600);
   border-color: var(--brand);
-  color: #ffffff;
+  color: var(--on-brand);
 }
 
 .wbs-predecessor-timing-button:disabled {

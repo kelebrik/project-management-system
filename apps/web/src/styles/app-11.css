@@ -309,7 +309,7 @@
 }
 
 .gantt-today::before {
-  background: #ef4b8c;
+  background: #c2185b;
   border-radius: 999px;
   color: #fff;
   content: "";

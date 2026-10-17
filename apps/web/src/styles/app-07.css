@@ -142,7 +142,7 @@
 }
 
 .issue-status-add-card {
-  background: #eef4ff;
+  background: var(--info-soft);
   border: 1px solid var(--brand-border);
   border-radius: 8px;
   display: grid;
@@ -231,7 +231,7 @@
 }
 
 .issue-status-timeline-item.current .issue-status-entry {
-  background: #f8fbff;
+  background: var(--surface-2);
   border-color: var(--brand-border);
 }
 
@@ -607,7 +607,7 @@
 }
 
 .issue-register-group-heading > th {
-  background: #d9dee6;
+  background: var(--surface-tint);
   border-bottom: 1px solid #bcc5d1;
   color: var(--text-heading);
   font-size: 14px;

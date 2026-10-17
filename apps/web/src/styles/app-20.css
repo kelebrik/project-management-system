@@ -6,7 +6,7 @@
 
 .page-loading-skeleton {
   animation: page-skeleton-pulse 1.2s ease-in-out infinite alternate;
-  background: #e8edf3;
+  background: var(--surface-tint);
   border-radius: 6px;
   min-height: 260px;
 }
@@ -79,7 +79,7 @@
 }
 
 .decision-queue-table > button.overdue {
-  background: #fff7f7;
+  background: var(--danger-bg);
   box-shadow: inset 3px 0 var(--danger);
 }
 
@@ -110,7 +110,7 @@
 .pm-filter-set button.active {
   background: var(--brand);
   border-color: var(--brand);
-  color: #fff;
+  color: var(--on-brand);
 }
 
 .pm-queue-list {
